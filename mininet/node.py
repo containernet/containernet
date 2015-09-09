@@ -631,6 +631,15 @@ class Node( object ):
         "Make sure our class dependencies are available"
         pathCheck( 'mnexec', 'ifconfig', moduleName='Mininet')
 
+
+class Docker ( Node ):
+    "Node that represents a docker container"
+
+    def __init__(self, name, **kwargs):
+        Node.__init__(self, name, **kwargs)
+        info("Created docker container %s\n" % name)
+
+
 class Host( Node ):
     "A host is simply a Node"
     pass
