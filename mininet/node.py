@@ -675,6 +675,7 @@ class Docker ( Node ):
             name="%s.%s" % (self.dnameprefix, self.name),
             image=self.dimage,
             command=self.dcmd,
+            stdin_open=True,  # keep container open
             network_disabled=True # we will do network on our own
             )
         # start the container 
