@@ -57,6 +57,7 @@ import pty
 import re
 import signal
 import select
+import docker
 from subprocess import Popen, PIPE
 from time import sleep
 
@@ -636,39 +637,70 @@ class Docker ( Node ):
     """Node that represents a docker container.
     This part is inspired by: 
     http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
+    We use the docker-py client library to control docker.
     """
 
-    def __init__(self, name, dockimage, dockcmd=None, dockargs=None, **kwargs):
-        self.dockimage = dockimage
-        self.docknameprfx = "mn."
-        self.dockcmd = dockcmd if dockcmd is not None else "/bin/bash"
-        self.dockargs = dockargs if dockargs is not None else []
-        # ensure that there are the following docker args:
-        if "-i" not in self.dockargs:
-            self.dockargs.append("-i")
-        if "-t" not in self.dockargs:
-            self.dockargs.append("-t")
+    def __init__(self, name, dimage, dcmd=None, **kwargs):
+        self.dimage = dimage
+        self.dnameprefix = "mn"
+        self.dcmd = dcmd if dcmd is not None else "/bin/bash"
+        self.dc = None  # pointer to the container 
 
-        info("Created docker container %s\n" % name)
-        info("image: %s\n" % str(self.dockimage))
-        info("dockargs: %s\n" % str(self.dockargs))
-        info("dockcmd: %s\n" % str(self.dockcmd))
+        # setup docker client
+        self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
+       
+        info("Created docker container object %s\n" % name)
+        info("image: %s\n" % str(self.dimage))
+        info("dcmd: %s\n" % str(self.dcmd))
         info("kwargs: %s\n" % str(kwargs))
+
+        """
+        # docker tests
+        container = self.dockc.create_container(image="ubuntu", command="/bin/sleep 30")
+        self.dockc.start(container)
+        print container
+        print self.dockc.containers()
+        ex = self.dockc.exec_create(container, cmd="ifconfig")
+        print ""
+        print self.dockc.exec_start(ex)
+        """
+
         # call original Node.__init__
         Node.__init__(self, name, **kwargs)
 
+
     def startShell( self, mnopts=None ):
-        pass
+        # create new docker container
+        self.dc = self.dcli.create_container(
+            name="%s.%s" % (self.dnameprefix, self.name),
+            image=self.dimage,
+            command=self.dcmd,
+            network_disabled=True # we will do network on our own
+            )
+        # start the container 
+        self.dcli.start(self.dc)
+
+        print self.dcli.inspect_container(self.dc)
+
+
+        # TODO set all membervars used by mininet
+        # Issue: What about e.g. self.shell try: docker-py.logs
 
     def terminate( self ):
-        pass
+        """ Stop docker container """
+        self.dcli.stop(self.dc, timeout=1)
+        # also remove the container
+        # TODO this should be optional later
+        self.dcli.remove_container(self.dc)
+        self.cleanup()
 
+"""
     def sendCmd( self, *args, **kwargs ):
         pass
 
     def popen( self, *args, **kwargs ):
         pass
-
+"""
 
 
 

@@ -26,8 +26,8 @@ def dockerNet():
     h2 = net.addHost( 'h2', ip='10.0.0.2' )
 
     info( '*** Adding docker containers\n' )
-    d1 = net.addHost( 'd1', ip='10.0.0.253', cls=Docker, dockimage="ubuntu" )
-    d2 = net.addHost( 'd2', ip='10.0.0.254', cls=Docker, dockimage="ubuntu" )
+    d1 = net.addHost( 'd1', ip='10.0.0.253', cls=Docker, dimage="ubuntu", dcmd="/bin/sleep 180" )
+    d2 = net.addHost( 'd2', ip='10.0.0.254', cls=Docker, dimage="ubuntu", dcmd="/bin/sleep 180" )
 
     info( '*** Adding switch\n' )
     s1 = net.addSwitch( 's1' )
