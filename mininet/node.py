@@ -633,11 +633,45 @@ class Node( object ):
 
 
 class Docker ( Node ):
-    "Node that represents a docker container"
+    """Node that represents a docker container.
+    This part is inspired by: 
+    http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
+    """
 
-    def __init__(self, name, **kwargs):
-        Node.__init__(self, name, **kwargs)
+    def __init__(self, name, dockimage, dockcmd=None, dockargs=None, **kwargs):
+        self.dockimage = dockimage
+        self.docknameprfx = "mn."
+        self.dockcmd = dockcmd if dockcmd is not None else "/bin/bash"
+        self.dockargs = dockargs if dockargs is not None else []
+        # ensure that there are the following docker args:
+        if "-i" not in self.dockargs:
+            self.dockargs.append("-i")
+        if "-t" not in self.dockargs:
+            self.dockargs.append("-t")
+
         info("Created docker container %s\n" % name)
+        info("image: %s\n" % str(self.dockimage))
+        info("dockargs: %s\n" % str(self.dockargs))
+        info("dockcmd: %s\n" % str(self.dockcmd))
+        info("kwargs: %s\n" % str(kwargs))
+        # call original Node.__init__
+        Node.__init__(self, name, **kwargs)
+
+    def startShell( self, mnopts=None ):
+        pass
+
+    def terminate( self ):
+        pass
+
+    def sendCmd( self, *args, **kwargs ):
+        pass
+
+    def popen( self, *args, **kwargs ):
+        pass
+
+
+
+
 
 
 class Host( Node ):
