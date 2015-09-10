@@ -680,12 +680,25 @@ class Docker ( Node ):
             )
         # start the container 
         self.dcli.start(self.dc)
-
-        print self.dcli.inspect_container(self.dc)
-
+        # fetch information about new container
+        self.dcinfo = self.dcli.inspect_container(self.dc)
 
         # TODO set all membervars used by mininet
         # Issue: What about e.g. self.shell try: docker-py.logs
+
+        # original Mininet membervars set in startShell method
+        self.shell = None
+        self.stdin = None
+        self.stdout = None
+        self.pid = self._get_pid()
+        self.pollOut = None
+        #self.outToNode[ self.stdout.fileno() ] = self
+        #self.inToNode[ self.stdin.fileno() ] = self
+        self.execed = False
+        self.lastCmd = None
+        self.lastPid = None
+        self.readbuf = ''
+        self.waiting = False
 
     def terminate( self ):
         """ Stop docker container """
@@ -695,16 +708,11 @@ class Docker ( Node ):
         self.dcli.remove_container(self.dc)
         self.cleanup()
 
-"""
-    def sendCmd( self, *args, **kwargs ):
-        pass
-
-    def popen( self, *args, **kwargs ):
-        pass
-"""
-
-
-
+    def _get_pid(self):
+        state = self.dcinfo.get("State", None)
+        if state:
+            return state.get("Pid", -1)
+        return -1
 
 
 class Host( Node ):
