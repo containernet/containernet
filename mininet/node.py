@@ -321,7 +321,7 @@ class Node( object ):
                 self.lastPid = int( markers[ 0 ][ 1: ] )
                 data = re.sub( marker, '', data )
         # Look for sentinel/EOF
-        if len( data ) > 0 and data[ -1 ] == chr( 127 ) or data[-1] == "#":
+        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
             self.waiting = False
             data = data[ :-1 ]
         elif chr( 127 ) in data:
