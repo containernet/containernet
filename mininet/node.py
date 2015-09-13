@@ -321,7 +321,7 @@ class Node( object ):
                 self.lastPid = int( markers[ 0 ][ 1: ] )
                 data = re.sub( marker, '', data )
         # Look for sentinel/EOF
-        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
+        if len( data ) > 0 and data[ -1 ] == chr( 127 ) or data[-1] == "#":
             self.waiting = False
             data = data[ :-1 ]
         elif chr( 127 ) in data:
@@ -635,7 +635,7 @@ class Node( object ):
 
 class Docker ( Node ):
     """Node that represents a docker container.
-    This part is inspired by: 
+    This part is inspired by:
     http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
     We use the docker-py client library to control docker.
     """
@@ -644,30 +644,18 @@ class Docker ( Node ):
         self.dimage = dimage
         self.dnameprefix = "mn"
         self.dcmd = dcmd if dcmd is not None else "/bin/bash"
-        self.dc = None  # pointer to the container 
+        self.dc = None  # pointer to the container
 
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
-       
+
         info("Created docker container object %s\n" % name)
         info("image: %s\n" % str(self.dimage))
         info("dcmd: %s\n" % str(self.dcmd))
         info("kwargs: %s\n" % str(kwargs))
 
-        """
-        # docker tests
-        container = self.dockc.create_container(image="ubuntu", command="/bin/sleep 30")
-        self.dockc.start(container)
-        print container
-        print self.dockc.containers()
-        ex = self.dockc.exec_create(container, cmd="ifconfig")
-        print ""
-        print self.dockc.exec_start(ex)
-        """
-
         # call original Node.__init__
         Node.__init__(self, name, **kwargs)
-
 
     def startShell( self, mnopts=None ):
         # create new docker container
@@ -676,29 +664,69 @@ class Docker ( Node ):
             image=self.dimage,
             command=self.dcmd,
             stdin_open=True,  # keep container open
-            network_disabled=True # we will do network on our own
-            )
-        # start the container 
+            environment={"PS1": chr(127)},
+            network_disabled=True  # we will do network on our own
+        )
+        # start the container
         self.dcli.start(self.dc)
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
 
-        # TODO set all membervars used by mininet
-        # Issue: What about e.g. self.shell try: docker-py.logs
-
         # original Mininet membervars set in startShell method
-        self.shell = None
-        self.stdin = None
-        self.stdout = None
+        cmd = ["docker", "attach", "%s.%s" % (self.dnameprefix, self.name)]
+        # Spawn a shell subprocess in a pseudo-tty, to disable buffering
+        # in the subprocess and insulate it from signals (e.g. SIGINT)
+        # received by the parent
+        master, slave = pty.openpty()
+        self.shell = self._popen( cmd, stdin=slave, stdout=slave, stderr=slave,
+                                  close_fds=False )
+        self.stdin = os.fdopen( master, 'rw' )
+        self.stdout = self.stdin
         self.pid = self._get_pid()
-        self.pollOut = None
-        #self.outToNode[ self.stdout.fileno() ] = self
-        #self.inToNode[ self.stdin.fileno() ] = self
+        self.pollOut = select.poll()
+        self.pollOut.register( self.stdout )
+        self.outToNode[ self.stdout.fileno() ] = self
+        self.inToNode[ self.stdin.fileno() ] = self
         self.execed = False
         self.lastCmd = None
         self.lastPid = None
         self.readbuf = ''
         self.waiting = False
+
+    def sendCmd( self, *args, **kwargs ):
+        """Send a command, followed by a command to echo a sentinel,
+           and return without waiting for the command to complete.
+           args: command and arguments, or string
+           printPid: print command's PID? (False)"""
+        assert self.shell and not self.waiting
+        printPid = kwargs.get( 'printPid', False )
+        # Allow sendCmd( [ list ] )
+        if len( args ) == 1 and isinstance( args[ 0 ], list ):
+            cmd = args[ 0 ]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len( args ) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance( cmd, str ):
+            cmd = ' '.join( [ str( c ) for c in cmd ] )
+        if not re.search( r'\w', cmd ):
+            # Replace empty commands with something harmless
+            cmd = 'echo -n'
+        self.lastCmd = cmd
+        # if a builtin command is backgrounded, it still yields a PID
+        # DockerNet: we have to explicitly print our sentinel char at
+        # the end of each command (\\177 == char(127)) since attach
+        # does not print PS1 of the container environment
+        # otherwise our read method blocks since it does not know
+        # when to stop reading
+        if len( cmd ) > 0 and cmd[ -1 ] == '&':
+            # print ^A{pid}\n so monitor() can set lastPid
+            cmd += ' printf "\\001%d\\012\n\\177" $! '
+        else:
+            cmd += '; printf "\\177"'
+        self.write( cmd + '\n' )
+        self.lastPid = None
+        self.waiting = True
 
     def terminate( self ):
         """ Stop docker container """
@@ -707,6 +735,14 @@ class Docker ( Node ):
         # TODO this should be optional later
         self.dcli.remove_container(self.dc)
         self.cleanup()
+
+    def popen( self, *args, **kwargs ):
+        """Return a Popen() object in node's namespace
+           args: Popen() args, single list, or string
+           kwargs: Popen() keyword args"""
+        # Tell mnexec to execute command in our cgroup
+        mncmd = ["docker", "attach", "%s.%s" % (self.dnameprefix, self.name)]
+        return Node.popen( self, *args, mncmd=mncmd, **kwargs )
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
@@ -718,6 +754,7 @@ class Docker ( Node ):
 class Host( Node ):
     "A host is simply a Node"
     pass
+
 
 class CPULimitedHost( Host ):
 
