@@ -664,7 +664,8 @@ class Docker ( Node ):
             image=self.dimage,
             command=self.dcmd,
             stdin_open=True,  # keep container open
-            environment={"PS1": chr(127)},
+            tty=True,  # allocate pseudo tty
+            environment={"PS1": chr(127)},  # does not seem to have an effect
             network_disabled=True  # we will do network on our own
         )
         # start the container
@@ -672,14 +673,21 @@ class Docker ( Node ):
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
 
-        # original Mininet membervars set in startShell method
-        cmd = ["docker", "attach", "%s.%s" % (self.dnameprefix, self.name)]
+        # use a new shell to connect to conatiner to ensure that we a not
+        # blocked by initial container command
+        cmd = ["docker",
+               "exec",
+               "-it",
+               "%s.%s" % (self.dnameprefix, self.name),
+               "/bin/bash"
+               ]
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
         master, slave = pty.openpty()
         self.shell = self._popen( cmd, stdin=slave, stdout=slave, stderr=slave,
                                   close_fds=False )
+        # original Mininet membervars set in startShell method
         self.stdin = os.fdopen( master, 'rw' )
         self.stdout = self.stdin
         self.pid = self._get_pid()
@@ -693,40 +701,8 @@ class Docker ( Node ):
         self.readbuf = ''
         self.waiting = False
 
-    def sendCmd( self, *args, **kwargs ):
-        """Send a command, followed by a command to echo a sentinel,
-           and return without waiting for the command to complete.
-           args: command and arguments, or string
-           printPid: print command's PID? (False)"""
-        assert self.shell and not self.waiting
-        printPid = kwargs.get( 'printPid', False )
-        # Allow sendCmd( [ list ] )
-        if len( args ) == 1 and isinstance( args[ 0 ], list ):
-            cmd = args[ 0 ]
-        # Allow sendCmd( cmd, arg1, arg2... )
-        elif len( args ) > 0:
-            cmd = args
-        # Convert to string
-        if not isinstance( cmd, str ):
-            cmd = ' '.join( [ str( c ) for c in cmd ] )
-        if not re.search( r'\w', cmd ):
-            # Replace empty commands with something harmless
-            cmd = 'echo -n'
-        self.lastCmd = cmd
-        # if a builtin command is backgrounded, it still yields a PID
-        # DockerNet: we have to explicitly print our sentinel char at
-        # the end of each command (\\177 == char(127)) since attach
-        # does not print PS1 of the container environment
-        # otherwise our read method blocks since it does not know
-        # when to stop reading
-        if len( cmd ) > 0 and cmd[ -1 ] == '&':
-            # print ^A{pid}\n so monitor() can set lastPid
-            cmd += ' printf "\\001%d\\012\n\\177" $! '
-        else:
-            cmd += '; printf "\\177"'
-        self.write( cmd + '\n' )
-        self.lastPid = None
-        self.waiting = True
+        # fix container environment (sentinal chr(127))
+        self.cmd('export PS1="\\177"')
 
     def terminate( self ):
         """ Stop docker container """
@@ -741,7 +717,12 @@ class Docker ( Node ):
            args: Popen() args, single list, or string
            kwargs: Popen() keyword args"""
         # Tell mnexec to execute command in our cgroup
-        mncmd = ["docker", "attach", "%s.%s" % (self.dnameprefix, self.name)]
+        mncmd = ["docker",
+                 "exec",
+                 "-it",
+                 "%s.%s" % (self.dnameprefix, self.name),
+                 "/bin/bash"
+                 ]
         return Node.popen( self, *args, mncmd=mncmd, **kwargs )
 
     def _get_pid(self):
