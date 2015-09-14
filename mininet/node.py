@@ -658,6 +658,12 @@ class Docker ( Node ):
         Node.__init__(self, name, **kwargs)
 
     def startShell( self, mnopts=None ):
+        # creats host config for container
+        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+        hc = self.dcli.create_host_config(
+            network_mode=None,
+            privileged=True  # we need this mode to allow mininet network setup
+        )
         # create new docker container
         self.dc = self.dcli.create_container(
             name="%s.%s" % (self.dnameprefix, self.name),
@@ -666,7 +672,8 @@ class Docker ( Node ):
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
             environment={"PS1": chr(127)},  # does not seem to have an effect
-            network_disabled=True  # we will do network on our own
+            network_disabled=True,  # we will do network on our own
+            host_config=hc
         )
         # start the container
         self.dcli.start(self.dc)

@@ -7,7 +7,7 @@ to it.
 """
 
 from mininet.net import Mininet
-from mininet.node import Controller, Docker
+from mininet.node import Controller, Docker, OVSSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
 
@@ -31,13 +31,13 @@ def dockerNet():
 
     info( '*** Adding switch\n' )
     s1 = net.addSwitch( 's1' )
-    s2 = net.addSwitch( 's2' )
+    s2 = net.addSwitch( 's2', cls=OVSSwitch )
 
     info( '*** Creating links\n' )
     net.addLink( h1, s1 )
-    #net.addLink( d1, s1 )
+    net.addLink( d1, s1 )
     net.addLink( h2, s2 )
-    #net.addLink( d2, s2 )
+    net.addLink( d2, s2 )
     net.addLink( s1, s2 )
 
     info( '*** Starting network\n')

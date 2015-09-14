@@ -176,8 +176,26 @@ def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
         # Delete any old interfaces with the same names
         runCmd( 'ip link del ' + intf1 )
         runCmd2( 'ip link del ' + intf2 )
+
     # Create new pair
     netns = 1 if not node2 else node2.pid
+    if "Docker" in str(type(node1)):  # FIXME: ugly
+        """
+        The problem here is that we can not add a link to another
+        netns within a Docker container since it does not know
+        the other process (process not found error).
+        So we have to do it different!
+        Solution: Create the create the links in the reverse
+        order: switch -> docker instead of host -> switch.
+        """
+        # use the netns of the docker container as target PID
+        netns = 1 if not node1 else node1.pid
+        # swap nodes and interfaces
+        node1, node2 = node2, node1
+        intf1, intf2 = intf2, intf1
+        runCmd, runCmd2 = runCmd2, runCmd
+        # prceed with original Mininet code
+
     if addr1 is None and addr2 is None:
         cmdOutput = runCmd( 'ip link add name %s '
                             'type veth peer name %s '
