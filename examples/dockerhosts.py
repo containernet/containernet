@@ -28,17 +28,22 @@ def dockerNet():
     info( '*** Adding docker containers\n' )
     d1 = net.addHost( 'd1', ip='10.0.0.253', cls=Docker, dimage="ubuntu" )
     d2 = net.addHost( 'd2', ip='10.0.0.254', cls=Docker, dimage="ubuntu" )
+    d3 = net.addHost( 'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu" )
 
     info( '*** Adding switch\n' )
     s1 = net.addSwitch( 's1' )
     s2 = net.addSwitch( 's2', cls=OVSSwitch )
+    s3 = net.addSwitch( 's3' )
 
     info( '*** Creating links\n' )
     net.addLink( h1, s1 )
-    net.addLink( d1, s1 )
+    net.addLink( s1, d1 )
     net.addLink( h2, s2 )
     net.addLink( d2, s2 )
     net.addLink( s1, s2 )
+    # try to add a second interface to a docker container
+    net.addLink( d2, s3, params1={"ip": "11.0.0.254/8"})
+    net.addLink( d3, s3 )
 
     info( '*** Starting network\n')
     net.start()
