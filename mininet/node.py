@@ -633,7 +633,12 @@ class Node( object ):
         pathCheck( 'mnexec', 'ifconfig', moduleName='Mininet')
 
 
-class Docker ( Node ):
+class Host( Node ):
+    "A host is simply a Node"
+    pass
+
+
+class Docker ( Host ):
     """Node that represents a docker container.
     This part is inspired by:
     http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
@@ -649,13 +654,13 @@ class Docker ( Node ):
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
 
-        info("Created docker container object %s\n" % name)
-        info("image: %s\n" % str(self.dimage))
-        info("dcmd: %s\n" % str(self.dcmd))
-        info("kwargs: %s\n" % str(kwargs))
+        debug("Created docker container object %s\n" % name)
+        debug("image: %s\n" % str(self.dimage))
+        debug("dcmd: %s\n" % str(self.dcmd))
+        debug("kwargs: %s\n" % str(kwargs))
 
         # call original Node.__init__
-        Node.__init__(self, name, **kwargs)
+        Host.__init__(self, name, **kwargs)
 
     def startShell( self, mnopts=None ):
         # creats host config for container
@@ -677,6 +682,7 @@ class Docker ( Node ):
         )
         # start the container
         self.dcli.start(self.dc)
+        debug("Docker container %s started\n" % self.name)
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
 
@@ -730,18 +736,13 @@ class Docker ( Node ):
                  "%s.%s" % (self.dnameprefix, self.name),
                  "/bin/bash"
                  ]
-        return Node.popen( self, *args, mncmd=mncmd, **kwargs )
+        return Host.popen( self, *args, mncmd=mncmd, **kwargs )
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
         if state:
             return state.get("Pid", -1)
         return -1
-
-
-class Host( Node ):
-    "A host is simply a Node"
-    pass
 
 
 class CPULimitedHost( Host ):
