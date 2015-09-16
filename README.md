@@ -29,7 +29,14 @@ Based on: Mininet 2.2.1
 ### TODOs
 
 * implement, implement, implement
+* loglevel('debug') leads to freeze on exit
+* STRG+C is not received by container
 
+### Working features
+
+* Container add, remove
+* Connect containers to topology
+* Execute Mininet CLI commands inside container
 
 ### Credits
 Dockernet (c) 2015 by Manuel Peuster
