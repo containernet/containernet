@@ -725,6 +725,39 @@ class Docker ( Host ):
         self.dcli.remove_container(self.dc)
         self.cleanup()
 
+    def monitor( self, timeoutms=None, findPid=True ):
+        """Monitor and return the output of a command.
+           Set self.waiting to False if command has completed.
+           timeoutms: timeout in ms or None to wait indefinitely
+           findPid: look for PID from mnexec -p"""
+        self.waitReadable( timeoutms )
+        data = self.read( 1024 )
+        pidre = r'\[\d+\] \d+\r\n'
+        # Look for PID
+        marker = chr( 1 ) + r'\d+\r\n'
+        if findPid and chr( 1 ) in data:
+            # suppress the job and PID of a backgrounded command
+            if re.findall( pidre, data ):
+                data = re.sub( pidre, '', data )
+            # Marker can be read in chunks; continue until all of it is read
+            while not re.findall( marker, data ):
+                data += self.read( 1024 )
+            markers = re.findall( marker, data )
+            if markers:
+                self.lastPid = int( markers[ 0 ][ 1: ] )
+                data = re.sub( marker, '', data )
+        # Look for sentinel/EOF
+        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
+            self.waiting = False
+            data = data[ :-1 ]
+        elif chr( 127 ) in data:
+            self.waiting = False
+            data = data.replace( chr( 127 ), '' )
+        # Suppress original cmd input (will otherwise be printed in docker TTY)
+        if len( data ) > 0:
+            data = data.replace( self.lastCmd, '').lstrip()
+        return data
+
     def popen( self, *args, **kwargs ):
         """Return a Popen() object in node's namespace
            args: Popen() args, single list, or string
