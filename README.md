@@ -1,5 +1,7 @@
-Dockernet: Mininet fork that integrates Docker containers
-=========================================================
+Dockernet
+=========
+
+### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
 This fork of Mininet allows to use Docker containers as Mininet hosts. This enables interesting functionalities to built networking/cloud testbeds. The integration is done subclassing the original Host class.
 
@@ -32,7 +34,7 @@ Based on: Mininet 2.2.1
 ### Credits
 Dockernet (c) 2015 by Manuel Peuster
 
-* Inspired by: [http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/]
+* Inspired by: http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
 
 
 ### Contact
