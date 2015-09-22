@@ -686,7 +686,7 @@ class Docker ( Host ):
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
 
-        # use a new shell to connect to conatiner to ensure that we a not
+        # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
         cmd = ["docker",
                "exec",
@@ -714,7 +714,7 @@ class Docker ( Host ):
         self.readbuf = ''
         self.waiting = False
 
-        # fix container environment (sentinal chr(127))
+        # fix container environment (sentinel chr(127))
         self.cmd('export PS1="\\177"')
 
     def terminate( self ):
@@ -722,7 +722,7 @@ class Docker ( Host ):
         self.dcli.stop(self.dc, timeout=1)
         # also remove the container
         # TODO this should be optional later
-        self.dcli.remove_container(self.dc)
+        self.dcli.remove_container(self.dc, force=True)
         self.cleanup()
 
     def monitor( self, timeoutms=None, findPid=True ):
