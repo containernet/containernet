@@ -29,10 +29,7 @@ Based on: Mininet 2.2.1
 * test: `mininet> d1 ifconfig` to see config of container d1
 
 ### TODOs
-
-* implement, implement, implement
-* loglevel('debug') leads to freeze on exit
-* STRG+C is not received by container
+* [[Dockernet TODO | https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO]]
 
 ### Working features
 
