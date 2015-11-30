@@ -29,7 +29,7 @@ Based on: Mininet 2.2.1
 * test: `mininet> d1 ifconfig` to see config of container d1
 
 ### TODOs
-* [[Dockernet TODO | https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO]]
+* see Wiki: https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO
 
 ### Working features
 
