@@ -1,0 +1,43 @@
+- hosts: localhost
+  tasks:
+#   - name: updates apt
+#     apt: update_cache=yes
+
+#   - name: upgrade apt
+#     apt: upgrade=full
+
+   - name: install python-pycurl
+     apt: pkg=python-pycurl state=installed update_cache=true
+
+   - name: add apt key
+     shell: apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
+
+   - name: add docker apt repo
+     apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-trusty main' state=present
+
+   - name: install docker-engine
+     apt: pkg=docker-engine state=installed update_cache=true
+     notify:
+       - start docker
+
+   - name: install pip
+     apt: pkg=python-pip state=installed update_cache=true
+
+   - name: install docker-py
+     pip: name=docker-py
+
+   - name: built and install Dockernet (using Mininet installer)
+     shell: dockernet/util/install.sh
+     args:
+       chdir: ../../
+
+   - name: install Dockernet Python egg
+     shell: python setup.py install
+     args:
+       chdir: ../
+
+
+
+  handlers:
+    - name: start docker
+      service: name=docker state=started
