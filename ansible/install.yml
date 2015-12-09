@@ -1,10 +1,10 @@
 - hosts: localhost
   tasks:
-#   - name: updates apt
-#     apt: update_cache=yes
+   - name: updates apt
+     apt: update_cache=yes
 
-#   - name: upgrade apt
-#     apt: upgrade=full
+   - name: upgrade apt
+     apt: upgrade=full
 
    - name: install python-pycurl
      apt: pkg=python-pycurl state=installed update_cache=true
@@ -36,6 +36,8 @@
      args:
        chdir: ../
 
+   - name: download 'ubuntu' docker image for Dockernet example
+      shell: docker run ubuntu
 
 
   handlers:
