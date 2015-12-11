@@ -1,6 +1,8 @@
 Dockernet
 =========
 
+[![Join the chat at https://gitter.im/mpeuster/dockernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/dockernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 ### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
 This fork of Mininet allows to use Docker containers as Mininet hosts. This enables interesting functionalities to built networking/cloud testbeds. The integration is done subclassing the original Host class.
@@ -11,26 +13,32 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.1
 
-### Installation / Requirements
+### Dependencies
 
 * Ubuntu 14.04 LTS
-* Install Docker: `curl -sSL https://get.docker.com/ | sh`
-* Docker client library: `pip install docker-py`
+* Docker
+* docker-py
 
-### Usage
+### Installation
+Automatic installation is provide through a Ansible playbook.
+* Requires: Ubuntu 14.04 LTS
+* `sudo apt-get install ansible git`
+* `sudo vim /etc/ansible/hosts`
+* Add: `localhost ansible_connection=local`
+* `git clone https://github.com/mpeuster/dockernet.git`
+* `cd dockernet/ansible`
+* `sudo ansible-playbook install.yml`
+* Wait (and have a coffee) ...
 
-* see example topology: `examples/dockerhosts.py`
+### Usage / Run
+Start example topology with some empty Docker containers connected to the network.
 
-### Run
-
+* `cd dockernet`
 * run: `sudo python examples/dockerhosts.py`
-* test: `mininet> d1 ifconfig` to see config of container d1
+* use: `mininet> d1 ifconfig` to see config of container d1
 
 ### TODOs
-
-* implement, implement, implement
-* loglevel('debug') leads to freeze on exit
-* STRG+C is not received by container
+* see Wiki: https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO
 
 ### Working features
 
