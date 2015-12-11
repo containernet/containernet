@@ -98,8 +98,8 @@ from math import ceil
 
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
-from mininet.node import ( Node, Host, OVSKernelSwitch, DefaultController,
-                           Controller )
+from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
+                           DefaultController, Controller )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
 from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
@@ -225,6 +225,13 @@ class Mininet( object ):
         self.hosts.append( h )
         self.nameToNode[ name ] = h
         return h
+
+    def addDocker( self, name, **params ):
+        """
+        Wrapper for addHost method that adds a
+        Docker container as a host.
+        """
+        return self.addHost( name, cls=Docker, **params)
 
     def addSwitch( self, name, cls=None, **params ):
         """Add switch.

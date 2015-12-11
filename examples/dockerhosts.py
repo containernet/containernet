@@ -26,7 +26,7 @@ def dockerNet():
     h2 = net.addHost( 'h2', ip='10.0.0.2' )
 
     info( '*** Adding docker containers\n' )
-    d1 = net.addHost( 'd1', ip='10.0.0.253', cls=Docker, dimage="ubuntu" )
+    d1 = net.addDocker( 'd1', ip='10.0.0.253', dimage="ubuntu" )
     d2 = net.addHost( 'd2', ip='10.0.0.254', cls=Docker, dimage="ubuntu" )
     d3 = net.addHost( 'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu" )
 
@@ -55,5 +55,5 @@ def dockerNet():
     net.stop()
 
 if __name__ == '__main__':
-    setLogLevel( 'debug' )
+    setLogLevel( 'info' )
     dockerNet()
