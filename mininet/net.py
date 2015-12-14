@@ -226,12 +226,37 @@ class Mininet( object ):
         self.nameToNode[ name ] = h
         return h
 
+    def removeHost( self, name, **params):
+        """
+        Remove a host from the network at runtime.
+        """
+        try:
+            h = self.get(name)
+        except:
+            error("Host: %s not found. Cannot remove it.\n" % name)
+            return False
+        if h is not None:
+            if h in self.hosts:
+                self.hosts.remove(h)
+            if name in self.nameToNode:
+                del self.nameToNode[name]
+            h.stop( deleteIntfs=True )
+            debug("Removed: %s\n" % name)
+            return True
+        return False
+
     def addDocker( self, name, **params ):
         """
         Wrapper for addHost method that adds a
         Docker container as a host.
         """
         return self.addHost( name, cls=Docker, **params)
+
+    def removeDocker( self, name, **params):
+        """
+        Wrapper for removeHost. Just to be complete.
+        """
+        return self.removeHost(name, **params)
 
     def addSwitch( self, name, cls=None, **params ):
         """Add switch.
@@ -373,6 +398,27 @@ class Mininet( object ):
         link = cls( node1, node2, **options )
         self.links.append( link )
         return link
+
+    def removeLink(self, link=None, node1=None, node2=None):
+        """
+        Removes a link. Can either be specified by link object,
+        or the nodes the link connects.
+        """
+        if link is None:
+            # try to find link by nodes
+            for l in self.links:
+                if l.intf1.node == node1 and l.intf2.node == node2:
+                    link = l
+                    break
+                if l.intf1.node == node2 and l.intf2.node == node1:
+                    link = l
+                    break
+        if link is None:
+            error("Couldn't find link to be removed.\n")
+            return
+        # tear down the link
+        link.delete()
+        self.links.remove(link)
 
     def configHosts( self ):
         "Configure a set of hosts."
