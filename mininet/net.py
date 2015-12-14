@@ -99,7 +99,7 @@ from math import ceil
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
 from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
-                           DefaultController, Controller )
+                           DefaultController, Controller, OVSSwitch )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
 from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
@@ -396,6 +396,14 @@ class Mininet( object ):
         options.setdefault( 'addr2', self.randMac() )
         cls = self.link if cls is None else cls
         link = cls( node1, node2, **options )
+
+        # Allow to add links at runtime
+        # (needs attach method provided by OVSSwitch)
+        if isinstance( node1, OVSSwitch ):
+            node1.attach(link.intf1)
+        if isinstance( node2, OVSSwitch ):
+            node2.attach(link.intf2)
+
         self.links.append( link )
         return link
 
