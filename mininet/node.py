@@ -1391,7 +1391,7 @@ class OVSSwitch( Switch ):
             delcmd = '--if-exists ' + delcmd
         # First, delete them all from ovsdb
         run( 'ovs-vsctl ' +
-             ' -- '.join( delcmd % s for s in switches ) )
+             ' -- '.join( delcmd % s for s in switches ), shell=True )
         # Next, shut down all of the processes
         pids = ' '.join( str( switch.pid ) for switch in switches )
         run( 'kill -HUP ' + pids )
