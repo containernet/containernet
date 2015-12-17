@@ -201,6 +201,8 @@ class Intf( object ):
         # if self.node.inNamespace:
         # Link may have been dumped into root NS
         # quietRun( 'ip link del ' + self.name )
+
+        # call detach if we have a OVSSwitch (just to be sure)
         if isinstance( self.node, mininet.node.OVSSwitch ):
             self.node.detach(self)
 

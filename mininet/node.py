@@ -766,10 +766,22 @@ class Docker ( Host ):
         mncmd = ["docker",
                  "exec",
                  "-it",
-                 "%s.%s" % (self.dnameprefix, self.name),
-                 "/bin/bash"
+                 "%s.%s" % (self.dnameprefix, self.name)
                  ]
         return Host.popen( self, *args, mncmd=mncmd, **kwargs )
+
+    def pexec( self, cmd, *args, **kwargs ):
+        """Execute a command using popen
+           returns: out, err, exitcode
+
+           FIXME: Popen with Docker containers does not work.
+           No idea why!
+           We fake it with normal self.cmd()
+           """
+        out = self.cmd(cmd)
+        err = ""
+        exitcode = 0
+        return out, err, exitcode
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
