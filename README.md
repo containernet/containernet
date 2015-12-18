@@ -20,7 +20,7 @@ Based on: Mininet 2.2.1
 * docker-py
 
 ### Installation
-Automatic installation is provide through a Ansible playbook.
+Automatic installation is provide through an Ansible playbook.
 * Requires: Ubuntu 14.04 LTS
 * `sudo apt-get install ansible git`
 * `sudo vim /etc/ansible/hosts`
@@ -36,6 +36,12 @@ Start example topology with some empty Docker containers connected to the networ
 * `cd dockernet`
 * run: `sudo python examples/dockerhosts.py`
 * use: `mininet> d1 ifconfig` to see config of container d1
+
+### Tests
+There is a set of Dockernet specific unit tests located in `mininet/test/test_dockernet.py`. To run these, do:
+
+* `cd dockernet/mininet`
+* `sudo python test -d`
 
 ### TODOs
 * see Wiki: https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO

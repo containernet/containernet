@@ -1,6 +1,8 @@
 import unittest
 import os
 import time
+import subprocess
+import docker
 from mininet.net import Mininet
 from mininet.node import Host, Controller
 from mininet.node import UserSwitch, OVSSwitch, IVSSwitch
@@ -10,20 +12,44 @@ from mininet.util import quietRun
 from mininet.clean import cleanup
 
 
-class simpleStarTestTopology( object ):
+class simpleTestTopology( unittest.TestCase ):
     """
         Helper class to do basic test setups.
-        s1 -- s2 -- s3
+        s1 -- s2 -- s3 -- ... -- sN
     """
 
-    def createNet(self):
+    def __init__(self, *args, **kwargs):
+        self.net = None
+        self.s = []  # list of switches
+        self.h = []  # list of hosts
+        self.d = []  # list of docker containers
+        self.docker_cli = None
+        super(simpleTestTopology, self).__init__(*args, **kwargs)
+
+    def createNet(
+            self,
+            nswitches=1, nhosts=0, ndockers=0,
+            autolinkswitches=True):
+        """
+        Creates a Mininet instance and automatically adds some
+        nodes to it.
+        """
         self.net = Mininet( controller=Controller )
         self.net.addController( 'c0' )
-        self.s1 = self.net.addSwitch( 's1' )
-        self.s2 = self.net.addSwitch( 's2' )
-        self.s3 = self.net.addSwitch( 's3' )
-        self.net.addLink( self.s1, self.s2 )
-        self.net.addLink( self.s2, self.s3 )
+
+        # add some switches
+        for i in range(0, nswitches):
+            self.s.append(self.net.addSwitch('s%d' % i))
+        # if specified, chain all switches
+        if autolinkswitches:
+            for i in range(0, len(self.s) - 1):
+                self.net.addLink(self.s[i], self.s[i + 1])
+        # add some hosts
+        for i in range(0, nhosts):
+            self.h.append(self.net.addHost('h%d' % i))
+        # add some dockers
+        for i in range(0, ndockers):
+            self.d.append(self.net.addDocker('d%d' % i, dimage="ubuntu"))
 
     def startNet(self):
         self.net.start()
@@ -31,37 +57,102 @@ class simpleStarTestTopology( object ):
     def stopNet(self):
         self.net.stop()
 
+    def getDockerCli(self):
+        """
+        Helper to interact with local docker instance.
+        """
+        if self.docker_cli is None:
+            self.docker_cli = docker.Client(
+                base_url='unix://var/run/docker.sock')
+        return self.docker_cli
+
     @staticmethod
     def setUp():
         pass
 
     @staticmethod
     def tearDown():
-        # TODO kill all docker containers!!!!!!!
         cleanup()
+        # make sure that all pending docker containers are killed
+        with open(os.devnull, 'w') as devnull:
+            subprocess.call(
+                "sudo docker rm -f $(sudo docker ps -a -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
 
 
-class testDockernet( simpleStarTestTopology, unittest.TestCase ):
+class testDockernetConnectivity( simpleTestTopology ):
 
-    def testSingleDockerConnection( self ):
+    def testHostDocker( self ):
         """
-        Create one host and one Docker container, connect them to s1
-        and let them ping each other.
+        d1 -- h1
         """
-        self.createNet()
-        h1 = self.net.addHost( 'h1', ip='10.0.0.1' )
-        d1 = self.net.addDocker( 'd1', ip='10.0.0.254', dimage="ubuntu" )
-        self.net.addLink( h1, self.s1 )
-        self.net.addLink( self.s1, d1 )
-
+        # create network
+        self.createNet(nswitches=0, nhosts=1, ndockers=1)
+        # setup links
+        self.net.addLink( self.h[0], self.d[0])
+        # start Mininet network
         self.startNet()
-
-        assert(self.net.ping([h1, d1]) <= 0.0)
-
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 1)
+        # check connectivity by using ping
+        assert(self.net.ping([self.h[0], self.d[0]]) <= 0.0)
+        # stop Mininet network
         self.stopNet()
 
-    def testSingleDocker2( self ):
-        print "Dockernet TEST2"
+    def testDockerDocker( self ):
+        """
+        d1 -- d2
+        """
+        # create network
+        self.createNet(nswitches=0, nhosts=0, ndockers=2)
+        # setup links
+        self.net.addLink( self.d[0], self.d[1])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 2)
+        # check connectivity by using ping
+        assert(self.net.ping([self.d[0], self.d[1]]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testHostSwtichDocker( self ):
+        """
+        d1 -- s1 -- h1
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=1, ndockers=1)
+        # setup links
+        self.net.addLink( self.h[0], self.s[0])
+        self.net.addLink( self.d[0], self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 1)
+        # check connectivity by using ping
+        assert(self.net.ping([self.h[0], self.d[0]]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testDockerSwtichDocker( self ):
+        """
+        d1 -- s1 -- d2
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=2)
+        # setup links
+        self.net.addLink( self.d[0], self.s[0])
+        self.net.addLink( self.d[1], self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 2)
+        # check connectivity by using ping
+        assert(self.net.ping([self.d[0], self.d[1]]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
 
 
 if __name__ == '__main__':
