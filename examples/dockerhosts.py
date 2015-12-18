@@ -48,6 +48,9 @@ def dockerNet():
     info( '*** Starting network\n')
     net.start()
 
+    # our extended ping functionality
+    net.ping([d1, d2, d3], manualdestip="11.0.0.254")
+
     info( '*** Running CLI\n' )
     CLI( net )
 

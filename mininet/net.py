@@ -646,10 +646,11 @@ class Mininet( object ):
         sent, received = int( m.group( 1 ) ), int( m.group( 2 ) )
         return sent, received
 
-    def ping( self, hosts=None, timeout=None ):
+    def ping( self, hosts=None, timeout=None, manualdestip=None ):
         """Ping between all specified hosts.
            hosts: list of hosts
            timeout: time to wait for a response, as string
+           manualdestip: sends pings from each h in hosts to manualdestip
            returns: ploss packet loss percentage"""
         # should we check if running?
         packets = 0
@@ -660,25 +661,41 @@ class Mininet( object ):
             output( '*** Ping: testing ping reachability\n' )
         for node in hosts:
             output( '%s -> ' % node.name )
-            for dest in hosts:
-                if node != dest:
-                    opts = ''
-                    if timeout:
-                        opts = '-W %s' % timeout
-                    if dest.intfs:
-                        result = node.cmd( 'ping -c1 %s %s' %
-                                           (opts, dest.IP()) )
-                        sent, received = self._parsePing( result )
-                    else:
-                        sent, received = 0, 0
-                    packets += sent
-                    if received > sent:
-                        error( '*** Error: received too many packets' )
-                        error( '%s' % result )
-                        node.cmdPrint( 'route' )
-                        exit( 1 )
-                    lost += sent - received
-                    output( ( '%s ' % dest.name ) if received else 'X ' )
+            if manualdestip is not None:
+                opts = ''
+                if timeout:
+                    opts = '-W %s' % timeout
+                result = node.cmd( 'ping -c1 %s %s' %
+                                   (opts, manualdestip) )
+                sent, received = self._parsePing( result )
+                packets += sent
+                if received > sent:
+                    error( '*** Error: received too many packets' )
+                    error( '%s' % result )
+                    node.cmdPrint( 'route' )
+                    exit( 1 )
+                lost += sent - received
+                output( ( '%s ' % manualdestip ) if received else 'X ' )
+            else:
+                for dest in hosts:
+                    if node != dest:
+                        opts = ''
+                        if timeout:
+                            opts = '-W %s' % timeout
+                        if dest.intfs:
+                            result = node.cmd( 'ping -c1 %s %s' %
+                                               (opts, dest.IP()) )
+                            sent, received = self._parsePing( result )
+                        else:
+                            sent, received = 0, 0
+                        packets += sent
+                        if received > sent:
+                            error( '*** Error: received too many packets' )
+                            error( '%s' % result )
+                            node.cmdPrint( 'route' )
+                            exit( 1 )
+                        lost += sent - received
+                        output( ( '%s ' % dest.name ) if received else 'X ' )
             output( '\n' )
         if packets > 0:
             ploss = 100.0 * lost / packets
