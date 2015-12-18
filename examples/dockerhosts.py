@@ -16,47 +16,57 @@ def dockerNet():
 
     "Create a network with some docker containers acting as hosts."
 
-    net = Mininet( controller=Controller )
+    net = Mininet(controller=Controller)
 
-    info( '*** Adding controller\n' )
-    net.addController( 'c0' )
+    info('*** Adding controller\n')
+    net.addController('c0')
 
-    info( '*** Adding hosts\n' )
-    h1 = net.addHost( 'h1', ip='10.0.0.1' )
-    h2 = net.addHost( 'h2', ip='10.0.0.2' )
+    info('*** Adding hosts\n')
+    h1 = net.addHost('h1')
+    h2 = net.addHost('h2')
 
-    info( '*** Adding docker containers\n' )
-    d1 = net.addDocker( 'd1', ip='10.0.0.253', dimage="ubuntu" )
-    d2 = net.addHost( 'd2', ip='10.0.0.254', cls=Docker, dimage="ubuntu" )
-    d3 = net.addHost( 'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu" )
+    info('*** Adding docker containers\n')
+    d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu")
+    d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu")
+    d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu")
 
-    info( '*** Adding switch\n' )
-    s1 = net.addSwitch( 's1' )
-    s2 = net.addSwitch( 's2', cls=OVSSwitch )
-    s3 = net.addSwitch( 's3' )
+    info('*** Adding switch\n')
+    s1 = net.addSwitch('s1')
+    s2 = net.addSwitch('s2', cls=OVSSwitch)
+    s3 = net.addSwitch('s3')
 
-    info( '*** Creating links\n' )
-    net.addLink( h1, s1 )
-    net.addLink( s1, d1 )
-    net.addLink( h2, s2 )
-    net.addLink( d2, s2 )
-    net.addLink( s1, s2 )
+    info('*** Creating links\n')
+    net.addLink(h1, s1)
+    net.addLink(s1, d1)
+    net.addLink(h2, s2)
+    net.addLink(d2, s2)
+    net.addLink(s1, s2)
     # try to add a second interface to a docker container
-    net.addLink( d2, s3, params1={"ip": "11.0.0.254/8"})
-    net.addLink( d3, s3 )
+    net.addLink(d2, s3, params1={"ip": "11.0.0.254/8"})
+    net.addLink(d3, s3)
 
-    info( '*** Starting network\n')
+    info('*** Starting network\n')
     net.start()
 
     # our extended ping functionality
     net.ping([d1, d2, d3], manualdestip="11.0.0.254")
 
-    info( '*** Running CLI\n' )
-    CLI( net )
+    info('*** Dynamically add a container at runtime\n')
+    d4 = net.addDocker('d4', dimage="ubuntu")
+    # we have to specify a manual ip when we add a link at runtime
+    net.addLink(d4, s1, params1={"ip": "10.0.0.254/8"})
+    # other options to do this
+    #d4.defaultIntf().ifconfig("10.0.0.254 up")
+    #d4.setIP("10.0.0.254")
 
-    info( '*** Stopping network' )
+    net.ping([d1], manualdestip="10.0.0.254")
+
+    info('*** Running CLI\n')
+    CLI(net)
+
+    info('*** Stopping network')
     net.stop()
 
 if __name__ == '__main__':
-    setLogLevel( 'info' )
+    setLogLevel('info')
     dockerNet()
