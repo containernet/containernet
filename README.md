@@ -23,6 +23,7 @@ Based on: Mininet 2.2.1
  * Connect Hosts/Docker containers to a *running* Mininet topology
  * Remove Hosts/Docker containers/Links from a *running* Mininet topology
 * Automated unit tests for all new features
+* Automated installation based on Ansible playbook
 
 ### Dependencies
 
