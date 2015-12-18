@@ -82,7 +82,12 @@ class simpleTestTopology( unittest.TestCase ):
                 shell=True)
 
 
+#@unittest.skip("disabled connectivity tests for development")
 class testDockernetConnectivity( simpleTestTopology ):
+    """
+    Tests to check connectivity of Docker containers within
+    the emulated network.
+    """
 
     def testHostDocker( self ):
         """
@@ -181,6 +186,34 @@ class testDockernetConnectivity( simpleTestTopology ):
         assert(self.net.ping([self.d[0], self.d[1]]) <= 0.0)
         assert(self.net.ping([self.d[2]], manualdestip="11.0.0.1") <= 0.0)
         assert(self.net.ping([self.d[1]], manualdestip="11.0.0.2") <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+
+#@unittest.skip("disabled command execution tests for development")
+class testDockernetContainerCommandExecution( simpleTestTopology ):
+    """
+    Test to check the command execution inside Docker containers by
+    using the Mininet API.
+    """
+
+    def testCommandSimple( self ):
+        """
+        d1 ls
+        d1 ifconfig -a
+        d1 ping 127.0.0.1 -c 3
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=1)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(self.d[0], self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 1)
+        assert("etc" in self.d[0].cmd("ls"))
+        assert("d0-eth0" in self.d[0].cmd("ifconfig -a"))
+        assert("0%" in self.d[0].cmd("ping 127.0.0.1 -c 3"))
         # stop Mininet network
         self.stopNet()
 
