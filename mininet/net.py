@@ -750,7 +750,7 @@ class Mininet( object ):
         rttdev = float( m.group( 4 ) )
         return sent, received, rttmin, rttavg, rttmax, rttdev
 
-    def pingFull( self, hosts=None, timeout=None ):
+    def pingFull( self, hosts=None, timeout=None, manualdestip=None ):
         """Ping between all specified hosts and return all data.
            hosts: list of hosts
            timeout: time to wait for a response, as string
@@ -763,17 +763,28 @@ class Mininet( object ):
             output( '*** Ping: testing ping reachability\n' )
         for node in hosts:
             output( '%s -> ' % node.name )
-            for dest in hosts:
-                if node != dest:
-                    opts = ''
-                    if timeout:
-                        opts = '-W %s' % timeout
-                    result = node.cmd( 'ping -c1 %s %s' % (opts, dest.IP()) )
-                    outputs = self._parsePingFull( result )
-                    sent, received, rttmin, rttavg, rttmax, rttdev = outputs
-                    all_outputs.append( (node, dest, outputs) )
-                    output( ( '%s ' % dest.name ) if received else 'X ' )
-            output( '\n' )
+            if manualdestip is not None:
+                opts = ''
+                if timeout:
+                    opts = '-W %s' % timeout
+                result = node.cmd( 'ping -c1 %s %s' % (opts, manualdestip) )
+                outputs = self._parsePingFull( result )
+                sent, received, rttmin, rttavg, rttmax, rttdev = outputs
+                all_outputs.append( (node, manualdestip, outputs) )
+                output( ( '%s ' % manualdestip ) if received else 'X ' )
+                output( '\n' )
+            else:
+                for dest in hosts:
+                    if node != dest:
+                        opts = ''
+                        if timeout:
+                            opts = '-W %s' % timeout
+                        result = node.cmd( 'ping -c1 %s %s' % (opts, dest.IP()) )
+                        outputs = self._parsePingFull( result )
+                        sent, received, rttmin, rttavg, rttmax, rttdev = outputs
+                        all_outputs.append( (node, dest, outputs) )
+                        output( ( '%s ' % dest.name ) if received else 'X ' )
+                output( '\n' )
         output( "*** Results: \n" )
         for outputs in all_outputs:
             src, dest, ping_outputs = outputs
