@@ -101,6 +101,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.startNet()
         # check number of running docker containers
         assert(len(self.getDockerCli().containers()) == 1)
+        assert(len(self.net.hosts) == 2)
         # check connectivity by using ping
         assert(self.net.pingAll() <= 0.0)
         # stop Mininet network
@@ -118,6 +119,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.startNet()
         # check number of running docker containers
         assert(len(self.getDockerCli().containers()) == 2)
+        assert(len(self.net.hosts) == 2)
         # check connectivity by using ping
         assert(self.net.pingAll() <= 0.0)
         # stop Mininet network
@@ -136,6 +138,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.startNet()
         # check number of running docker containers
         assert(len(self.getDockerCli().containers()) == 1)
+        assert(len(self.net.hosts) == 2)
         # check connectivity by using ping
         assert(self.net.pingAll() <= 0.0)
         # stop Mininet network
@@ -154,6 +157,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.startNet()
         # check number of running docker containers
         assert(len(self.getDockerCli().containers()) == 2)
+        assert(len(self.net.hosts) == 2)
         # check connectivity by using ping
         assert(self.net.pingAll() <= 0.0)
         # stop Mininet network
@@ -182,6 +186,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.startNet()
         # check number of running docker containers
         assert(len(self.getDockerCli().containers()) == 3)
+        assert(len(self.net.hosts) == 3)
         # check connectivity by using ping
         assert(self.net.ping([self.d[0], self.d[1]]) <= 0.0)
         assert(self.net.ping([self.d[2]], manualdestip="11.0.0.1") <= 0.0)
@@ -214,6 +219,150 @@ class testDockernetContainerCommandExecution( simpleTestTopology ):
         assert("etc" in self.d[0].cmd("ls"))
         assert("d0-eth0" in self.d[0].cmd("ifconfig -a"))
         assert("0%" in self.d[0].cmd("ping 127.0.0.1 -c 3"))
+        # stop Mininet network
+        self.stopNet()
+
+
+#@unittest.skip("disabled dynamic topology tests for development")
+class testDockernetDynamicTopologies( simpleTestTopology ):
+    """
+    Tests to check dynamic topology support which allows to add
+    and remove containers to/from a running Mininet network instance.
+    """
+
+    def testSimpleAdd( self ):
+        """
+        start: d0 -- s0
+        add d1
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=1)
+        # setup links
+        self.net.addLink(self.s[0], self.d[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 1)
+        assert(len(self.net.hosts) == 1)
+        # add d2 and connect it on-the-fly
+        d2 = self.net.addDocker('d2', dimage="ubuntu")
+        self.net.addLink(d2, self.s[0], params1={"ip": "10.0.0.254/8"})
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 2)
+        assert(len(self.net.hosts) == 2)
+        # check connectivity by using ping
+        assert(self.net.ping([self.d[0]], manualdestip="10.0.0.254") <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testSimpleRemove( self ):
+        """
+        start: d0 -- s0 -- d1
+        remove d1
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=2)
+        # setup links
+        self.net.addLink(self.s[0], self.d[0])
+        self.net.addLink(self.s[0], self.d[1])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 2)
+        assert(len(self.net.hosts) == 2)
+        assert(len(self.net.links) == 2)
+        # check connectivity by using ping
+        assert(self.net.ping([self.d[0]], manualdestip="10.0.0.2") <= 0.0)
+        # remove d2 on-the-fly
+        self.net.removeLink(node1=self.d[1], node2=self.s[0])
+        self.net.removeDocker(self.d[1])
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 1)
+        assert(len(self.net.hosts) == 1)
+        assert(len(self.net.links) == 1)
+        # check connectivity by using ping (now it should be broken)
+        assert(self.net.ping(
+            [self.d[0]], manualdestip="10.0.0.2", timeout=1) >= 100.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testFullyDynamic( self ):
+        """
+        start: s1 -- h1 (for ping tests)
+        add d0, d1, d2, d3
+        remove d0, d1
+        add d4
+        remove d2, d3, d4
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=1, ndockers=0)
+        # setup links
+        self.net.addLink(self.s[0], self.h[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 0)
+        assert(len(self.net.hosts) == 1)
+        assert(len(self.net.links) == 1)
+        ### add some containers: d0, d1, d2, d3
+        d0 = self.net.addDocker('d0', dimage="ubuntu")
+        self.net.addLink(d0, self.s[0], params1={"ip": "10.0.0.200/8"})
+        d1 = self.net.addDocker('d1', dimage="ubuntu")
+        self.net.addLink(d1, self.s[0], params1={"ip": "10.0.0.201/8"})
+        d2 = self.net.addDocker('d2', dimage="ubuntu")
+        self.net.addLink(d2, self.s[0], params1={"ip": "10.0.0.202/8"})
+        d3 = self.net.addDocker('d3', dimage="ubuntu")
+        self.net.addLink(d3, self.s[0], params1={"ip": "10.0.0.203/8"})
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 4)
+        assert(len(self.net.hosts) == 5)
+        assert(len(self.net.links) == 5)
+        # check connectivity by using ping
+        assert(self.net.ping([self.h[0]], manualdestip="10.0.0.200") <= 0.0)
+        assert(self.net.ping([self.h[0]], manualdestip="10.0.0.201") <= 0.0)
+        assert(self.net.ping([self.h[0]], manualdestip="10.0.0.202") <= 0.0)
+        assert(self.net.ping([self.h[0]], manualdestip="10.0.0.203") <= 0.0)
+        ### remove d0, d1
+        self.net.removeLink(node1=d0, node2=self.s[0])
+        self.net.removeDocker(d0)
+        self.net.removeLink(node1=d1, node2=self.s[0])
+        self.net.removeDocker(d1)
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 2)
+        assert(len(self.net.hosts) == 3)
+        assert(len(self.net.links) == 3)
+        # check connectivity by using ping
+        assert(self.net.ping(
+               [self.h[0]], manualdestip="10.0.0.200", timeout=1) >= 100.0)
+        assert(self.net.ping(
+               [self.h[0]], manualdestip="10.0.0.201", timeout=1) >= 100.0)
+        ### add container: d4
+        d4 = self.net.addDocker('d4', dimage="ubuntu")
+        self.net.addLink(d4, self.s[0], params1={"ip": "10.0.0.204/8"})
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 3)
+        assert(len(self.net.hosts) == 4)
+        assert(len(self.net.links) == 4)
+        # check connectivity by using ping
+        assert(self.net.ping([self.h[0]], manualdestip="10.0.0.204") <= 0.0)
+        ### remove all containers
+        self.net.removeLink(node1=d2, node2=self.s[0])
+        self.net.removeDocker(d2)
+        self.net.removeLink(node1=d3, node2=self.s[0])
+        self.net.removeDocker(d3)
+        self.net.removeLink(node1=d4, node2=self.s[0])
+        self.net.removeDocker(d4)
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 0)
+        assert(len(self.net.hosts) == 1)
+        assert(len(self.net.links) == 1)
+        # check connectivity by using ping
+        assert(self.net.ping(
+               [self.h[0]], manualdestip="10.0.0.202", timeout=1) >= 100.0)
+        assert(self.net.ping(
+               [self.h[0]], manualdestip="10.0.0.203", timeout=1) >= 100.0)
+        assert(self.net.ping(
+               [self.h[0]], manualdestip="10.0.0.204", timeout=1) >= 100.0)
         # stop Mininet network
         self.stopNet()
 

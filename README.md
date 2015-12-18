@@ -13,6 +13,17 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.1
 
+### Features
+
+* Add, remove Docker containers to Mininet topologies
+* Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts )
+* Execute commands inside Docker containers by using the Mininet CLI 
+* Dynamic topology changes (lets behave like a small cloud ;-) )
+ * Add Hosts/Docker containers to a *running* Mininet topology
+ * Connect Hosts/Docker containers to a *running* Mininet topology
+ * Remove Hosts/Docker containers/Links from a *running* Mininet topology
+* Automated unit tests for all new features
+
 ### Dependencies
 
 * Ubuntu 14.04 LTS
@@ -45,12 +56,6 @@ There is a set of Dockernet specific unit tests located in `mininet/test/test_do
 
 ### TODOs
 * see Wiki: https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO
-
-### Working features
-
-* Container add, remove
-* Connect containers to topology
-* Execute Mininet CLI commands inside container
 
 ### Credits
 Dockernet (c) 2015 by Manuel Peuster
