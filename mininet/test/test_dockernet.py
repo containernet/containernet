@@ -4,8 +4,8 @@ import time
 import subprocess
 import docker
 from mininet.net import Mininet
-from mininet.node import Host, Controller
-from mininet.node import UserSwitch, OVSSwitch, IVSSwitch
+from mininet.node import Host, Controller, OVSSwitch, Docker
+from mininet.link import TCLink
 from mininet.topo import SingleSwitchTopo, LinearTopo
 from mininet.log import setLogLevel
 from mininet.util import quietRun
@@ -363,6 +363,62 @@ class testDockernetDynamicTopologies( simpleTestTopology ):
                [self.h[0]], manualdestip="10.0.0.203", timeout=1) >= 100.0)
         assert(self.net.ping(
                [self.h[0]], manualdestip="10.0.0.204", timeout=1) >= 100.0)
+        # stop Mininet network
+        self.stopNet()
+
+
+#@unittest.skip("disabled TCLink tests for development")
+class testDockernetTCLinks( simpleTestTopology ):
+    """
+    Tests to check TCLinks together with Docker containers.
+    """
+
+    def testCustomDelay( self ):
+        """
+        d0,d1 -- s0 --delay-- d2
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=3)
+        # setup links
+        self.net.addLink(self.s[0], self.d[0])
+        self.net.addLink(self.s[0], self.d[1])
+        self.net.addLink(self.s[0], self.d[2], cls=TCLink, delay="100ms")
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 3)
+        assert(len(self.net.hosts) == 3)
+        # check connectivity by using ping: default link
+        _, _, res = self.net.pingFull([self.d[0]], manualdestip="10.0.0.2")[0]
+        assert(res[3] <= 20)
+        # check connectivity by using ping: delayed TCLink
+        _, _, res = self.net.pingFull([self.d[0]], manualdestip="10.0.0.3")[0]
+        assert(res[3] > 200 and res[3] < 500)
+        # stop Mininet network
+        self.stopNet()
+
+    def testCustomLoss( self ):
+        """
+        d0,d1 -- s0 --loss-- d2
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=3)
+        # setup links
+        self.net.addLink(self.s[0], self.d[0])
+        self.net.addLink(self.s[0], self.d[1])
+        self.net.addLink(
+            self.s[0], self.d[2], cls=TCLink, loss=100)  # 100% loss
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.getDockerCli().containers()) == 3)
+        assert(len(self.net.hosts) == 3)
+        # check connectivity by using ping: default link
+        assert(self.net.ping(
+               [self.d[0]], manualdestip="10.0.0.2", timeout=1) <= 0.0)
+        # check connectivity by using ping: lossy TCLink (100%)
+        assert(self.net.ping(
+               [self.d[0]], manualdestip="10.0.0.3", timeout=1) >= 100.0)
         # stop Mininet network
         self.stopNet()
 

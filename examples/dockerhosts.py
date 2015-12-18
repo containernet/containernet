@@ -10,6 +10,7 @@ from mininet.net import Mininet
 from mininet.node import Controller, Docker, OVSSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
+from mininet.link import TCLink, Link
 
 
 def dockerNet():
@@ -40,7 +41,7 @@ def dockerNet():
     net.addLink(s1, d1)
     net.addLink(h2, s2)
     net.addLink(d2, s2)
-    net.addLink(s1, s2)
+    net.addLink(s1, s2, cls=TCLink, delay="100ms", bw=1, loss=10)
     # try to add a second interface to a docker container
     net.addLink(d2, s3, params1={"ip": "11.0.0.254/8"})
     net.addLink(d3, s3)
@@ -48,7 +49,10 @@ def dockerNet():
     info('*** Starting network\n')
     net.start()
 
+    net.ping([d1, d2])
+
     # our extended ping functionality
+    net.ping([d1], manualdestip="10.0.0.252")
     net.ping([d1, d2, d3], manualdestip="11.0.0.254")
 
     info('*** Dynamically add a container at runtime\n')
