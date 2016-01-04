@@ -645,11 +645,43 @@ class Docker ( Host ):
     We use the docker-py client library to control docker.
     """
 
-    def __init__(self, name, dimage, dcmd=None, **kwargs):
+    def __init__(
+            self, name, dimage, dcmd=None, **kwargs):
+        """
+        Creates a Docker container as Mininet host.
+
+        Resource limitations based on CFS scheduler:
+        * cpu.cfs_quota_us: the total available run-time within a period (in microseconds)
+        * cpu.cfs_period_us: the length of a period (in microseconds)
+        (https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt)
+
+        Default Docker resource limitations:
+        * cpu_shares: Relative amount of max. avail CPU for container
+            (not a hard limit, e.g. if only one container is busy and the rest idle)
+            e.g. usage: d1=4 d2=6 <=> 40% 60% CPU
+        * cpuset: Bind containers to CPU 0 = cpu_1 ... n-1 = cpu_n
+        * mem_limit: Memory limit (format: <number>[<unit>], where unit = b, k, m or g)
+        * memswap_limit: Total limit = memory + swap
+        """
         self.dimage = dimage
         self.dnameprefix = "mn"
         self.dcmd = dcmd if dcmd is not None else "/bin/bash"
         self.dc = None  # pointer to the container
+        #  let's store our resource limits to have them available through the
+        #  Mininet API later on
+        defaults = { 'cpu_quota': None,
+                     'cpu_period': None,
+                     'cpu_shares': None,
+                     'cpuset': None,
+                     'mem_limit': None,
+                     'memswap_limit': None }
+        defaults.update( kwargs )
+        self.cpu_quota = defaults['cpu_quota']
+        self.cpu_period = defaults['cpu_period']
+        self.cpu_shares = defaults['cpu_shares']
+        self.cpuset = defaults['cpuset']
+        self.mem_limit = defaults['mem_limit']
+        self.memswap_limit = defaults['memswap_limit']
 
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
@@ -667,7 +699,12 @@ class Docker ( Host ):
         # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
         hc = self.dcli.create_host_config(
             network_mode=None,
-            privileged=True  # we need this mode to allow mininet network setup
+            privileged=True,  # we need this to allow mininet network setup
+            # see https://groups.google.com/forum/#!topic/docker-user/UF0GxTp3NHI
+            cpu_quota=self.cpu_quota,  # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
+            cpu_period=self.cpu_period,  # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
+            mem_limit=self.mem_limit,
+            memswap_limit=self.memswap_limit
         )
         # create new docker container
         self.dc = self.dcli.create_container(
@@ -678,7 +715,9 @@ class Docker ( Host ):
             tty=True,  # allocate pseudo tty
             environment={"PS1": chr(127)},  # does not seem to have an effect
             network_disabled=True,  # we will do network on our own
-            host_config=hc
+            host_config=hc,
+            cpu_shares=self.cpu_shares,
+            cpuset=self.cpuset,
         )
         # start the container
         self.dcli.start(self.dc)

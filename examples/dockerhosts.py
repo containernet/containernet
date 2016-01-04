@@ -28,8 +28,9 @@ def dockerNet():
 
     info('*** Adding docker containers\n')
     d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu")
-    d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu")
-    d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu")
+    d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu", cpu_shares=40)
+    d3 = net.addHost(
+        'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu", cpu_shares=20)
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')

@@ -423,5 +423,85 @@ class testDockernetTCLinks( simpleTestTopology ):
         self.stopNet()
 
 
+#@unittest.skip("disabled container resource limit tests for development")
+class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
+    """
+    Test to check the resource limitation API of the Docker integration.
+    TODO: Also check if values are set correctly in to running containers,
+    e.g., with: docker inspect mn.d1 CLI calls?
+    """
+
+    def testCPUShare( self ):
+        """
+        d1, d2 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        d0 = self.net.addDocker('d0', ip='10.0.0.1', dimage="ubuntu", cpu_shares=10)
+        d1 = self.net.addDocker('d1', ip='10.0.0.2', dimage="ubuntu", cpu_shares=90)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(d0, self.s[0])
+        self.net.addLink(d1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        assert(self.net.ping([d0, d1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testCPULimitCFSBased( self ):
+        """
+        d1, d2 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        d0 = self.net.addDocker(
+            'd0', ip='10.0.0.1', dimage="ubuntu",
+            cpu_period=50000, cpu_quota=10000)
+        d1 = self.net.addDocker(
+            'd1', ip='10.0.0.2', dimage="ubuntu",
+            cpu_period=50000, cpu_quota=10000)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(d0, self.s[0])
+        self.net.addLink(d1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        assert(self.net.ping([d0, d1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testMemLimits( self ):
+        """
+        d1, d2 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        d0 = self.net.addDocker(
+            'd0', ip='10.0.0.1', dimage="ubuntu",
+            mem_limit="256m")
+        d1 = self.net.addDocker(
+            'd1', ip='10.0.0.2', dimage="ubuntu",
+            mem_limit="256m", memswap_limit="512m")
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(d0, self.s[0])
+        self.net.addLink(d1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        assert(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        assert(self.net.ping([d0, d1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+
 if __name__ == '__main__':
     unittest.main()
