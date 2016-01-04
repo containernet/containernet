@@ -22,6 +22,10 @@ Based on: Mininet 2.2.1
  * Add Hosts/Docker containers to a *running* Mininet topology
  * Connect Hosts/Docker containers to a *running* Mininet topology
  * Remove Hosts/Docker containers/Links from a *running* Mininet topology
+* Resource limitation of Docker containers
+ * CPU limitation with Docker CPU share option
+ * CPU limitation with Docker CFS period/quota options
+ * Memory/swap limitation
 * Traffic control links (delay, bw, loss, jitter)
  * (missing: TCLink support for dynamically added containers/hosts)
 * Automated unit tests for all new features
@@ -30,8 +34,8 @@ Based on: Mininet 2.2.1
 ### Dependencies
 
 * Ubuntu 14.04 LTS
-* Docker
-* docker-py
+* Docker 1.9.1
+* docker-py 
 
 ### Installation
 Automatic installation is provide through an Ansible playbook.
