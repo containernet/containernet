@@ -24,7 +24,7 @@
        - start docker
 
    - name: install pip
-     apt: pkg=python-pip state=installed update_cache=true
+     apt: pkg=python-pip state=installed
 
    - name: install docker-py
      pip: name=docker-py
