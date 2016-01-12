@@ -6,7 +6,7 @@ how to create docker containers (based on existing images)
 to it.
 """
 
-from mininet.net import Mininet
+from mininet.net import Dockernet
 from mininet.node import Controller, Docker, OVSSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info
@@ -17,7 +17,7 @@ def dockerNet():
 
     "Create a network with some docker containers acting as hosts."
 
-    net = Mininet(controller=Controller)
+    net = Dockernet(controller=Controller)
 
     info('*** Adding controller\n')
     net.addController('c0')

@@ -254,19 +254,6 @@ class Mininet( object ):
             return True
         return False
 
-    def addDocker( self, name, cls=Docker, **params ):
-        """
-        Wrapper for addHost method that adds a
-        Docker container as a host.
-        """
-        return self.addHost( name, cls=cls, **params)
-
-    def removeDocker( self, name, **params):
-        """
-        Wrapper for removeHost. Just to be complete.
-        """
-        return self.removeHost(name, **params)
-
     def addSwitch( self, name, cls=None, **params ):
         """Add switch.
            name: name of switch to add
@@ -974,6 +961,31 @@ class Mininet( object ):
         ensureRoot()
         fixLimits()
         cls.inited = True
+
+
+class Dockernet( Mininet ):
+    """
+    A Mininet with Docker related methods.
+    Inherits Mininet.
+    This class is not more than API beautification.
+    """
+
+    def __init__(self, **params):
+        # call original Mininet.__init__
+        Mininet.__init__(self, **params)
+
+    def addDocker( self, name, cls=Docker, **params ):
+        """
+        Wrapper for addHost method that adds a
+        Docker container as a host.
+        """
+        return self.addHost( name, cls=cls, **params)
+
+    def removeDocker( self, name, **params):
+        """
+        Wrapper for removeHost. Just to be complete.
+        """
+        return self.removeHost(name, **params)
 
 
 class MininetWithControlNet( Mininet ):
