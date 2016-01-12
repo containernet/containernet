@@ -201,6 +201,13 @@ class Mininet( object ):
                 remaining.remove( switch )
         return not remaining
 
+    def getNextIp( self ):
+        ip = ipAdd( self.nextIP,
+                    ipBaseNum=self.ipBaseNum,
+                    prefixLen=self.prefixLen ) + '/%s' % self.prefixLen
+        self.nextIP += 1
+        return ip
+
     def addHost( self, name, cls=None, **params ):
         """Add host.
            name: name of host to add
