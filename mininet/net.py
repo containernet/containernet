@@ -254,12 +254,12 @@ class Mininet( object ):
             return True
         return False
 
-    def addDocker( self, name, **params ):
+    def addDocker( self, name, cls=Docker, **params ):
         """
         Wrapper for addHost method that adds a
         Docker container as a host.
         """
-        return self.addHost( name, cls=Docker, **params)
+        return self.addHost( name, cls=cls, **params)
 
     def removeDocker( self, name, **params):
         """
