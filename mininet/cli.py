@@ -33,6 +33,7 @@ import sys
 import time
 import os
 import atexit
+import string
 
 from mininet.log import info, output, error
 from mininet.term import makeTerms, runX11
@@ -58,6 +59,8 @@ class CLI( Cmd ):
         self.inPoller.register( stdin )
         self.inputFile = script
         Cmd.__init__( self )
+        # Dockernet allows '.' in host identifiers to build human readable hierarchical name spaces:
+        self.identchars = string.ascii_letters + string.digits + '_' + '.'
         info( '*** Starting CLI:\n' )
 
         if self.inputFile:
