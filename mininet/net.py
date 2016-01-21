@@ -487,8 +487,8 @@ class Mininet( object ):
             # A bit ugly: add batch parameter if appropriate
             params = topo.nodeInfo( switchName)
             cls = params.get( 'cls', self.switch )
-            if hasattr( cls, 'batchStartup' ):
-                params.setdefault( 'batch', True )
+            #if hasattr( cls, 'batchStartup' ):
+            #    params.setdefault( 'batch', True )
             self.addSwitch( switchName, **params )
             info( switchName + ' ' )
 
