@@ -136,7 +136,7 @@ class Intf( object ):
             cmdOutput = self.ifconfig( 'up' )
             # no output / command output indicates success
             if (len(cmdOutput) > 0
-                    and cmdOutput != "ifconfig %s up" % self.name):
+                    and "ifconfig" not in cmdOutput):
                 error( "Error setting %s up: %s " % ( self.name, cmdOutput ) )
                 return False
             else:
