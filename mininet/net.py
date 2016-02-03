@@ -309,7 +309,7 @@ class Mininet( object ):
                 # Use first switch if not specified
                 connect = self.switches[ 0 ]
             # Connect the nat to the switch
-            self.addLink( nat, self.switches[ 0 ] )
+            self.addLink( nat, connect )
             # Set the default route on hosts
             natIP = nat.params[ 'ip' ].split('/')[ 0 ]
             for host in self.hosts:
@@ -862,8 +862,14 @@ class Mininet( object ):
         cliout = client.cmd( iperfArgs + '-t %d -c ' % seconds +
                              server.IP() + ' ' + bwArgs )
         debug( 'Client output: %s\n' % cliout )
+        servout = ''
+        # We want the last *b/sec from the iperf server output
+        # for TCP, there are two fo them because of waitListening
+        count = 2 if l4Type == 'TCP' else 1
+        while len( re.findall( '/sec', servout ) ) < count:
+            servout += server.monitor( timeoutms=5000 )
         server.sendInt()
-        servout = server.waitOutput()
+        servout += server.waitOutput()
         debug( 'Server output: %s\n' % servout )
         result = [ self._parseIperf( servout ), self._parseIperf( cliout ) ]
         if l4Type == 'UDP':

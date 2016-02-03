@@ -213,7 +213,7 @@ class Node( object ):
     # Subshell I/O, commands and control
 
     def read( self, maxbytes=1024 ):
-        """Buffered read from node, non-blocking.
+        """Buffered read from node, potentially blocking.
            maxbytes: maximum number of bytes to return"""
         count = len( self.readbuf )
         if count < maxbytes:
@@ -228,7 +228,7 @@ class Node( object ):
         return result
 
     def readline( self ):
-        """Buffered readline from node, non-blocking.
+        """Buffered readline from node, potentially blocking.
            returns: line (minus newline) or None"""
         self.readbuf += self.read( 1024 )
         if '\n' not in self.readbuf:
@@ -260,9 +260,10 @@ class Node( object ):
 
     def waitReadable( self, timeoutms=None ):
         """Wait until node's output is readable.
-           timeoutms: timeout in ms or None to wait indefinitely."""
+           timeoutms: timeout in ms or None to wait indefinitely.
+           returns: result of poll()"""
         if len( self.readbuf ) == 0:
-            self.pollOut.poll( timeoutms )
+            return self.pollOut.poll( timeoutms )
 
     def sendCmd( self, *args, **kwargs ):
         """Send a command, followed by a command to echo a sentinel,
@@ -304,7 +305,9 @@ class Node( object ):
            Set self.waiting to False if command has completed.
            timeoutms: timeout in ms or None to wait indefinitely
            findPid: look for PID from mnexec -p"""
-        self.waitReadable( timeoutms )
+        ready = self.waitReadable( timeoutms )
+        if not ready:
+            return ''
         data = self.read( 1024 )
         pidre = r'\[\d+\] \d+\r\n'
         # Look for PID
@@ -875,7 +878,9 @@ class CPULimitedHost( Host ):
         "Clean up our cgroup"
         # info( '*** deleting cgroup', self.cgroup, '\n' )
         _out, _err, exitcode = errRun( 'cgdelete -r ' + self.cgroup )
-        return exitcode == 0  # success condition
+        # Sometimes cgdelete returns a resource busy error but still
+        # deletes the group; next attempt will give "no such file"
+        return exitcode == 0  or ( 'no such file' in _err.lower() )
 
     def popen( self, *args, **kwargs ):
         """Return a Popen() object in node's namespace
@@ -897,7 +902,7 @@ class CPULimitedHost( Host ):
     def cleanup( self ):
         "Clean up Node, then clean up our cgroup"
         super( CPULimitedHost, self ).cleanup()
-        retry( retries=3, delaySecs=1, fn=self.cgroupDel )
+        retry( retries=3, delaySecs=.1, fn=self.cgroupDel )
 
     _rtGroupSched = False   # internal class var: Is CONFIG_RT_GROUP_SCHED set?
 
@@ -1540,7 +1545,7 @@ class Controller( Node ):
 
     def __init__( self, name, inNamespace=False, command='controller',
                   cargs='-v ptcp:%d', cdir=None, ip="127.0.0.1",
-                  port=6633, protocol='tcp', **params ):
+                  port=6653, protocol='tcp', **params ):
         self.command = command
         self.cargs = cargs
         self.cdir = cdir
@@ -1620,7 +1625,8 @@ class OVSController( Controller ):
     @classmethod
     def isAvailable( cls ):
         return ( quietRun( 'which ovs-controller' ) or
-                 quietRun( 'which test-controller' ) )
+                 quietRun( 'which test-controller' ) or
+                 quietRun( 'which ovs-testcontroller' ) )
 
 class NOX( Controller ):
     "Controller to run a NOX application."
@@ -1674,7 +1680,7 @@ class RemoteController( Controller ):
     "Controller running outside of Mininet's control."
 
     def __init__( self, name, ip='127.0.0.1',
-                  port=6633, **kwargs):
+                  port=None, **kwargs):
         """Init.
            name: name to give controller
            ip: the IP address where the remote controller is
@@ -1692,12 +1698,30 @@ class RemoteController( Controller ):
 
     def checkListening( self ):
         "Warn if remote controller is not accessible"
-        listening = self.cmd( "echo A | telnet -e A %s %d" %
-                              ( self.ip, self.port ) )
+        if self.port is not None:
+            self.isListening( self.ip, self.port )
+        else:
+            for port in 6653, 6633:
+                if self.isListening( self.ip, port ):
+                    self.port = port
+                    info( "Connecting to remote controller"
+                          " at %s:%d\n" % ( self.ip, self.port ))
+                    break
+
+        if self.port is None:
+            self.port = 6653
+            warn( "Setting remote controller"
+                  " to %s:%d\n" % ( self.ip, self.port ))
+
+    def isListening( self, ip, port ):
+        "Check if a remote controller is listening at a specific ip and port"
+        listening = self.cmd( "echo A | telnet -e A %s %d" % ( ip, port ) )
         if 'Connected' not in listening:
             warn( "Unable to contact the remote controller"
-                  " at %s:%d\n" % ( self.ip, self.port ) )
-
+                  " at %s:%d\n" % ( ip, port ) )
+            return False
+        else:
+            return True
 
 DefaultControllers = ( Controller, OVSController )
 
