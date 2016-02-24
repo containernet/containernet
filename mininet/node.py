@@ -721,6 +721,7 @@ class Docker ( Host ):
             host_config=hc,
             cpu_shares=self.cpu_shares,
             cpuset=self.cpuset,
+            labels=['com.dockernet'],
         )
         # start the container
         self.dcli.start(self.dc)
