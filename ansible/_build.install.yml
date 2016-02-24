@@ -21,7 +21,3 @@
 #     shell: python setup.py install
 #     args:
 #       chdir: ../
-
-   - name: download 'ubuntu' docker image for Dockernet example
-     shell: docker pull 'ubuntu:latest'
-
