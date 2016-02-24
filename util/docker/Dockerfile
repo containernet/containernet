@@ -5,7 +5,7 @@ RUN apt-get update \
     && apt-add-repository ppa:ansible/ansible \
     && apt-get update \
     && apt-get install -y ansible git \
-    && wget https://get.docker.com/builds/Linux/x86_64/docker-1.9.1 -O /usr/bin/docker \
+    && wget --no-verbose https://get.docker.com/builds/Linux/x86_64/docker-1.9.1 -O /usr/bin/docker \
     && chmod +x /usr/bin/docker \
     && echo 'Done'
 
