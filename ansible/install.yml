@@ -6,6 +6,9 @@
    - name: install python-pycurl
      apt: pkg=python-pycurl state=installed
 
+   - name: install aptitude
+     apt: pkg=aptitude state=installed
+
    - name: add apt key
      shell: apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
 
