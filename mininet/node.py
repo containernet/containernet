@@ -717,7 +717,7 @@ class Docker ( Host ):
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
             environment={"PS1": chr(127)},  # does not seem to have an effect
-            network_disabled=True,  # we will do network on our own
+            #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
             cpu_shares=self.cpu_shares,
             cpuset=self.cpuset,
