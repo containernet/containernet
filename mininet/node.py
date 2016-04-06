@@ -270,7 +270,7 @@ class Node( object ):
            and return without waiting for the command to complete.
            args: command and arguments, or string
            printPid: print command's PID? (False)"""
-        assert self.shell and not self.waiting
+        assert self.shell# and not self.waiting
         printPid = kwargs.get( 'printPid', False )
         # Allow sendCmd( [ list ] )
         if len( args ) == 1 and isinstance( args[ 0 ], list ):
