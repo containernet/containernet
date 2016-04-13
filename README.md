@@ -2,6 +2,7 @@ Dockernet
 =========
 
 [![Join the chat at https://gitter.im/mpeuster/dockernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/dockernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![DOI](https://zenodo.org/badge/21438/mpeuster/dockernet.svg)](https://zenodo.org/badge/latestdoi/21438/mpeuster/dockernet)
 
 ### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
