@@ -731,13 +731,13 @@ class Docker ( Host ):
         self.did = self.dcinfo.get("Id")
 
         # let's initially set our resource limits
-        self.updateCpuLimits(cpu_quota=self.cpu_quota,
-                             cpu_period=self.cpu_period,
-                             cpu_shares=self.cpu_shares,
-                             )
-        self.updateMemeoryLimits(mem_limit=self.mem_limit,
-                                 memswap_limit=self.memswap_limit
-                                 )
+        self.updateCpuLimit(cpu_quota=self.cpu_quota,
+                            cpu_period=self.cpu_period,
+                            cpu_shares=self.cpu_shares,
+                            )
+        self.updateMemoryLimit(mem_limit=self.mem_limit,
+                               memswap_limit=self.memswap_limit
+                               )
 
         # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
@@ -842,7 +842,7 @@ class Docker ( Host ):
             return state.get("Pid", -1)
         return -1
 
-    def updateCpuLimits(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
         """
         Update CPU resource limitations.
         This method allows to update resource limitations at runtime by bypassing the Docker API
@@ -862,7 +862,7 @@ class Docker ( Host ):
             self.cpu_shares = self.cgroupSet("shares", cpu_shares)
 
 
-    def updateMemeoryLimits(self, mem_limit=-1, memswap_limit=-1):
+    def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1):
         """
         Update Memory resource limitations.
         This method allows to update resource limitations at runtime by bypassing the Docker API
