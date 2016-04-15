@@ -58,7 +58,7 @@ import re
 import signal
 import select
 import docker
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, call, check_output
 from time import sleep
 
 from mininet.log import info, error, warn, debug
@@ -665,19 +665,25 @@ class Docker ( Host ):
         * cpuset: Bind containers to CPU 0 = cpu_1 ... n-1 = cpu_n
         * mem_limit: Memory limit (format: <number>[<unit>], where unit = b, k, m or g)
         * memswap_limit: Total limit = memory + swap
+
+        All resource limits can be updated at runtime! Use:
+        * updateCpuLimits(...)
+        * updateMemoryLimits(...)
         """
         self.dimage = dimage
         self.dnameprefix = "mn"
         self.dcmd = dcmd if dcmd is not None else "/bin/bash"
         self.dc = None  # pointer to the container
+        self.dcinfo = None
+        self.did = None # Id of running container
         #  let's store our resource limits to have them available through the
         #  Mininet API later on
-        defaults = { 'cpu_quota': None,
-                     'cpu_period': None,
-                     'cpu_shares': None,
+        defaults = { 'cpu_quota': -1,
+                     'cpu_period': -1,
+                     'cpu_shares': -1,
                      'cpuset': None,
-                     'mem_limit': None,
-                     'memswap_limit': None }
+                     'mem_limit': -1,
+                     'memswap_limit': -1 }
         defaults.update( kwargs )
         self.cpu_quota = defaults['cpu_quota']
         self.cpu_period = defaults['cpu_period']
@@ -702,12 +708,8 @@ class Docker ( Host ):
         # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
         hc = self.dcli.create_host_config(
             network_mode=None,
-            privileged=True,  # we need this to allow mininet network setup
-            # see https://groups.google.com/forum/#!topic/docker-user/UF0GxTp3NHI
-            cpu_quota=self.cpu_quota,  # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
-            cpu_period=self.cpu_period,  # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
-            mem_limit=self.mem_limit,
-            memswap_limit=self.memswap_limit
+            privileged=True  # we need this to allow mininet network setup
+            # ATTENTION: We do not use the docker interface to set resource limits! Use self.updateCpuLimit() instead
         )
         # create new docker container
         self.dc = self.dcli.create_container(
@@ -719,7 +721,6 @@ class Docker ( Host ):
             environment={"PS1": chr(127)},  # does not seem to have an effect
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
-            cpu_shares=self.cpu_shares,
             cpuset=self.cpuset,
             labels=['com.dockernet'],
         )
@@ -728,6 +729,16 @@ class Docker ( Host ):
         debug("Docker container %s started\n" % self.name)
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
+        self.did = self.dcinfo.get("Id")
+
+        # let's initially set our resource limits
+        self.updateCpuLimits(cpu_quota=self.cpu_quota,
+                             cpu_period=self.cpu_period,
+                             cpu_shares=self.cpu_shares,
+                             )
+        self.updateMemeoryLimits(mem_limit=self.mem_limit,
+                                 memswap_limit=self.memswap_limit
+                                 )
 
         # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
@@ -831,6 +842,82 @@ class Docker ( Host ):
         if state:
             return state.get("Pid", -1)
         return -1
+
+    def updateCpuLimits(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
+        """
+        Update CPU resource limitations.
+        This method allows to update resource limitations at runtime by bypassing the Docker API
+        and directly manipulating the cgroup options.
+        Args:
+            cpu_quota: cfs quota us
+            cpu_period: cfs period us
+            cpu_shares: cpu shares
+
+        """
+        # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
+        if cpu_quota >= 0:
+            self.cpu_quota = self.cgroupSet("cfs_quota_us", cpu_quota)
+        if cpu_period >= 0:
+            self.cpu_period = self.cgroupSet("cfs_period_us", cpu_period)
+        if cpu_shares >= 0:
+            self.cpu_shares = self.cgroupSet("shares", cpu_shares)
+
+
+    def updateMemeoryLimits(self, mem_limit=-1, memswap_limit=-1):
+        """
+        Update Memory resource limitations.
+        This method allows to update resource limitations at runtime by bypassing the Docker API
+        and directly manipulating the cgroup options.
+
+        Args:
+            mem_limit: memory limit in bytes
+            memswap_limit: swap limit in bytes
+
+        """
+        # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
+        if mem_limit >= 0:
+            self.mem_limit = self.cgroupSet("limit_in_bytes", mem_limit, resource="memory")
+        if memswap_limit >= 0:
+            self.memswap_limit = self.cgroupSet("memsw.limit_in_bytes", memswap_limit, resource="memory")
+
+
+    def cgroupSet(self, param, value, resource='cpu'):
+        """
+        Directly manipulate the resource settings of the Docker container's cgrpup.
+        Args:
+            param: parameter to set, e.g., cfs_quota_us
+            value: value to set
+            resource: resource name: cpu
+
+        Returns: value that was set
+
+        """
+        cmd = 'cgset -r %s.%s=%s docker/%s' % (
+            resource, param, value, self.did)
+        debug(cmd + "\n")
+        check_output(cmd, shell=True)
+        nvalue = int(self.cgroupGet(param, resource))
+        if nvalue != value:
+            error('*** error: cgroupSet: %s set to %s instead of %s\n'
+                  % (param, nvalue, value))
+        return nvalue
+
+    def cgroupGet(self, param, resource='cpu'):
+        """
+        Read cgroup values.
+        Args:
+            param: parameter to read, e.g., cfs_quota_us
+            resource: resource name: cpu / memory
+
+        Returns: value
+
+        """
+        cmd = 'cgget -r %s.%s docker/%s' % (
+            resource, param, self.did)
+        try:
+            return int(check_output(cmd, shell=True).split()[-1])
+        except:
+            return -1
 
 
 class CPULimitedHost( Host ):

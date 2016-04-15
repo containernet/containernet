@@ -27,6 +27,7 @@ Based on: Mininet 2.2.1
  * CPU limitation with Docker CPU share option
  * CPU limitation with Docker CFS period/quota options
  * Memory/swap limitation
+ * UPDATE CPU/Mem limitations at runtime!
 * Traffic control links (delay, bw, loss, jitter)
  * (missing: TCLink support for dynamically added containers/hosts)
 * Automated unit tests for all new features
