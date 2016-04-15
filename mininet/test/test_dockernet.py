@@ -486,10 +486,10 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         # add dockers
         d0 = self.net.addDocker(
             'd0', ip='10.0.0.1', dimage="ubuntu",
-            mem_limit="256m")
+            mem_limit=132182016)
         d1 = self.net.addDocker(
             'd1', ip='10.0.0.2', dimage="ubuntu",
-            mem_limit="256m", memswap_limit="512m")
+            mem_limit=132182016, memswap_limit=-1)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
