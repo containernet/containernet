@@ -895,7 +895,11 @@ class Docker ( Host ):
         cmd = 'cgset -r %s.%s=%s docker/%s' % (
             resource, param, value, self.did)
         debug(cmd + "\n")
-        check_output(cmd, shell=True)
+        try:
+            check_output(cmd, shell=True)
+        except:
+            error("Problem writing cgroup setting %r\n" % cmd)
+            return
         nvalue = int(self.cgroupGet(param, resource))
         if nvalue != value:
             error('*** error: cgroupSet: %s set to %s instead of %s\n'
@@ -917,6 +921,7 @@ class Docker ( Host ):
         try:
             return int(check_output(cmd, shell=True).split()[-1])
         except:
+            error("Problem reading cgroup info: %r\n" % cmd)
             return -1
 
 
