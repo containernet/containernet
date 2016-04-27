@@ -49,7 +49,7 @@ class simpleTestTopology( unittest.TestCase ):
             self.h.append(self.net.addHost('h%d' % i))
         # add some dockers
         for i in range(0, ndockers):
-            self.d.append(self.net.addDocker('d%d' % i, dimage="ubuntu"))
+            self.d.append(self.net.addDocker('d%d' % i, dimage="ubuntu:trusty"))
 
     def startNet(self):
         self.net.start()
@@ -172,7 +172,7 @@ class testDockernetConnectivity( simpleTestTopology ):
         self.createNet(nswitches=2, nhosts=0, ndockers=2)
         # add additional Docker with special IP
         self.d.append(self.net.addDocker(
-            'd%d' % len(self.d), ip="11.0.0.2", dimage="ubuntu"))
+            'd%d' % len(self.d), ip="11.0.0.2", dimage="ubuntu:trusty"))
         # setup links
         self.net.addLink(self.s[0], self.s[1])
         self.net.addLink(self.d[0], self.s[0])
@@ -245,7 +245,7 @@ class testDockernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(len(self.getDockerCli().containers()) == 1)
         self.assertTrue(len(self.net.hosts) == 1)
         # add d2 and connect it on-the-fly
-        d2 = self.net.addDocker('d2', dimage="ubuntu")
+        d2 = self.net.addDocker('d2', dimage="ubuntu:trusty")
         self.net.addLink(d2, self.s[0], params1={"ip": "10.0.0.254/8"})
         # check number of running docker containers
         self.assertTrue(len(self.getDockerCli().containers()) == 2)
@@ -305,13 +305,13 @@ class testDockernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(len(self.net.hosts) == 1)
         self.assertTrue(len(self.net.links) == 1)
         ### add some containers: d0, d1, d2, d3
-        d0 = self.net.addDocker('d0', dimage="ubuntu")
+        d0 = self.net.addDocker('d0', dimage="ubuntu:trusty")
         self.net.addLink(d0, self.s[0], params1={"ip": "10.0.0.200/8"})
-        d1 = self.net.addDocker('d1', dimage="ubuntu")
+        d1 = self.net.addDocker('d1', dimage="ubuntu:trusty")
         self.net.addLink(d1, self.s[0], params1={"ip": "10.0.0.201/8"})
-        d2 = self.net.addDocker('d2', dimage="ubuntu")
+        d2 = self.net.addDocker('d2', dimage="ubuntu:trusty")
         self.net.addLink(d2, self.s[0], params1={"ip": "10.0.0.202/8"})
-        d3 = self.net.addDocker('d3', dimage="ubuntu")
+        d3 = self.net.addDocker('d3', dimage="ubuntu:trusty")
         self.net.addLink(d3, self.s[0], params1={"ip": "10.0.0.203/8"})
         # check number of running docker containers
         self.assertTrue(len(self.getDockerCli().containers()) == 4)
@@ -337,7 +337,7 @@ class testDockernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(self.net.ping(
                [self.h[0]], manualdestip="10.0.0.201", timeout=1) >= 100.0)
         ### add container: d4
-        d4 = self.net.addDocker('d4', dimage="ubuntu")
+        d4 = self.net.addDocker('d4', dimage="ubuntu:trusty")
         self.net.addLink(d4, self.s[0], params1={"ip": "10.0.0.204/8"})
         # check number of running docker containers
         self.assertTrue(len(self.getDockerCli().containers()) == 3)
@@ -438,8 +438,8 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         # create network
         self.createNet(nswitches=1, nhosts=0, ndockers=0)
         # add dockers
-        d0 = self.net.addDocker('d0', ip='10.0.0.1', dimage="ubuntu", cpu_shares=10)
-        d1 = self.net.addDocker('d1', ip='10.0.0.2', dimage="ubuntu", cpu_shares=90)
+        d0 = self.net.addDocker('d0', ip='10.0.0.1', dimage="ubuntu:trusty", cpu_shares=10)
+        d1 = self.net.addDocker('d1', ip='10.0.0.2', dimage="ubuntu:trusty", cpu_shares=90)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
@@ -460,10 +460,10 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         self.createNet(nswitches=1, nhosts=0, ndockers=0)
         # add dockers
         d0 = self.net.addDocker(
-            'd0', ip='10.0.0.1', dimage="ubuntu",
+            'd0', ip='10.0.0.1', dimage="ubuntu:trusty",
             cpu_period=50000, cpu_quota=10000)
         d1 = self.net.addDocker(
-            'd1', ip='10.0.0.2', dimage="ubuntu",
+            'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
             cpu_period=50000, cpu_quota=10000)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
@@ -485,10 +485,10 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         self.createNet(nswitches=1, nhosts=0, ndockers=0)
         # add dockers
         d0 = self.net.addDocker(
-            'd0', ip='10.0.0.1', dimage="ubuntu",
+            'd0', ip='10.0.0.1', dimage="ubuntu:trusty",
             mem_limit=132182016)
         d1 = self.net.addDocker(
-            'd1', ip='10.0.0.2', dimage="ubuntu",
+            'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
             mem_limit=132182016, memswap_limit=-1)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
@@ -510,10 +510,10 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         self.createNet(nswitches=1, nhosts=0, ndockers=0)
         # add dockers
         d0 = self.net.addDocker(
-            'd0', ip='10.0.0.1', dimage="ubuntu",
+            'd0', ip='10.0.0.1', dimage="ubuntu:trusty",
             cpu_share=0.3)
         d1 = self.net.addDocker(
-            'd1', ip='10.0.0.2', dimage="ubuntu",
+            'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
             cpu_period=50000, cpu_quota=10000)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
@@ -541,10 +541,10 @@ class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
         self.createNet(nswitches=1, nhosts=0, ndockers=0)
         # add dockers
         d0 = self.net.addDocker(
-            'd0', ip='10.0.0.1', dimage="ubuntu",
+            'd0', ip='10.0.0.1', dimage="ubuntu:trusty",
             mem_limit=132182016)
         d1 = self.net.addDocker(
-            'd1', ip='10.0.0.2', dimage="ubuntu",
+            'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
             memswap_limit=-1)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])

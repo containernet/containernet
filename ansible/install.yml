@@ -43,7 +43,7 @@
        chdir: ../
 
    - name: download 'ubuntu' docker image for Dockernet example
-     shell: docker run ubuntu
+     shell: docker run ubuntu:trusty
 
 
   handlers:

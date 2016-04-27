@@ -27,10 +27,10 @@ def dockerNet():
     h2 = net.addHost('h2')
 
     info('*** Adding docker containers\n')
-    d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu")
-    d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu", cpu_period=50000, cpu_quota=25000)
+    d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
+    d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", cpu_period=50000, cpu_quota=25000)
     d3 = net.addHost(
-        'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu", cpu_shares=20)
+        'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_shares=20)
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')
@@ -58,7 +58,7 @@ def dockerNet():
     net.ping([d2, d3], manualdestip="11.0.0.254")
 
     info('*** Dynamically add a container at runtime\n')
-    d4 = net.addDocker('d4', dimage="ubuntu")
+    d4 = net.addDocker('d4', dimage="ubuntu:trusty")
     # we have to specify a manual ip when we add a link at runtime
     net.addLink(d4, s1, params1={"ip": "10.0.0.254/8"})
     # other options to do this
