@@ -32,17 +32,17 @@
    - name: install docker-py
      pip: name=docker-py
 
-   - name: built and install Dockernet (using Mininet installer)
-     shell: dockernet/util/install.sh
+   - name: built and install Conatinernet (using Mininet installer)
+     shell: containernet/util/install.sh
      args:
        chdir: ../../
 
-   - name: install Dockernet Python egg
+   - name: install Conatinernet Python egg
      shell: python setup.py install
      args:
        chdir: ../
 
-   - name: download 'ubuntu' docker image for Dockernet example
+   - name: download 'ubuntu' docker image for Conatinernet example
      shell: docker run ubuntu:trusty
 
 

@@ -1,4 +1,4 @@
-## Using Dockernet inside a container
+## Using Containernet inside a container
 
 ### Build the image
 

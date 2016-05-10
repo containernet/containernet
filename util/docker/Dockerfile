@@ -9,15 +9,15 @@ RUN apt-get update \
     && chmod +x /usr/bin/docker \
     && echo 'Done'
 
-WORKDIR /dockernet
+WORKDIR /containernet
 
-COPY . /dockernet/
+COPY . /containernet/
 
 RUN sed -i 's@git://@https://@g' util/install.sh \
     && echo 'localhost ansible_connection=local' >> /etc/ansible/hosts \
-    && cd /dockernet/ansible \
+    && cd /containernet/ansible \
     && ansible-playbook _build.install.yml \
-    && cd /dockernet \
+    && cd /containernet \
     && cp util/install.sh /tmp/install.sh \
     && cat /tmp/install.sh | awk 'NR==1{print; print "set -x"} NR!=1' > util/install.sh \
     && mkdir -p util/_deps \

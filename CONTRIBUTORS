@@ -53,12 +53,12 @@ mailing list!
 
 
 
-Dockernet Contributors
+Containernet Contributors
 
-Dockernet is a fork of Mininet that allows to use Docker containers
+Containernet is a fork of Mininet that allows to use Docker containers
 as Mininet hosts.
 
-Dockernet contributors include:
+Containernet contributors include:
 
 Manuel Peuster <manuel (at) peuster (dot) de>
 

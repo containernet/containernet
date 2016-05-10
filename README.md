@@ -1,5 +1,5 @@
-Dockernet
-=========
+Containernet
+============
 
 [![Join the chat at https://gitter.im/mpeuster/dockernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/dockernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![DOI](https://zenodo.org/badge/21438/mpeuster/dockernet.svg)](https://zenodo.org/badge/latestdoi/21438/mpeuster/dockernet)
@@ -45,29 +45,26 @@ Automatic installation is provide through an Ansible playbook.
 * `sudo apt-get install ansible git`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
-* `git clone https://github.com/mpeuster/dockernet.git`
-* `cd dockernet/ansible`
+* `git clone https://github.com/mpeuster/containernet.git`
+* `cd containernet/ansible`
 * `sudo ansible-playbook install.yml`
 * Wait (and have a coffee) ...
 
 ### Usage / Run
 Start example topology with some empty Docker containers connected to the network.
 
-* `cd dockernet`
+* `cd containernet`
 * run: `sudo python examples/dockerhosts.py`
 * use: `mininet> d1 ifconfig` to see config of container d1
 
 ### Tests
 There is a set of Dockernet specific unit tests located in `mininet/test/test_dockernet.py`. To run these, do:
 
-* `cd dockernet/mininet`
+* `cd containernet/mininet`
 * `sudo python test -d`
 
-### TODOs
-* see Wiki: https://github.com/mpeuster/dockernet/wiki/Dockernet-TODO
-
 ### Credits
-Dockernet (c) 2015 by Manuel Peuster
+Containernet (c) 2015 by Manuel Peuster
 
 * Inspired by: http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
 
