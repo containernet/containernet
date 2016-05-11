@@ -61,6 +61,10 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 * `sudo pytest mininet/test/test_containernet.py -v`
 
+### Cleanup
+
+* Run `bin/clear_crash.sh` to cleanup the environment after something went wrong.
+
 ### Credits
 Containernet (c) 2015 by Manuel Peuster
 
