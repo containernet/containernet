@@ -83,7 +83,7 @@ class simpleTestTopology( unittest.TestCase ):
 
 
 #@unittest.skip("disabled connectivity tests for development")
-class testDockernetConnectivity( simpleTestTopology ):
+class testContainernetConnectivity( simpleTestTopology ):
     """
     Tests to check connectivity of Docker containers within
     the emulated network.
@@ -196,7 +196,7 @@ class testDockernetConnectivity( simpleTestTopology ):
 
 
 #@unittest.skip("disabled command execution tests for development")
-class testDockernetContainerCommandExecution( simpleTestTopology ):
+class testContainernetContainerCommandExecution( simpleTestTopology ):
     """
     Test to check the command execution inside Docker containers by
     using the Mininet API.
@@ -224,7 +224,7 @@ class testDockernetContainerCommandExecution( simpleTestTopology ):
 
 
 #@unittest.skip("disabled dynamic topology tests for development")
-class testDockernetDynamicTopologies( simpleTestTopology ):
+class testContainernetDynamicTopologies( simpleTestTopology ):
     """
     Tests to check dynamic topology support which allows to add
     and remove containers to/from a running Mininet network instance.
@@ -368,7 +368,7 @@ class testDockernetDynamicTopologies( simpleTestTopology ):
 
 
 #@unittest.skip("disabled TCLink tests for development")
-class testDockernetTCLinks( simpleTestTopology ):
+class testContainernetTCLinks( simpleTestTopology ):
     """
     Tests to check TCLinks together with Docker containers.
     """
@@ -424,7 +424,7 @@ class testDockernetTCLinks( simpleTestTopology ):
 
 
 #@unittest.skip("disabled container resource limit tests for development")
-class testDockernetContainerResourceLimitAPI( simpleTestTopology ):
+class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
     """
     Test to check the resource limitation API of the Docker integration.
     TODO: Also check if values are set correctly in to running containers,

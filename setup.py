@@ -38,7 +38,6 @@ setup(
     license='BSD',
     install_requires=[
         'setuptools',
-        'pycurl',
         'docker-py',
         'pytest',
         'pytest-runner'
