@@ -59,7 +59,7 @@ Start example topology with some empty Docker containers connected to the networ
 ### Tests
 There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
 
-* `sudo pytest mininet/test/test_containernet.py -v`
+* `sudo py.test -v mininet/test/test_containernet.py`
 
 ### Cleanup
 
