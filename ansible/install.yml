@@ -21,6 +21,9 @@
    - name: install setuptools
      pip: name=setuptools state=latest
 
+   - name: install pytest
+     pip: name=pytest state=latest
+
    - name: install latest urllib3 (fix error urllib3.connection.match_hostname = match_hostname)
      pip: name=urllib3 state=latest
 
