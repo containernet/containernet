@@ -54,7 +54,7 @@ Start example topology with some empty Docker containers connected to the networ
 
 * `cd containernet`
 * run: `sudo python examples/dockerhosts.py`
-* use: `mininet> d1 ifconfig` to see config of container d1
+* use: `containernet> d1 ifconfig` to see config of container d1
 
 ### Tests
 There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
