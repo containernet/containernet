@@ -3,7 +3,7 @@ import os
 import time
 import subprocess
 import docker
-from mininet.net import Dockernet
+from mininet.net import Containernet
 from mininet.node import Host, Controller, OVSSwitch, Docker
 from mininet.link import TCLink
 from mininet.topo import SingleSwitchTopo, LinearTopo
@@ -34,7 +34,7 @@ class simpleTestTopology( unittest.TestCase ):
         Creates a Mininet instance and automatically adds some
         nodes to it.
         """
-        self.net = Dockernet( controller=Controller )
+        self.net = Containernet( controller=Controller )
         self.net.addController( 'c0' )
 
         # add some switches

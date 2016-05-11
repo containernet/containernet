@@ -969,7 +969,7 @@ class Mininet( object ):
         cls.inited = True
 
 
-class Dockernet( Mininet ):
+class Containernet( Mininet ):
     """
     A Mininet with Docker related methods.
     Inherits Mininet.
