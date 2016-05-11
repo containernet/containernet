@@ -35,7 +35,7 @@ Based on: Mininet 2.2.1
 ### Dependencies
 
 * Ubuntu 14.04 LTS
-* Docker 1.9.1
+* Docker 
 * docker-py 
 
 ### Installation
@@ -64,6 +64,25 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 ### Cleanup
 
 * Run `bin/clear_crash.sh` to cleanup the environment after something went wrong.
+
+
+### Docker support
+
+Containernet can be executed within a container itself. This results in a containers-inside-container setup and simplifies its distribution.
+
+To build the Containernet Docker image:
+
+* `docker build -t containernet .`
+
+To run the Containernet Docker image:
+
+* `docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock' containernet`
+
+A pre-build image is also available on Docker Hub:
+
+* https://hub.docker.com/r/mpeuster/containernet/
+
+
 
 ### Credits
 Containernet (c) 2015 by Manuel Peuster

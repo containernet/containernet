@@ -41,4 +41,4 @@
        chdir: ../
 
    - name: download 'ubuntu' docker image for Conatinernet example
-     shell: docker run ubuntu:trusty
+     shell: docker pull ubuntu:trusty
