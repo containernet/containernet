@@ -37,8 +37,8 @@
      args:
        chdir: ../../
 
-   - name: install Conatinernet Python egg
-     shell: python setup.py install
+   - name: install Conatinernet Python egg et.c
+     shell: make develop
      args:
        chdir: ../
 

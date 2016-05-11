@@ -5,12 +5,12 @@
 In the repository's root directory:
 
 ```
-docker build -t dockernet -f hub.dockerfile .
+docker build -t containernet -f hub.Dockerfile .
 ```
 
 
 ### Start the container
 
 ```
-docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock'
+docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock' containernet
 ```

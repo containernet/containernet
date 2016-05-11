@@ -722,7 +722,7 @@ class Docker ( Host ):
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
             cpuset=self.cpuset,
-            labels=['com.dockernet'],
+            labels=['com.containernet'],
         )
         # start the container
         self.dcli.start(self.dc)

@@ -171,7 +171,7 @@ def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
        raises Exception on failure"""
 
     """
-        Dockernet: Major changes in this method
+        Containernet: Major changes in this method
         The problem here is that we can not add a link to another
         netns within a Docker container since it does not know
         the other process (process not found error).

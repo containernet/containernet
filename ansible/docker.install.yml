@@ -13,7 +13,7 @@
      pip: name=docker-py
 
 #   - name: built and install Containernet (using Mininet installer)
-#     shell: dockernet/util/install.sh
+#     shell: containernet/util/install.sh
 #     args:
 #       chdir: ../../
 
