@@ -70,17 +70,17 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 Containernet can be executed within a container itself. This results in a containers-inside-container setup and simplifies its distribution.
 
-To build the Containernet Docker image:
+A pre-build image is also available on Docker Hub (auto build of latest code revision on GitHub):
 
-* `docker build -t containernet .`
+* https://hub.docker.com/r/mpeuster/containernet/
 
 To run the Containernet Docker image:
 
-* `docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock' containernet`
+* `docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock' mpeuster/containernet`
 
-A pre-build image is also available on Docker Hub:
+To build the Containernet Docker image:
 
-* https://hub.docker.com/r/mpeuster/containernet/
+* `docker build -t containernet .`
 
 
 
