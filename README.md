@@ -1,8 +1,7 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/dockernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/dockernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-[![DOI](https://zenodo.org/badge/21438/mpeuster/dockernet.svg)](https://zenodo.org/badge/latestdoi/21438/mpeuster/dockernet)
+[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 ### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
@@ -58,7 +57,7 @@ Start example topology with some empty Docker containers connected to the networ
 * use: `mininet> d1 ifconfig` to see config of container d1
 
 ### Tests
-There is a set of Dockernet specific unit tests located in `mininet/test/test_dockernet.py`. To run these, do:
+There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
 
 * `cd containernet/mininet`
 * `sudo python test -d`
