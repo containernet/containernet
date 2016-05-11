@@ -63,7 +63,7 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 ### Cleanup
 
-* Run `bin/clear_crash.sh` to cleanup the environment after something went wrong.
+* Run `cd bin/; sudo clear_crash.sh` to cleanup the environment after something went wrong.
 
 
 ### Docker support
