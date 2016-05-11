@@ -39,8 +39,7 @@ setup(
     install_requires=[
         'setuptools',
         'docker-py',
-        'pytest',
-        'pytest-runner'
+        'pytest'
     ],
     scripts=scripts,
 )
