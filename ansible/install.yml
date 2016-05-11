@@ -3,31 +3,20 @@
    - name: updates apt
      apt: update_cache=yes
 
-   - name: install python-pycurl
-     apt: pkg=python-pycurl state=installed
-
-   - name: install aptitude
-     apt: pkg=aptitude state=installed
-
-   - name: add apt key
-     shell: apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
-
-   - name: add docker apt repo
-     apt_repository: repo='deb https://apt.dockerproject.org/repo ubuntu-trusty main' state=present
-     
-   - name: updates apt
-     apt: update_cache=yes
-
    - name: upgrade apt
      apt: upgrade=full
 
-   - name: install docker-engine
-     apt: pkg=docker-engine state=installed
-     notify:
-       - start docker
+   - name: install curl
+     apt: pkg=curl state=installed
 
    - name: install pip
      apt: pkg=python-pip state=installed
+
+   - name: ensure docker repo key
+     shell: curl -fsSL https://get.docker.com/gpg | apt-key add -
+
+   - name: install docker
+     shell: curl -fsSL https://get.docker.com/ | sh
 
    - name: install docker-py
      pip: name=docker-py
@@ -44,8 +33,3 @@
 
    - name: download 'ubuntu' docker image for Conatinernet example
      shell: docker run ubuntu:trusty
-
-
-  handlers:
-    - name: start docker
-      service: name=docker state=started
