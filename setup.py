@@ -37,7 +37,11 @@ setup(
     keywords='networking emulator protocol Internet OpenFlow SDN',
     license='BSD',
     install_requires=[
-        'setuptools'
+        'setuptools',
+        'pycurl',
+        'docker-py',
+        'pytest',
+        'pytest-runner'
     ],
     scripts=scripts,
 )
