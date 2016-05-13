@@ -3,4 +3,4 @@ before_install:
   - sudo apt-get install -y python-dev python-apt ansible
 
 script:
-  - ls
+  - cd ansible; sudo ansible-playbook install.yml --connection=local --sudo
