@@ -1,0 +1,9 @@
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y python-dev python-apt
+
+install:
+  - pip install ansible>=1.9.1
+
+script:
+  - ls
