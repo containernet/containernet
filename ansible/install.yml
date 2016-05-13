@@ -3,8 +3,8 @@
    - name: updates apt
      apt: update_cache=yes
 
-   - name: upgrade apt
-     apt: upgrade=full
+   #- name: upgrade apt
+   #  apt: upgrade=full
 
    - name: install curl
      apt: pkg=curl state=installed
