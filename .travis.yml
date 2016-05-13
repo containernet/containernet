@@ -3,5 +3,5 @@ before_install:
   - sudo apt-get install -y python-dev python-apt ansible
 
 script:
-  - sudo echo "localhost ansible_connection=local" >> /etc/ansible/hosts
+  - echo "localhost ansible_connection=local" | sudo tee --append /etc/ansible/hosts
   - cd ansible; sudo ansible-playbook install.yml
