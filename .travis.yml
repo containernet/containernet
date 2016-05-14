@@ -5,3 +5,5 @@ before_install:
 script:
   - echo "localhost ansible_connection=local" | sudo tee --append /etc/ansible/hosts
   - cd ansible; sudo ansible-playbook install.yml
+  - cd ..
+  - sudo py.test -v mininet/test/test_containernet.py
