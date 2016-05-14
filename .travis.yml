@@ -11,8 +11,7 @@ virtualenv:
 before_install:
   - sudo apt-get -qq update
   - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install python-dev python-apt python-pip ansible libffi-dev libssl-dev
-  - sudo rm -f /etc/default/docker
-  - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install docker-engine
+  - sudo apt-get install -o Dpkg::Options::="--force-confold" --force-yes -y docker-engine
 
 
 install:
