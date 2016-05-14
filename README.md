@@ -41,6 +41,8 @@ Based on: Mininet 2.2.1
 ### Installation
 Automatic installation is provide through an Ansible playbook.
 * Requires: Ubuntu 14.04 LTS
+* `sudo apt-get update`
+* `sudo apt-get upgrade`
 * `sudo apt-get install ansible git`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
