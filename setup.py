@@ -39,7 +39,7 @@ setup(
     install_requires=[
         'setuptools',
         'urllib3',
-        'docker-py',
+        'docker-py==1.7.1',
         'pytest'
     ],
     scripts=scripts,
