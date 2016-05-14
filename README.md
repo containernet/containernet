@@ -84,6 +84,10 @@ To build the Containernet Docker image:
 
 * `docker build -t containernet .`
 
+HINT: If you are using docker-machine on OS X, you have to execute the following before you can run Containernet inside a Docker container.
+
+* `docker-machine ssh default "sudo modprobe openvswitch"`
+
 
 
 ### Credits
