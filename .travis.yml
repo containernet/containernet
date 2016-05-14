@@ -17,8 +17,14 @@ before_install:
   - sudo apt-get install -y python-dev python-apt python-pip ansible libffi-dev libssl-dev
 
 install:
-  - echo "localhost ansible_connection=local" | sudo tee --append /etc/ansible/hosts
-  - cd ansible; sudo ansible-playbook install.yml
+  #- echo "localhost ansible_connection=local" | sudo tee --append /etc/ansible/hosts
+  #- cd ansible; sudo ansible-playbook install.yml
+  - sudo pip install urllib3
+  - sudo pip install pytest
+  - sudo pip install docker-py==1.7.1
+  - sudo util/install.sh
+  - sudo make develop
+  - docker pull ubuntu:trusty
 
 script:
   #- sudo py.test -v mininet/test/test_containernet.py

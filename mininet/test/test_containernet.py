@@ -85,7 +85,7 @@ class simpleTestTopology( unittest.TestCase ):
         """
         List the containers managed by containernet
         """
-        return self.getContainernetContainers(filters={"label": "com.containernet"})
+        return self.getDockerCli().containers(filters={"label": "com.containernet"})
 
 
 #@unittest.skip("disabled connectivity tests for development")
