@@ -76,7 +76,7 @@ class simpleTestTopology( unittest.TestCase ):
         # make sure that all pending docker containers are killed
         with open(os.devnull, 'w') as devnull:
             subprocess.call(
-                "sudo docker rm -f $(sudo docker ps -a -q)",
+                "docker rm -f $(docker ps --filter 'label=com.containernet' -a -q)",
                 stdout=devnull,
                 stderr=devnull,
                 shell=True)
