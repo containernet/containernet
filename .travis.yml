@@ -1,6 +1,6 @@
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y python-dev python-apt python-pip ansible
+  - sudo apt-get install -y python-dev python-apt python-pip ansible libffi-dev libssl-dev
   - sudo -H pip install setuptools
 
 script:
