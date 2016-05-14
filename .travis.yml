@@ -10,7 +10,7 @@ virtualenv:
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y python-dev python-apt python-pip ansible libffi-dev libssl-dev docker-engine
+  - sudo apt-get --yes --force-yes install python-dev python-apt python-pip ansible libffi-dev libssl-dev docker-engine
 
 install:
   - sudo pip install urllib3
