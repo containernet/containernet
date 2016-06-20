@@ -1,7 +1,7 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/mpeuster/containernet.svg?branch=master)](https://travis-ci.org/mpeuster/containernet)
 
 ### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
@@ -41,6 +41,8 @@ Based on: Mininet 2.2.1
 ### Installation
 Automatic installation is provide through an Ansible playbook.
 * Requires: Ubuntu 14.04 LTS
+* `sudo apt-get update`
+* `sudo apt-get upgrade`
 * `sudo apt-get install ansible git`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
@@ -81,6 +83,10 @@ To run the Containernet Docker image:
 To build the Containernet Docker image:
 
 * `docker build -t containernet .`
+
+HINT: If you are using docker-machine on OS X, you have to execute the following before you can run Containernet inside a Docker container.
+
+* `docker-machine ssh default "sudo modprobe openvswitch"`
 
 
 

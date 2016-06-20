@@ -38,7 +38,8 @@ setup(
     license='BSD',
     install_requires=[
         'setuptools',
-        'docker-py',
+        'urllib3',
+        'docker-py==1.7.1',
         'pytest'
     ],
     scripts=scripts,
