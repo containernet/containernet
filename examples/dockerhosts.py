@@ -31,6 +31,7 @@ def topology():
     d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", cpu_period=50000, cpu_quota=25000)
     d3 = net.addHost(
         'd3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_shares=20)
+    d5 = net.addDocker('d5', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')

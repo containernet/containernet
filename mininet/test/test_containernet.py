@@ -564,5 +564,30 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         self.stopNet()
 
 
+#@unittest.skip("disabled container resource limit tests for development")
+class testContainernetVolumeAPI( simpleTestTopology ):
+    """
+    Test the volume API.
+    """
+
+    def testContainerVolumes( self ):
+        """
+        d1, d2 with volumes
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        d0 = self.net.addDocker('d0', ip='10.0.0.1', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
+        d1 = self.net.addDocker('d1', ip='10.0.0.2', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw", "/:/mnt/vol2:rw"])
+        # start Mininet network
+        self.startNet()
+        # check if we can see the root file system
+        self.assertTrue("etc" in d0.cmd("ls /mnt/vol1"))
+        self.assertTrue("etc" in d1.cmd("ls /mnt/vol1"))
+        self.assertTrue("etc" in d1.cmd("ls /mnt/vol2"))
+        # stop Mininet network
+        self.stopNet()
+
+
 if __name__ == '__main__':
     unittest.main()

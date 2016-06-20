@@ -683,7 +683,8 @@ class Docker ( Host ):
                      'cpu_shares': -1,
                      'cpuset': None,
                      'mem_limit': -1,
-                     'memswap_limit': -1 }
+                     'memswap_limit': -1,
+                     'volumes': [] }  # use ["/home/user1/:/mnt/vol2:rw"]
         defaults.update( kwargs )
         self.cpu_quota = defaults['cpu_quota']
         self.cpu_period = defaults['cpu_period']
@@ -691,6 +692,7 @@ class Docker ( Host ):
         self.cpuset = defaults['cpuset']
         self.mem_limit = defaults['mem_limit']
         self.memswap_limit = defaults['memswap_limit']
+        self.volumes = defaults['volumes']
 
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
@@ -708,7 +710,8 @@ class Docker ( Host ):
         # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
         hc = self.dcli.create_host_config(
             network_mode=None,
-            privileged=True  # we need this to allow mininet network setup
+            privileged=True,  # we need this to allow mininet network setup
+            binds=self.volumes
             # ATTENTION: We do not use the docker interface to set resource limits! Use self.updateCpuLimit() instead
         )
         # create new docker container
@@ -723,6 +726,7 @@ class Docker ( Host ):
             host_config=hc,
             cpuset=self.cpuset,
             labels=['com.containernet'],
+            volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
         )
         # start the container
         self.dcli.start(self.dc)
@@ -771,12 +775,22 @@ class Docker ( Host ):
         # fix container environment (sentinel chr(127))
         self.cmd('export PS1="\\177"')
 
+    def _get_volume_mount_name(self, volume_str):
+        """ Helper to extract mount names from volume specification strings """
+        parts = volume_str.split(":")
+        if len(parts) < 3:
+            return None
+        return parts[1]
+
     def terminate( self ):
         """ Stop docker container """
         self.dcli.stop(self.dc, timeout=1)
         # also remove the container
         # TODO this should be optional later
-        self.dcli.remove_container(self.dc, force=True)
+        try:
+            self.dcli.remove_container(self.dc, force=True, v=True)
+        except docker.errors.APIError as e:
+            info("Warning: API error during container removal.\n")
         self.cleanup()
 
     def monitor( self, timeoutms=None, findPid=True ):
