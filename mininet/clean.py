@@ -113,6 +113,9 @@ class Cleanup( object ):
         for callback in cls.callbacks:
             callback()
 
+        # Containernet should also cleanup pending Docker
+        sh( "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)" )
+
         info( "*** Cleanup complete.\n" )
 
     @classmethod
