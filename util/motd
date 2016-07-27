@@ -1,0 +1,11 @@
+_____________________________________________________________________
+
+	Welcome to Containernet!
+
+	You can run the example topology with the following command:
+	> sudo python containernet/examples/dockerhosts.py
+
+	Have fun! 
+
+	Manuel Peuster <manuel@peuster.de>
+_____________________________________________________________________
