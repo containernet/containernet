@@ -67,6 +67,20 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 * Run `cd bin/; sudo clear_crash.sh` to cleanup the environment after something went wrong.
 
+### Vagrant support
+
+Using the provided Vagrantfile is the most simple way to run and test Containernet.
+
+Simply do:
+
+```
+git clone https://github.com/mpeuster/containernet.git
+cd containernet
+vagrant up
+vagrant ssh
+```
+
+And follow the instructions in the MOTD message.
 
 ### Docker support
 
