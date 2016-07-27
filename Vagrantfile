@@ -93,7 +93,7 @@ Vagrant.configure(2) do |config|
      sudo py.test -v mininet/test/test_containernet.py
 
      # place motd
-     # sudo cp util/motd /etc/motd
+     sudo cp util/motd /etc/motd
   SHELL
 
   # TODO the native ansible provisioner does not work so we directly call the shell commands
