@@ -11,4 +11,5 @@ dist
 doc/html
 doc/latex
 trunk
+.vagrant/
 
