@@ -8,6 +8,9 @@
 
    - name: install curl
      apt: pkg=curl state=installed
+     
+   - name: install aptitude
+     apt: pkg=aptitude state=installed
 
    - name: install pip
      apt: pkg=python-pip state=installed
