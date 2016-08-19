@@ -58,6 +58,7 @@ import re
 import signal
 import select
 import docker
+import json
 from subprocess import Popen, PIPE, call, check_output
 from time import sleep
 
@@ -705,8 +706,35 @@ class Docker ( Host ):
         debug("dcmd: %s\n" % str(self.dcmd))
         debug("kwargs: %s\n" % str(kwargs))
 
+        # Before we continue, we must sure that a image with name dimage
+        self.checkForImage()
+
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
+
+    def checkForImage(self):
+        # This method checks if image with dimage name is local available
+        # if not: it tries to download it
+        imageList = self.dcli.images(name=self.dimage, quiet=True)
+
+        a = []
+        message = ""
+        if not imageList: # image is not local available try to load
+
+            info('*** Trying to load the image "' + self.dimage + '". \n')
+            info('*** This can take some minutes based on your connection speed to the repository.\n')
+
+            # pull image
+            for line in self.dcli.pull(self.dimage, stream=True):
+                # print(json.dumps(json.loads(line), indent=4))
+                message = message + json.dumps(json.loads(line), indent=4)
+
+            # check if download was successful
+            imageList = self.dcli.images(name=self.dimage, quiet=True)
+            if not imageList:
+                raise ValueError(
+                    '\n\nThe image \"' + self.dimage + '\" could not be pulled:\n ' + message)
+            info('*** Download successful\n')
 
     def startShell( self, mnopts=None ):
         # creats host config for container
