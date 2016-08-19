@@ -706,14 +706,14 @@ class Docker ( Host ):
         debug("dcmd: %s\n" % str(self.dcmd))
         debug("kwargs: %s\n" % str(kwargs))
 
-        # Before we continue, we must sure that a image with name dimage
+        # Before we continue, we must be sure that a image with name dimage is available
         self.checkForImage()
 
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
 
     def checkForImage(self):
-        # This method checks if image with dimage name is local available
+        # This method checks if image with dimage name is locally available
         # if not: it tries to download it
         imageList = self.dcli.images(name=self.dimage, quiet=True)
 
