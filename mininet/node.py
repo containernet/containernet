@@ -866,14 +866,15 @@ class Docker ( Host ):
             repo, tag = imagename.split(":")
         else:
             repo = imagename
-            tag = "" # will default to latest
+            tag = "latest"
 
         # filter by repository
         images = self.dcli.images(repo)
 
-        for image in images.values():
-            if image.tag == tag:
-                return True
+        for image in images:
+            if 'repoTags' in image:
+                if tag in image['repoTags']:
+                    return True
 
         if pullImage:
             if self._pull_image(repo, tag):
