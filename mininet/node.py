@@ -697,6 +697,9 @@ class Docker ( Host ):
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
 
+        # pull image if it does not exist
+        self._check_image_exists(dimage, True)
+
         debug("Created docker container object %s\n" % name)
         debug("image: %s\n" % str(self.dimage))
         debug("dcmd: %s\n" % str(self.dcmd))
@@ -856,6 +859,35 @@ class Docker ( Host ):
         if state:
             return state.get("Pid", -1)
         return -1
+
+    def _check_image_exists(self, imagename, pullImage=False):
+        # split tag from repository if a tag is specified
+        if ":" in imagename:
+            repo, tag = imagename.split(":")
+        else:
+            repo = imagename
+            tag = "" # will default to latest
+
+        # filter by repository
+        images = self.dcli.images(repo)
+
+        for image in images.values():
+            if image.tag == tag:
+                return True
+
+        if pullImage:
+            if self._pull_image(repo, tag):
+                return True
+        # we couldn't find the image
+        return False
+
+    def _pull_image(self, repository, tag):
+        try:
+            self.dcli.pull(repository, tag)
+        except:
+            error('*** error: _pull_image: %s:%s failed.'
+                  % (repository, tag))
+        return True
 
     def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
         """
