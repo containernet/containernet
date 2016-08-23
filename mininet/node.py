@@ -717,7 +717,6 @@ class Docker ( Host ):
         # if not: it tries to download it
         imageList = self.dcli.images(name=self.dimage, quiet=True)
 
-        a = []
         message = ""
         if not imageList: # image is not local available try to load
 
