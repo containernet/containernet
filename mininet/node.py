@@ -58,6 +58,7 @@ import re
 import signal
 import select
 import docker
+import json
 from subprocess import Popen, PIPE, call, check_output
 from time import sleep
 
@@ -708,6 +709,7 @@ class Docker ( Host ):
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
 
+
     def startShell( self, mnopts=None ):
         # creats host config for container
         # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
@@ -868,26 +870,54 @@ class Docker ( Host ):
             repo = imagename
             tag = "latest"
 
-        # filter by repository
-        images = self.dcli.images(repo)
+        if self._image_exists(repo, tag):
+            return True
 
-        for image in images:
-            if 'repoTags' in image:
-                if tag in image['repoTags']:
-                    return True
-
+        # image not found
         if pullImage:
             if self._pull_image(repo, tag):
+                info('*** Download of "%s:%s" successful\n' % (repo, tag))
                 return True
         # we couldn't find the image
         return False
 
+    def _image_exists(self, repo, tag):
+        """
+        Checks if the repo:tag image exists locally
+        :return: True if the image exists locally. Else false.
+        """
+        # filter by repository
+        images = self.dcli.images(repo)
+
+        imageName = "%s:%s" % (repo, tag)
+
+        for image in images:
+            if 'RepoTags' in image:
+                if imageName in image['RepoTags']:
+                    return True
+
+        return False
+
     def _pull_image(self, repository, tag):
+        """
+        :return: True if pull was successful. Else false.
+        """
         try:
-            self.dcli.pull(repository, tag)
+            info('*** Image "%s:%s" not found. Trying to load the image. \n' % (repository, tag))
+            info('*** This can take some minutes...\n')
+
+            message = ""
+            for line in self.dcli.pull(repository, tag, stream=True):
+                # Collect output of the log for enhanced error feedback
+                message = message + json.dumps(json.loads(line), indent=4)
+
         except:
-            error('*** error: _pull_image: %s:%s failed.'
-                  % (repository, tag))
+            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+                  + message)
+        if not self._image_exists(repository, tag):
+            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+                  + message)
+            return False
         return True
 
     def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
