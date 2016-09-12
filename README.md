@@ -9,9 +9,16 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.1
 
-* WIP! Not fully functional yet.
+* WIP!
 * Contributions welcome :-)
 
+
+### Cite
+
+If you use Containernet for your research, please use cite the following paper to reference our work:
+
+* Manuel Peuster, Holger Karl, and Steven van Rossem. "MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments." pre-print arXiv:1606.05995 (2016).
+  * http://arxiv.org/abs/1606.05995
 
 ### Features
 
