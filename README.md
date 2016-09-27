@@ -9,16 +9,15 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.1
 
-* WIP!
 * Contributions welcome :-)
 
 
-### Cite
+### Cite this work
 
-If you use Containernet for your research, please use cite the following paper to reference our work:
+If you use Containernet for your research and/or other publications, please cite the following paper to reference our work:
 
-* Manuel Peuster, Holger Karl, and Steven van Rossem. "MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments." pre-print arXiv:1606.05995 (2016).
-  * http://arxiv.org/abs/1606.05995
+* Manuel Peuster, Holger Karl, and Steven van Rossem. "**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**" to appear in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
+  * Pre-print online: http://arxiv.org/abs/1606.05995
 
 ### Features
 
@@ -50,7 +49,7 @@ Automatic installation is provide through an Ansible playbook.
 * Requires: Ubuntu 14.04 LTS
 * `sudo apt-get update`
 * `sudo apt-get upgrade`
-* `sudo apt-get install ansible git`
+* `sudo apt-get install ansible git aptitude`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
 * `git clone https://github.com/mpeuster/containernet.git`
