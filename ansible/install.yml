@@ -3,14 +3,14 @@
    - name: updates apt
      apt: update_cache=yes
 
+   - name: install aptitude
+     apt: pkg=aptitude state=installed
+
    - name: upgrade apt
      apt: upgrade=full
 
    - name: install curl
      apt: pkg=curl state=installed
-     
-   - name: install aptitude
-     apt: pkg=aptitude state=installed
 
    - name: install pip
      apt: pkg=python-pip state=installed
