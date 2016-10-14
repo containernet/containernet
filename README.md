@@ -1,7 +1,7 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/mpeuster/containernet.svg?branch=master)](https://travis-ci.org/mpeuster/containernet)
+[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
 ### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
 
@@ -9,7 +9,7 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.1
 
-* Contributions welcome :-)
+**Attention:** Containernet repository was moved to an own account: https://github.com/containernet/containernet
 
 
 ### Cite this work
@@ -52,7 +52,7 @@ Automatic installation is provide through an Ansible playbook.
 * `sudo apt-get install ansible git aptitude`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
-* `git clone https://github.com/mpeuster/containernet.git`
+* `git clone https://github.com/containernet/containernet.git`
 * `cd containernet/ansible`
 * `sudo ansible-playbook install.yml`
 * Wait (and have a coffee) ...
@@ -80,7 +80,7 @@ Using the provided Vagrantfile is the most simple way to run and test Containern
 Simply do:
 
 ```
-git clone https://github.com/mpeuster/containernet.git
+git clone https://github.com/containernet/containernet.git
 cd containernet
 vagrant up
 vagrant ssh
