@@ -59,7 +59,7 @@ import signal
 import select
 import docker
 import json
-from subprocess import Popen, PIPE, call, check_output
+from subprocess import Popen, PIPE, check_output
 from time import sleep
 
 from mininet.log import info, error, warn, debug
@@ -920,7 +920,7 @@ class Docker ( Host ):
             return False
         return True
 
-    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1):
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None):
         """
         Update CPU resource limitations.
         This method allows to update resource limitations at runtime by bypassing the Docker API
@@ -929,7 +929,8 @@ class Docker ( Host ):
             cpu_quota: cfs quota us
             cpu_period: cfs period us
             cpu_shares: cpu shares
-
+            cores: specifies which cores should be accessible for the container e.g. "0-2,16" represents
+                Cores 0, 1, 2, and 16
         """
         # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
         if cpu_quota >= 0:
@@ -938,7 +939,9 @@ class Docker ( Host ):
             self.cpu_period = self.cgroupSet("cfs_period_us", cpu_period)
         if cpu_shares >= 0:
             self.cpu_shares = self.cgroupSet("shares", cpu_shares)
-
+        if cores:
+            self.dcli.update_container(self.dc, cpuset_cpus=cores)
+            # quota, period ad shares can also be set by this line. Usable for future work.
 
     def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1):
         """
