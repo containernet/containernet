@@ -685,6 +685,7 @@ class Docker ( Host ):
                      'cpuset': None,
                      'mem_limit': -1,
                      'memswap_limit': -1,
+                     'environment': {},
                      'volumes': [] }  # use ["/home/user1/:/mnt/vol2:rw"]
         defaults.update( kwargs )
         self.cpu_quota = defaults['cpu_quota']
@@ -694,6 +695,8 @@ class Docker ( Host ):
         self.mem_limit = defaults['mem_limit']
         self.memswap_limit = defaults['memswap_limit']
         self.volumes = defaults['volumes']
+        self.environment = {} if defaults['environment'] is None else defaults['environment']
+        self.environment.update({"PS1": chr(127)})  # CLI support
 
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
@@ -726,7 +729,7 @@ class Docker ( Host ):
             command=self.dcmd,
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
-            environment={"PS1": chr(127)},  # does not seem to have an effect
+            environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
             cpuset=self.cpuset,
