@@ -12,7 +12,9 @@ nothing irreplaceable!
 
 from subprocess import ( Popen, PIPE, check_output as co,
                          CalledProcessError )
+from subprocess import call
 import time
+import os
 
 from mininet.log import info
 from mininet.term import cleanUpScreens
@@ -114,7 +116,8 @@ class Cleanup( object ):
             callback()
 
         # Containernet should also cleanup pending Docker
-        sh( "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)" )
+        cmd =  "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)"
+        call(cmd, shell=True, stdout=open(os.devnull, 'wb'),  stderr=open(os.devnull, 'wb'))
 
         info( "*** Cleanup complete.\n" )
 

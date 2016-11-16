@@ -58,7 +58,8 @@ import re
 import signal
 import select
 import docker
-from subprocess import Popen, PIPE, call, check_output
+import json
+from subprocess import Popen, PIPE, check_output
 from time import sleep
 
 from mininet.log import info, error, warn, debug
@@ -684,6 +685,7 @@ class Docker ( Host ):
                      'cpuset': None,
                      'mem_limit': -1,
                      'memswap_limit': -1,
+                     'environment': {},
                      'volumes': [] }  # use ["/home/user1/:/mnt/vol2:rw"]
         defaults.update( kwargs )
         self.cpu_quota = defaults['cpu_quota']
@@ -693,9 +695,14 @@ class Docker ( Host ):
         self.mem_limit = defaults['mem_limit']
         self.memswap_limit = defaults['memswap_limit']
         self.volumes = defaults['volumes']
+        self.environment = {} if defaults['environment'] is None else defaults['environment']
+        self.environment.update({"PS1": chr(127)})  # CLI support
 
         # setup docker client
         self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
+
+        # pull image if it does not exist
+        self._check_image_exists(dimage, True)
 
         debug("Created docker container object %s\n" % name)
         debug("image: %s\n" % str(self.dimage))
@@ -704,6 +711,7 @@ class Docker ( Host ):
 
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
+
 
     def startShell( self, mnopts=None ):
         # creats host config for container
@@ -721,7 +729,7 @@ class Docker ( Host ):
             command=self.dcmd,
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
-            environment={"PS1": chr(127)},  # does not seem to have an effect
+            environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
             cpuset=self.cpuset,
@@ -857,7 +865,65 @@ class Docker ( Host ):
             return state.get("Pid", -1)
         return -1
 
-    def updateCpuLimit(self, cpu_quota=None, cpu_period=-1, cpu_shares=-1):
+    def _check_image_exists(self, imagename, pullImage=False):
+        # split tag from repository if a tag is specified
+        if ":" in imagename:
+            repo, tag = imagename.split(":")
+        else:
+            repo = imagename
+            tag = "latest"
+
+        if self._image_exists(repo, tag):
+            return True
+
+        # image not found
+        if pullImage:
+            if self._pull_image(repo, tag):
+                info('*** Download of "%s:%s" successful\n' % (repo, tag))
+                return True
+        # we couldn't find the image
+        return False
+
+    def _image_exists(self, repo, tag):
+        """
+        Checks if the repo:tag image exists locally
+        :return: True if the image exists locally. Else false.
+        """
+        # filter by repository
+        images = self.dcli.images(repo)
+
+        imageName = "%s:%s" % (repo, tag)
+
+        for image in images:
+            if 'RepoTags' in image:
+                if imageName in image['RepoTags']:
+                    return True
+
+        return False
+
+    def _pull_image(self, repository, tag):
+        """
+        :return: True if pull was successful. Else false.
+        """
+        try:
+            info('*** Image "%s:%s" not found. Trying to load the image. \n' % (repository, tag))
+            info('*** This can take some minutes...\n')
+
+            message = ""
+            for line in self.dcli.pull(repository, tag, stream=True):
+                # Collect output of the log for enhanced error feedback
+                message = message + json.dumps(json.loads(line), indent=4)
+
+        except:
+            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+                  + message)
+        if not self._image_exists(repository, tag):
+            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+                  + message)
+            return False
+        return True
+
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None):
         """
         Update CPU resource limitations.
         This method allows to update resource limitations at runtime by bypassing the Docker API
@@ -866,7 +932,8 @@ class Docker ( Host ):
             cpu_quota: cfs quota us
             cpu_period: cfs period us
             cpu_shares: cpu shares
-
+            cores: specifies which cores should be accessible for the container e.g. "0-2,16" represents
+                Cores 0, 1, 2, and 16
         """
         # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
 
@@ -878,7 +945,9 @@ class Docker ( Host ):
             self.cpu_period = self.cgroupSet("cfs_period_us", cpu_period)
         if cpu_shares >= 0:
             self.cpu_shares = self.cgroupSet("shares", cpu_shares)
-
+        if cores:
+            self.dcli.update_container(self.dc, cpuset_cpus=cores)
+            # quota, period ad shares can also be set by this line. Usable for future work.
 
     def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1):
         """
