@@ -1,17 +1,32 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/mpeuster/containernet.svg?branch=master)](https://travis-ci.org/mpeuster/containernet)
+[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
-### Use Docker containers as hosts inside your Mininet topologies. Interact with the containers through Mininet's CLI.
+**Attention:** This repository was moved to an own account: https://github.com/containernet/containernet
+
+### Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
 This fork of Mininet allows to use Docker containers as Mininet hosts. This enables interesting functionalities to built networking/cloud testbeds. The integration is done by subclassing the original Host class.
 
 Based on: Mininet 2.2.1
 
-* WIP! Not fully functional yet.
-* Contributions welcome :-)
+* Mininet:  http://mininet.org
+* Original Mininet repository: https://github.com/mininet/mininet
 
+### Cite this work
+
+If you use Containernet for your research and/or other publications, please cite the following paper to reference our work:
+
+* Manuel Peuster, Holger Karl, and Steven van Rossem. "**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**" to appear in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
+  * Pre-print online: http://arxiv.org/abs/1606.05995
+
+### NFV multi-PoP Extension
+
+There is an extension of Containernet called MeDICINE which is a full-featured multi-PoP emulation platform for NFV scenarios which is developed as part of the SONATA project.
+
+* MeDICINE platform repository: https://github.com/sonata-nfv/son-emu
+* SONATA project: http://www.sonata-nfv.eu
 
 ### Features
 
@@ -26,27 +41,21 @@ Based on: Mininet 2.2.1
  * CPU limitation with Docker CPU share option
  * CPU limitation with Docker CFS period/quota options
  * Memory/swap limitation
- * UPDATE CPU/Mem limitations at runtime!
+ * Change CPU/mem limitations at runtime!
 * Traffic control links (delay, bw, loss, jitter)
  * (missing: TCLink support for dynamically added containers/hosts)
 * Automated unit tests for all new features
 * Automated installation based on Ansible playbook
 
-### Dependencies
-
-* Ubuntu 14.04 LTS
-* Docker 
-* docker-py 
-
 ### Installation
 Automatic installation is provide through an Ansible playbook.
-* Requires: Ubuntu 14.04 LTS
+* Requires: Ubuntu **14.04 LTS**
 * `sudo apt-get update`
 * `sudo apt-get upgrade`
-* `sudo apt-get install ansible git`
+* `sudo apt-get install ansible git aptitude`
 * `sudo vim /etc/ansible/hosts`
 * Add: `localhost ansible_connection=local`
-* `git clone https://github.com/mpeuster/containernet.git`
+* `git clone https://github.com/containernet/containernet.git`
 * `cd containernet/ansible`
 * `sudo ansible-playbook install.yml`
 * Wait (and have a coffee) ...
@@ -63,46 +72,16 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 * `sudo py.test -v mininet/test/test_containernet.py`
 
-### Cleanup
-
-* Run `cd bin/; sudo clear_crash.sh` to cleanup the environment after something went wrong.
-
 ### Vagrant support
 
-Using the provided Vagrantfile is the most simple way to run and test Containernet.
-
-Simply do:
+Using the provided Vagrantfile is the most simple way to run and test Containernet:
 
 ```
-git clone https://github.com/mpeuster/containernet.git
+git clone https://github.com/containernet/containernet.git
 cd containernet
 vagrant up
 vagrant ssh
 ```
-
-And follow the instructions in the MOTD message.
-
-### Docker support
-
-Containernet can be executed within a container itself. This results in a containers-inside-container setup and simplifies its distribution.
-
-A pre-build image is also available on Docker Hub (auto build of latest code revision on GitHub):
-
-* https://hub.docker.com/r/mpeuster/containernet/
-
-To run the Containernet Docker image:
-
-* `docker run -ti --rm=true --net=host --pid=host --privileged=true -v '/var/run/docker.sock:/var/run/docker.sock' mpeuster/containernet`
-
-To build the Containernet Docker image:
-
-* `docker build -t containernet .`
-
-HINT: If you are using docker-machine on OS X, you have to execute the following before you can run Containernet inside a Docker container.
-
-* `docker-machine ssh default "sudo modprobe openvswitch"`
-
-
 
 ### Credits
 Containernet (c) 2015 by Manuel Peuster
@@ -113,3 +92,4 @@ Containernet (c) 2015 by Manuel Peuster
 ### Contact
 Manuel Peuster
 manuel (dot) peuster (at) upb (dot) de
+
