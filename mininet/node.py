@@ -936,7 +936,10 @@ class Docker ( Host ):
                 Cores 0, 1, 2, and 16
         """
         # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
-        if cpu_quota >= 0:
+
+        # also negative values can be set for cpu_quota (uncontrained setting)
+        # just check if value is a valid integer
+        if isinstance(cpu_quota, (int, long)):
             self.cpu_quota = self.cgroupSet("cfs_quota_us", cpu_quota)
         if cpu_period >= 0:
             self.cpu_period = self.cgroupSet("cfs_period_us", cpu_period)
