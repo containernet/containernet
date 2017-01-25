@@ -699,7 +699,7 @@ class Docker ( Host ):
         self.environment.update({"PS1": chr(127)})  # CLI support
 
         # setup docker client
-        self.dcli = docker.Client(base_url='unix://var/run/docker.sock')
+        self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
 
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
