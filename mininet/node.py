@@ -686,7 +686,10 @@ class Docker ( Host ):
                      'mem_limit': -1,
                      'memswap_limit': -1,
                      'environment': {},
-                     'volumes': [] }  # use ["/home/user1/:/mnt/vol2:rw"]
+                     'volumes': [],  # use ["/home/user1/:/mnt/vol2:rw"]
+                     'publish_all_ports': True,
+                     'port_bindings': {},
+                     }
         defaults.update( kwargs )
         self.cpu_quota = defaults['cpu_quota']
         self.cpu_period = defaults['cpu_period']
@@ -697,6 +700,8 @@ class Docker ( Host ):
         self.volumes = defaults['volumes']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
         self.environment.update({"PS1": chr(127)})  # CLI support
+        self.publish_all_ports = defaults['publish_all_ports']
+        self.port_bindings = defaults['port_bindings']
 
         # setup docker client
         self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -719,7 +724,9 @@ class Docker ( Host ):
         hc = self.dcli.create_host_config(
             network_mode=None,
             privileged=True,  # we need this to allow mininet network setup
-            binds=self.volumes
+            binds=self.volumes,
+            publish_all_ports=self.publish_all_ports,
+            port_bindings=self.port_bindings
             # ATTENTION: We do not use the docker interface to set resource limits! Use self.updateCpuLimit() instead
         )
         # create new docker container
