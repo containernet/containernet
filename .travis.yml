@@ -17,7 +17,7 @@ before_install:
 install:
   - sudo pip install urllib3
   - sudo pip install pytest
-  - sudo pip install docker-py==1.7.1
+  - sudo pip install docker-py==1.10.6
   - sudo util/install.sh
   - sudo make develop
   - docker pull ubuntu:trusty
