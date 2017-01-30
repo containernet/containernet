@@ -62,7 +62,7 @@ class simpleTestTopology( unittest.TestCase ):
         Helper to interact with local docker instance.
         """
         if self.docker_cli is None:
-            self.docker_cli = docker.Client(
+            self.docker_cli = docker.APIClient(
                 base_url='unix://var/run/docker.sock')
         return self.docker_cli
 
