@@ -565,7 +565,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         d0.updateMemoryLimit(mem_limit=66093056)
         self.assertEqual(d0.resources['mem_limit'], 66093056)
         d1.updateMemoryLimit(memswap_limit=-1)
-        self.assertEqual(d1.resources['memswap_limit'], None)
+        self.assertEqual(d1.resources['memswap_limit'], -1)
         # stop Mininet network
         self.stopNet()
 
