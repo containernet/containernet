@@ -680,11 +680,11 @@ class Docker ( Host ):
         #  let's store our resource limits to have them available through the
         #  Mininet API later on
         defaults = { 'cpu_quota': -1,
-                     'cpu_period': -1,
+                     'cpu_period': None,
                      'cpu_shares': None,
                      'cpuset': None,
-                     'mem_limit': -1,
-                     'memswap_limit': -1,
+                     'mem_limit': None,
+                     'memswap_limit': None,
                      'environment': {},
                      'volumes': [],  # use ["/home/user1/:/mnt/vol2:rw"]
                      'publish_all_ports': True,
