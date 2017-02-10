@@ -954,10 +954,11 @@ class Docker ( Host ):
         or API docs: https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
         :return:
         """
-        info("{1}: update resources {0}\n".format(kwargs, self.name))
+
         self.resources.update(kwargs)
         # filter out None values to avoid errors
         resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
+        info("{1}: update resources {0}\n".format(resources_filtered, self.name))
         self.dcli.update_container(self.dc, **resources_filtered)
 
 

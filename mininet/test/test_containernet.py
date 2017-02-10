@@ -495,7 +495,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
             mem_limit=132182016)
         d1 = self.net.addDocker(
             'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
-            mem_limit=132182016, memswap_limit=-1)
+            mem_limit=132182016)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
@@ -551,7 +551,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
             mem_limit=132182016)
         d1 = self.net.addDocker(
             'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
-            memswap_limit=-1)
+            )
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
@@ -565,7 +565,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         d0.updateMemoryLimit(mem_limit=66093056)
         self.assertEqual(d0.resources['mem_limit'], 66093056)
         d1.updateMemoryLimit(memswap_limit=-1)
-        self.assertEqual(d1.resources['memswap_limit'], -1)
+        self.assertEqual(d1.resources['memswap_limit'], None)
         # stop Mininet network
         self.stopNet()
 
