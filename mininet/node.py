@@ -682,7 +682,7 @@ class Docker ( Host ):
         defaults = { 'cpu_quota': -1,
                      'cpu_period': None,
                      'cpu_shares': None,
-                     'cpuset': None,
+                     'cpuset_cpus': None,
                      'mem_limit': None,
                      'memswap_limit': None,
                      'environment': {},
@@ -694,10 +694,10 @@ class Docker ( Host ):
 
         # keep resource in a dict for easy update during container lifetime
         self.resources = dict(
-            cpu_quota = defaults['cpu_quota'],
-            cpu_period = defaults['cpu_period'],
-            cpu_shares = defaults['cpu_shares'],
-            cpuset_cpus=defaults['cpuset'],
+            cpu_quota=defaults['cpu_quota'],
+            cpu_period=defaults['cpu_period'],
+            cpu_shares=defaults['cpu_shares'],
+            cpuset_cpus=defaults['cpuset_cpus'],
             mem_limit=defaults['mem_limit'],
             memswap_limit=defaults['memswap_limit']
         )
@@ -744,7 +744,8 @@ class Docker ( Host ):
             environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
-            cpuset=self.resources.get('cpuset'),
+            cpuset=self.resources.get('cpuset_cpus'),
+            mem_limit=self.resources.get('mem_limit'),
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
         )
