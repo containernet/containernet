@@ -731,8 +731,9 @@ class Docker ( Host ):
             privileged=True,  # we need this to allow mininet network setup
             binds=self.volumes,
             publish_all_ports=self.publish_all_ports,
-            port_bindings=self.port_bindings
-            # ATTENTION: We do not use the docker interface to set resource limits! Use self.updateCpuLimit() instead
+            port_bindings=self.port_bindings,
+            mem_limit=self.resources.get('mem_limit'),
+            cpuset_cpus=self.resources.get('cpuset_cpus'),
         )
         # create new docker container
         self.dc = self.dcli.create_container(
@@ -744,8 +745,6 @@ class Docker ( Host ):
             environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
-            cpuset=self.resources.get('cpuset_cpus'),
-            mem_limit=self.resources.get('mem_limit'),
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
         )
