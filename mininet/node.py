@@ -681,7 +681,7 @@ class Docker ( Host ):
         #  Mininet API later on
         defaults = { 'cpu_quota': -1,
                      'cpu_period': -1,
-                     'cpu_shares': -1,
+                     'cpu_shares': None,
                      'cpuset': None,
                      'mem_limit': -1,
                      'memswap_limit': -1,
@@ -691,12 +691,17 @@ class Docker ( Host ):
                      'port_bindings': {},
                      }
         defaults.update( kwargs )
-        self.cpu_quota = defaults['cpu_quota']
-        self.cpu_period = defaults['cpu_period']
-        self.cpu_shares = defaults['cpu_shares']
-        self.cpuset = defaults['cpuset']
-        self.mem_limit = defaults['mem_limit']
-        self.memswap_limit = defaults['memswap_limit']
+
+        # keep resource in a dict for easy update during container lifetime
+        self.resources = dict(
+            cpu_quota = defaults['cpu_quota'],
+            cpu_period = defaults['cpu_period'],
+            cpu_shares = defaults['cpu_shares'],
+            cpuset_cpus=defaults['cpuset'],
+            mem_limit=defaults['mem_limit'],
+            memswap_limit=defaults['memswap_limit']
+        )
+
         self.volumes = defaults['volumes']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
         self.environment.update({"PS1": chr(127)})  # CLI support
@@ -739,7 +744,7 @@ class Docker ( Host ):
             environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
-            cpuset=self.cpuset,
+            cpuset=self.resources.get('cpuset'),
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
         )
@@ -751,13 +756,14 @@ class Docker ( Host ):
         self.did = self.dcinfo.get("Id")
 
         # let's initially set our resource limits
-        self.updateCpuLimit(cpu_quota=self.cpu_quota,
-                            cpu_period=self.cpu_period,
-                            cpu_shares=self.cpu_shares,
-                            )
-        self.updateMemoryLimit(mem_limit=self.mem_limit,
-                               memswap_limit=self.memswap_limit
-                               )
+        self.update_resources(**self.resources)
+        # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
+        #                     cpu_period=self.resources.get('cpu_period'),
+        #                     cpu_shares=self.resources.get('cpu_shares'),
+        #                     )
+        # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
+        #                        memswap_limit=self.resources.get('memswap_limit')
+        #                        )
 
         # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
@@ -930,6 +936,31 @@ class Docker ( Host ):
             return False
         return True
 
+    def update_resources(self, **kwargs):
+        """
+        Update the container's resources using the docker.update function
+        re-using the same parameters:
+        Args:
+           blkio_weight
+           cpu_period, cpu_quota, cpu_shares
+           cpuset_cpus
+           cpuset_mems
+           mem_limit
+           mem_reservation
+           memswap_limit
+           kernel_memory
+           restart_policy
+        see https://docs.docker.com/engine/reference/commandline/update/
+        or API docs: https://docker-py.readthedocs.io/en/stable/api.html#module-docker.api.container
+        :return:
+        """
+        info("{1}: update resources {0}\n".format(kwargs, self.name))
+        self.resources.update(kwargs)
+        # filter out None values to avoid errors
+        resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
+        self.dcli.update_container(self.dc, **resources_filtered)
+
+
     def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None):
         """
         Update CPU resource limitations.
@@ -947,11 +978,11 @@ class Docker ( Host ):
         # also negative values can be set for cpu_quota (uncontrained setting)
         # just check if value is a valid integer
         if isinstance(cpu_quota, (int, long)):
-            self.cpu_quota = self.cgroupSet("cfs_quota_us", cpu_quota)
+            self.resources['cpu_quota'] = self.cgroupSet("cfs_quota_us", cpu_quota)
         if cpu_period >= 0:
-            self.cpu_period = self.cgroupSet("cfs_period_us", cpu_period)
+            self.resources['cpu_period'] = self.cgroupSet("cfs_period_us", cpu_period)
         if cpu_shares >= 0:
-            self.cpu_shares = self.cgroupSet("shares", cpu_shares)
+            self.resources['cpu_shares'] = self.cgroupSet("shares", cpu_shares)
         if cores:
             self.dcli.update_container(self.dc, cpuset_cpus=cores)
             # quota, period ad shares can also be set by this line. Usable for future work.
@@ -969,9 +1000,9 @@ class Docker ( Host ):
         """
         # see https://www.kernel.org/doc/Documentation/scheduler/sched-bwc.txt
         if mem_limit >= 0:
-            self.mem_limit = self.cgroupSet("limit_in_bytes", mem_limit, resource="memory")
+            self.resources['mem_limit'] = self.cgroupSet("limit_in_bytes", mem_limit, resource="memory")
         if memswap_limit >= 0:
-            self.memswap_limit = self.cgroupSet("memsw.limit_in_bytes", memswap_limit, resource="memory")
+            self.resources['memswap_limit'] = self.cgroupSet("memsw.limit_in_bytes", memswap_limit, resource="memory")
 
 
     def cgroupSet(self, param, value, resource='cpu'):
