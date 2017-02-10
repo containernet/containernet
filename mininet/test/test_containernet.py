@@ -532,7 +532,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         self.assertTrue(self.net.ping([d0, d1]) <= 0.0)
         # update limits
         d0.updateCpuLimit(cpu_shares=512)
-        self.assertEqual(d0.cpu_shares, 512)
+        self.assertEqual(d0.resources['cpu_shares'], 512)
         d1.updateCpuLimit(cpu_period=50001, cpu_quota=20000)
         self.assertEqual(d1.resources['cpu_period'], 50001)
         self.assertEqual(d1.resources['cpu_quota'], 20000)
