@@ -495,7 +495,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
             mem_limit=132182016)
         d1 = self.net.addDocker(
             'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
-            mem_limit=132182016, memswap_limit=-1)
+            mem_limit=132182016)
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
@@ -532,10 +532,10 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         self.assertTrue(self.net.ping([d0, d1]) <= 0.0)
         # update limits
         d0.updateCpuLimit(cpu_shares=512)
-        self.assertEqual(d0.cpu_shares, 512)
+        self.assertEqual(d0.resources['cpu_shares'], 512)
         d1.updateCpuLimit(cpu_period=50001, cpu_quota=20000)
-        self.assertEqual(d1.cpu_period, 50001)
-        self.assertEqual(d1.cpu_quota, 20000)
+        self.assertEqual(d1.resources['cpu_period'], 50001)
+        self.assertEqual(d1.resources['cpu_quota'], 20000)
         # stop Mininet network
         self.stopNet()
 
@@ -551,7 +551,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
             mem_limit=132182016)
         d1 = self.net.addDocker(
             'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
-            memswap_limit=-1)
+            )
         # setup links (we always need one connection to suppress warnings)
         self.net.addLink(d0, self.s[0])
         self.net.addLink(d1, self.s[0])
@@ -563,9 +563,9 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         self.assertTrue(self.net.ping([d0, d1]) <= 0.0)
         # update limits
         d0.updateMemoryLimit(mem_limit=66093056)
-        self.assertEqual(d0.mem_limit, 66093056)
+        self.assertEqual(d0.resources['mem_limit'], 66093056)
         d1.updateMemoryLimit(memswap_limit=-1)
-        self.assertEqual(d1.memswap_limit, -1)
+        self.assertEqual(d1.resources['memswap_limit'], None)
         # stop Mininet network
         self.stopNet()
 
