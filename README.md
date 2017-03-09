@@ -3,8 +3,6 @@ Containernet
 
 [![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
-**Attention:** This repository was moved to an own account: https://github.com/containernet/containernet
-
 ### Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
 This fork of Mininet allows to use Docker containers as Mininet hosts. This enables interesting functionalities to built networking/cloud testbeds. The integration is done by subclassing the original Host class.
@@ -48,8 +46,8 @@ There is an extension of Containernet called MeDICINE which is a full-featured m
 * Automated installation based on Ansible playbook
 
 ### Installation
-Automatic installation is provide through an Ansible playbook.
-* Requires: Ubuntu **14.04 LTS**
+Automatic installation is provided through an Ansible playbook.
+* Requires: Ubuntu **16.04 LTS**
 * `sudo apt-get update`
 * `sudo apt-get upgrade`
 * `sudo apt-get install ansible git aptitude`
@@ -82,12 +80,6 @@ cd containernet
 vagrant up
 vagrant ssh
 ```
-
-### Credits
-Containernet (c) 2015 by Manuel Peuster
-
-* Inspired by: http://techandtrains.com/2014/08/21/docker-container-as-mininet-host/
-
 
 ### Contact
 Manuel Peuster
