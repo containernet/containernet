@@ -20,9 +20,9 @@ Vagrant.configure(2) do |config|
   # there is a bug in the /etc/hosts of 16.04: https://bugs.launchpad.net/ubuntu/+source/livecd-rootfs/+bug/1561250
   #config.vm.box = "ubuntu/xenial64"
 
-  # so we use 14.04 for now
-  config.vm.box = "ubuntu/trusty64"
-  
+  # use ubuntu 16.04 LTS
+  config.vm.box = "ubuntu/xenial64"
+  #config.vm.box = "ubuntu/trusty64"
 
   # Disable automatic box update checking. If you disable this, then
   # boxes will only be checked for updates when the user runs
@@ -48,7 +48,7 @@ Vagrant.configure(2) do |config|
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
   config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.synced_folder ".", "/home/vagrant/containernet"
+  config.vm.synced_folder ".", "/home/ubuntu/containernet"
   
 
   # Provider-specific configuration so you can fine-tune various
@@ -82,27 +82,17 @@ Vagrant.configure(2) do |config|
      sudo apt-get install -y ansible
      sudo echo "localhost ansible_connection=local" >> /etc/ansible/hosts
      # install containernet
-     echo "Installing containernet (will take some time ~30 minutes) ..."
-     cd /home/vagrant/containernet/ansible
-     sudo ansible-playbook install.yml
+     echo "Installing containernet (will take some time up to ~30 minutes) ..."
+     cd /home/ubuntu/containernet/ansible
+     sudo ansible-playbook -v install.yml
 
      # execute containernet tests at the end to validate installation
      echo "Running containernet unit tests to validate installation"
-     cd /home/vagrant/containernet
+     cd /home/ubuntu/containernet
      sudo python setup.py develop
      sudo py.test -v mininet/test/test_containernet.py
 
      # place motd
      sudo cp util/motd /etc/motd
   SHELL
-
-  # TODO the native ansible provisioner does not work so we directly call the shell commands
-  # install containernet using its ansible script
-  #config.vm.provision "ansible_local" do |ansible|
-  #  ansible.provisioning_path = "/home/vagrant/containernet/ansible"
-  #  ansible.playbook = "install.yml"
-  #  ansible.sudo = true
-  #  ansible.verbose = "v"
-  #  ansible.limit = "all"
-  #end
 end
