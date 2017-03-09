@@ -8,25 +8,20 @@ matrix:
     - dist: xenial
       env: dist="16.04 LTS xenial"
 
-#python:
-#  - "2.7"
-
 virtualenv:
   system_site_packages: true
 
 before_install:
   - sudo apt-get -qq update
-  - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install python-dev python-apt python-pip ansible libffi-dev libssl-dev
-  - sudo apt-get install -o Dpkg::Options::="--force-confold" --force-yes -y docker-engine
-
+  - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ansible libffi-dev libssl-dev
 
 install:
-  - sudo pip install urllib3
-  - sudo pip install pytest
-  - sudo pip install docker==2.0.2
-  - sudo util/install.sh
-  - sudo make develop
-  - docker pull ubuntu:trusty
+  - cd ansible; sudo ansible-playbook -i "localhost," -c local -v install.yml; cd ..
 
 script:
   - sudo py.test -v mininet/test/test_containernet.py
+
+notifications:
+  email:
+    on_success: change
+    on_failure: always
