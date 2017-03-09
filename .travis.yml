@@ -8,8 +8,8 @@ matrix:
     - dist: xenial
       env: dist="16.04 LTS xenial"
 
-python:
-  - "2.7"
+#python:
+#  - "2.7"
 
 virtualenv:
   system_site_packages: true
