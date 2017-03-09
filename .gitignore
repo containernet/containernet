@@ -1,4 +1,6 @@
 mnexec
+.cache/
+*.log
 *.pyc
 *~
 *.1
