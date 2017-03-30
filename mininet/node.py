@@ -354,6 +354,11 @@ class Node( object ):
         log = info if verbose else debug
         log( '*** %s : %s\n' % ( self.name, args ) )
         if self.shell:
+            self.shell.poll()
+            if self.shell.returncode is not None:
+                print("shell died on ", self.name)
+                self.shell = None
+                self.startShell()
             self.sendCmd( *args, **kwargs )
             return self.waitOutput( verbose )
         else:
@@ -724,46 +729,47 @@ class Docker ( Host ):
 
 
     def startShell( self, mnopts=None ):
-        # creats host config for container
-        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
-        hc = self.dcli.create_host_config(
-            network_mode=None,
-            privileged=True,  # we need this to allow mininet network setup
-            binds=self.volumes,
-            publish_all_ports=self.publish_all_ports,
-            port_bindings=self.port_bindings,
-            mem_limit=self.resources.get('mem_limit'),
-            cpuset_cpus=self.resources.get('cpuset_cpus'),
-        )
-        # create new docker container
-        self.dc = self.dcli.create_container(
-            name="%s.%s" % (self.dnameprefix, self.name),
-            image=self.dimage,
-            command=self.dcmd,
-            stdin_open=True,  # keep container open
-            tty=True,  # allocate pseudo tty
-            environment=self.environment,
-            #network_disabled=True,  # docker stats breaks if we disable the default network
-            host_config=hc,
-            labels=['com.containernet'],
-            volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
-        )
-        # start the container
-        self.dcli.start(self.dc)
-        debug("Docker container %s started\n" % self.name)
-        # fetch information about new container
-        self.dcinfo = self.dcli.inspect_container(self.dc)
-        self.did = self.dcinfo.get("Id")
+        if self.dc is None:
+            # creats host config for container
+            # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+            hc = self.dcli.create_host_config(
+                network_mode=None,
+                privileged=True,  # we need this to allow mininet network setup
+                binds=self.volumes,
+                publish_all_ports=self.publish_all_ports,
+                port_bindings=self.port_bindings,
+                mem_limit=self.resources.get('mem_limit'),
+                cpuset_cpus=self.resources.get('cpuset_cpus'),
+            )
+            # create new docker container
+            self.dc = self.dcli.create_container(
+                name="%s.%s" % (self.dnameprefix, self.name),
+                image=self.dimage,
+                command=self.dcmd,
+                stdin_open=True,  # keep container open
+                tty=True,  # allocate pseudo tty
+                environment=self.environment,
+                #network_disabled=True,  # docker stats breaks if we disable the default network
+                host_config=hc,
+                labels=['com.containernet'],
+                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
+            )
+            # start the container
+            self.dcli.start(self.dc)
+            debug("Docker container %s started\n" % self.name)
+            # fetch information about new container
+            self.dcinfo = self.dcli.inspect_container(self.dc)
+            self.did = self.dcinfo.get("Id")
 
-        # let's initially set our resource limits
-        self.update_resources(**self.resources)
-        # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
-        #                     cpu_period=self.resources.get('cpu_period'),
-        #                     cpu_shares=self.resources.get('cpu_shares'),
-        #                     )
-        # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
-        #                        memswap_limit=self.resources.get('memswap_limit')
-        #                        )
+            # let's initially set our resource limits
+            self.update_resources(**self.resources)
+            # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
+            #                     cpu_period=self.resources.get('cpu_period'),
+            #                     cpu_shares=self.resources.get('cpu_shares'),
+            #                     )
+            # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
+            #                        memswap_limit=self.resources.get('memswap_limit')
+            #                        )
 
         # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
