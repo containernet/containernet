@@ -752,7 +752,8 @@ class Docker ( Host ):
                 #network_disabled=True,  # docker stats breaks if we disable the default network
                 host_config=hc,
                 labels=['com.containernet'],
-                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
+                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
+                hostname=self.name
             )
             # start the container
             self.dcli.start(self.dc)
