@@ -459,7 +459,7 @@ class Node( object ):
         if not intf:
             return self.defaultIntf()
         elif isinstance( intf, basestring):
-            return self.nameToIntf[ intf ]
+            return self.nameToIntf.get(intf)
         else:
             return intf
 
