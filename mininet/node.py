@@ -1520,6 +1520,16 @@ class OVSSwitch( Switch ):
         self.cmd( 'ifconfig', intf, 'up' )
         self.TCReapply( intf )
 
+    def attachInternalIntf(self, intf_name, ip):
+        """Add an interface of type:internal to the ovs switch
+           and add routing entry to host"""
+        self.vsctl('add-port', self.name, intf_name, '--', 'set', ' interface', intf_name, 'type=internal')
+        int_intf = Intf(intf_name, node=self)
+        #self.addIntf(int_intf, moveIntfFn=None)
+        self.cmd('ip route add', ip, 'dev', intf_name)
+
+        return self.nameToIntf[intf_name]
+
     def detach( self, intf ):
         "Disconnect a data port"
         self.vsctl( 'del-port', self, intf )

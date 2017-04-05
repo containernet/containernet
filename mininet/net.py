@@ -322,8 +322,8 @@ class Mininet( object ):
     def getNodeByName( self, *args ):
         "Return node(s) with given name(s)"
         if len( args ) == 1:
-            return self.nameToNode[ args[ 0 ] ]
-        return [ self.nameToNode[ n ] for n in args ]
+            return self.nameToNode.get(args[0])
+        return [ self.nameToNode.get(n) for n in args ]
 
     def get( self, *args ):
         "Convenience alias for getNodeByName"
