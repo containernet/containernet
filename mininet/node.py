@@ -404,7 +404,7 @@ class Node( object ):
                             **kwargs )
         # Warning: this can fail with large numbers of fds!
         out, err = popen.communicate()
-        exitcode = popen.wait()
+        exitcode = popen.returncode
         return out, err, exitcode
 
     # Interface management, configuration, and routing
@@ -801,7 +801,7 @@ class Docker ( Host ):
         self.waiting = False
 
         # fix container environment (sentinel chr(127))
-        self.cmd('export PS1="\\177"')
+        #self.cmd('export PS1="\\177"')
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -872,12 +872,30 @@ class Docker ( Host ):
 
            FIXME: Popen with Docker containers does not work.
            No idea why!
-           We fake it with normal self.cmd()
+           We fake it with normal Node.cmd() -> this hangs with certain containers, no idea why!
+           We use the docker api recommended way to execute commands inside containers
            """
         out = self.cmd(cmd)
         err = ""
         exitcode = 0
         return out, err, exitcode
+
+    def cmd(self, *args, **kwargs ):
+
+        # Allow sendCmd( [ list ] )
+        if len(args) == 1 and isinstance(args[0], list):
+            cmd = args[0]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len(args) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance(cmd, str):
+            cmd = ' '.join([str(c) for c in cmd])
+
+        exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
+        out = self.dcli.exec_start(exec_dict)
+        #info("cmd: {0} \noutput:{1}".format(cmd, out))
+        return out
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
