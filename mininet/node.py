@@ -892,6 +892,12 @@ class Docker ( Host ):
         if not isinstance(cmd, str):
             cmd = ' '.join([str(c) for c in cmd])
 
+        # check if container is still running
+        container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
+        if len(container_list) == 0:
+            warn("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            return ''
+
         exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
         out = self.dcli.exec_start(exec_dict)
         #info("cmd: {0} \noutput:{1}".format(cmd, out))
