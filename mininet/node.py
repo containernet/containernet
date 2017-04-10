@@ -799,9 +799,10 @@ class Docker ( Host ):
         self.lastPid = None
         self.readbuf = ''
         self.waiting = False
+        self.output = ''
 
         # fix container environment (sentinel chr(127))
-        #self.cmd('export PS1="\\177"')
+        self.cmd('export PS1="\\127"')
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -821,13 +822,50 @@ class Docker ( Host ):
             info("Warning: API error during container removal.\n")
         self.cleanup()
 
+    def sendCmd( self, *args, **kwargs ):
+        """Send a command, followed by a command to echo a sentinel,
+           and return without waiting for the command to complete.
+           args: command and arguments, or string
+           printPid: print command's PID? (False)"""
+        assert self.shell# and not self.waiting
+        printPid = kwargs.get( 'printPid', False )
+        # Allow sendCmd( [ list ] )
+        if len( args ) == 1 and isinstance( args[ 0 ], list ):
+            cmd = args[ 0 ]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len( args ) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance( cmd, str ):
+            cmd = ' '.join( [ str( c ) for c in cmd ] )
+        if not re.search( r'\w', cmd ):
+            # Replace empty commands with something harmless
+            cmd = 'echo -n'
+        self.lastCmd = cmd
+        # if a builtin command is backgrounded, it still yields a PID
+        if len( cmd ) > 0 and cmd[ -1 ] == '&':
+            # print ^A{pid}\n so monitor() can set lastPid
+            cmd += ' printf "\\001%d\\012" $! '
+        elif printPid and not isShellBuiltin( cmd ):
+            cmd = 'mnexec -p ' + cmd
+
+        # for Docker hosts, we need to add the sentinel ourselves
+        output = self.cmd(*args, **kwargs)
+        self.output = output + chr(127)
+        #self.write( cmd + '\n' )
+        self.lastPid = None
+        self.waiting = True
+
     def monitor( self, timeoutms=None, findPid=True ):
         """Monitor and return the output of a command.
            Set self.waiting to False if command has completed.
            timeoutms: timeout in ms or None to wait indefinitely
            findPid: look for PID from mnexec -p"""
+
+        # for Docker hosts, this is a patch, to make the containernet CLI work
         self.waitReadable( timeoutms )
-        data = self.read( 1024 )
+        #data = self.read( 1024 )
+        data = self.output
         pidre = r'\[\d+\] \d+\r\n'
         # Look for PID
         marker = chr( 1 ) + r'\d+\r\n'
@@ -901,6 +939,7 @@ class Docker ( Host ):
         exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
         out = self.dcli.exec_start(exec_dict)
         #info("cmd: {0} \noutput:{1}".format(cmd, out))
+        self.waiting = False
         return out
 
     def _get_pid(self):
