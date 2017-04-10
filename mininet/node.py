@@ -404,7 +404,7 @@ class Node( object ):
                             **kwargs )
         # Warning: this can fail with large numbers of fds!
         out, err = popen.communicate()
-        exitcode = popen.wait()
+        exitcode = popen.returncode
         return out, err, exitcode
 
     # Interface management, configuration, and routing
@@ -459,7 +459,7 @@ class Node( object ):
         if not intf:
             return self.defaultIntf()
         elif isinstance( intf, basestring):
-            return self.nameToIntf[ intf ]
+            return self.nameToIntf.get(intf)
         else:
             return intf
 
@@ -752,7 +752,8 @@ class Docker ( Host ):
                 #network_disabled=True,  # docker stats breaks if we disable the default network
                 host_config=hc,
                 labels=['com.containernet'],
-                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
+                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
+                hostname=self.name
             )
             # start the container
             self.dcli.start(self.dc)
@@ -800,7 +801,7 @@ class Docker ( Host ):
         self.waiting = False
 
         # fix container environment (sentinel chr(127))
-        self.cmd('export PS1="\\177"')
+        #self.cmd('export PS1="\\177"')
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -871,12 +872,36 @@ class Docker ( Host ):
 
            FIXME: Popen with Docker containers does not work.
            No idea why!
-           We fake it with normal self.cmd()
+           We fake it with normal Node.cmd() -> this hangs with certain containers, no idea why!
+           We use the docker api recommended way to execute commands inside containers
            """
         out = self.cmd(cmd)
         err = ""
         exitcode = 0
         return out, err, exitcode
+
+    def cmd(self, *args, **kwargs ):
+
+        # Allow sendCmd( [ list ] )
+        if len(args) == 1 and isinstance(args[0], list):
+            cmd = args[0]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len(args) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance(cmd, str):
+            cmd = ' '.join([str(c) for c in cmd])
+
+        # check if container is still running
+        container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
+        if len(container_list) == 0:
+            warn("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            return ''
+
+        exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
+        out = self.dcli.exec_start(exec_dict)
+        #info("cmd: {0} \noutput:{1}".format(cmd, out))
+        return out
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
@@ -1518,6 +1543,16 @@ class OVSSwitch( Switch ):
         self.vsctl( 'add-port', self, intf )
         self.cmd( 'ifconfig', intf, 'up' )
         self.TCReapply( intf )
+
+    def attachInternalIntf(self, intf_name, ip):
+        """Add an interface of type:internal to the ovs switch
+           and add routing entry to host"""
+        self.vsctl('add-port', self.name, intf_name, '--', 'set', ' interface', intf_name, 'type=internal')
+        int_intf = Intf(intf_name, node=self)
+        #self.addIntf(int_intf, moveIntfFn=None)
+        self.cmd('ip route add', ip, 'dev', intf_name)
+
+        return self.nameToIntf[intf_name]
 
     def detach( self, intf ):
         "Disconnect a data port"
