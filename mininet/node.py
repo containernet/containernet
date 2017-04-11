@@ -799,10 +799,13 @@ class Docker ( Host ):
         self.lastPid = None
         self.readbuf = ''
         self.waiting = False
-        self.output = ''
+        #self.output = ''
 
         # fix container environment (sentinel chr(127))
-        self.cmd('export PS1="\\127"')
+        # we cannot set the sentinel in the docker shell here
+        # setting PS1 breaks the python docker api (update_container hangs...)
+        # the sentinel is added after each executed cmd in sendCmd
+        #self.cmd('export PS1="\\127"')
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -850,9 +853,10 @@ class Docker ( Host ):
             cmd = 'mnexec -p ' + cmd
 
         # for Docker hosts, we need to add the sentinel ourselves
-        output = self.cmd(*args, **kwargs)
-        self.output = output + chr(127)
-        #self.write( cmd + '\n' )
+        #output = self.cmd(*args, **kwargs)
+        #self.output = output + chr(127)
+        cmd = cmd + " ;printf \\\\177 " + '\n'
+        self.write( cmd )
         self.lastPid = None
         self.waiting = True
 
@@ -864,8 +868,8 @@ class Docker ( Host ):
 
         # for Docker hosts, this is a patch, to make the containernet CLI work
         self.waitReadable( timeoutms )
-        #data = self.read( 1024 )
-        data = self.output
+        data = self.read( 1024 )
+        #data = self.output
         pidre = r'\[\d+\] \d+\r\n'
         # Look for PID
         marker = chr( 1 ) + r'\d+\r\n'
@@ -890,6 +894,10 @@ class Docker ( Host ):
         # Suppress original cmd input (will otherwise be printed in docker TTY)
         if len( data ) > 0:
             data = data.replace( self.lastCmd, '').lstrip()
+            # remove last line (container prompt) and replace by clean line
+            data = data[:data.rfind('\n')] + '\n'
+            # remove first line (contains the print sentinel command)
+            data = data.split('\n',1)[1]
         return data
 
     def popen( self, *args, **kwargs ):
