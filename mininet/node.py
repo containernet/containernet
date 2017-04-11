@@ -891,13 +891,22 @@ class Docker ( Host ):
         elif chr( 127 ) in data:
             self.waiting = False
             data = data.replace( chr( 127 ), '' )
+            # remove last line (contains container prompt) and replace by clean line
+            data = data[:data.rfind('\n')] + '\n'
         # Suppress original cmd input (will otherwise be printed in docker TTY)
         if len( data ) > 0:
-            data = data.replace( self.lastCmd, '').lstrip()
-            # remove last line (container prompt) and replace by clean line
-            data = data[:data.rfind('\n')] + '\n'
-            # remove first line (contains the print sentinel command)
-            data = data.split('\n',1)[1]
+            data = data.replace(self.lastCmd, '').lstrip()
+            # remove first line (if it contains the print sentinel command)
+            first_line = data.split('\n', 1)[0]
+            if ";printf \\\\177" in first_line:
+                data = data.split('\n', 1)[1]
+            # check if output contains prompt:
+            promptre = r'root@.*:.*#'
+            prompt_found = re.findall(promptre, data)
+            if prompt_found:
+                #data = data[:data.rfind(prompt_found[0])] + '\n'
+                data = data + '\n'
+
         return data
 
     def popen( self, *args, **kwargs ):
