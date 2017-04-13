@@ -40,6 +40,7 @@ setup(
         'setuptools',
         'urllib3',
         'docker==2.0.2',
+        'python-iptables',
         'pytest'
     ],
     scripts=scripts,

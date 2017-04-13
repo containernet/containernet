@@ -15,10 +15,11 @@ from subprocess import ( Popen, PIPE, check_output as co,
 from subprocess import call
 import time
 import os
+import iptc
 
 from mininet.log import info
 from mininet.term import cleanUpScreens
-
+from mininet.net import SAP_PREFIX
 
 def sh( cmd ):
     "Print a command and send it to the shell"
@@ -118,6 +119,22 @@ class Cleanup( object ):
         # Containernet should also cleanup pending Docker
         cmd =  "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)"
         call(cmd, shell=True, stdout=open(os.devnull, 'wb'),  stderr=open(os.devnull, 'wb'))
+
+        # cleanup any remaining iptables rules from external SAPs with NAT
+        info("***  Removing SAP NAT rules\n")
+        table = iptc.Table(iptc.Table.NAT)
+        chain = iptc.Chain(table, 'POSTROUTING')
+        for rule in chain.rules:
+            if SAP_PREFIX in str(rule.out_interface):
+                info("delete NAT rule from SAP: {0} - {1}\n".format(rule.out_interface, rule.src))
+                chain.delete_rule(rule)
+        table = iptc.Table(iptc.Table.FILTER)
+        chain = iptc.Chain(table, 'FORWARD')
+        for rule in chain.rules:
+            if SAP_PREFIX in str(rule.out_interface) or SAP_PREFIX in str(rule.in_interface):
+                info("delete FORWARD rule from SAP: {0} - {1}\n".format(rule.out_interface, rule.src))
+                chain.delete_rule(rule)
+
 
         info( "*** Cleanup complete.\n" )
 
