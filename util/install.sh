@@ -100,6 +100,10 @@ OVS_TAG=v$OVS_RELEASE
 
 OF13_SWITCH_REV=${OF13_SWITCH_REV:-""}
 
+function pre_build {
+    cd $BUILD_DIR
+    rm -rf openflow pox oftest oflops ofsoftswitch13 loxigen ivs ryu noxcore nox13oflib
+}
 
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
@@ -675,6 +679,7 @@ function all {
         exit 3
     fi
     echo "Installing all packages except for -eix (doxypy, ivs, nox-classic)..."
+    pre_build
     kernel
     mn_deps
     # Skip mn_dev (doxypy/texlive/fonts/etc.) because it's huge
