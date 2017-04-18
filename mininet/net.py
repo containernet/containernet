@@ -108,7 +108,7 @@ from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
                            waitListening )
 from mininet.term import cleanUpScreens, makeTerms
 
-
+from subprocess import Popen
 
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0d1"
@@ -987,7 +987,7 @@ class Containernet( Mininet ):
     def __init__(self, **params):
         # call original Mininet.__init__
         Mininet.__init__(self, **params)
-        self.SAPswitches = []
+        self.SAPswitches = dict()
 
     def addDocker( self, name, cls=Docker, **params ):
         """
@@ -1014,7 +1014,23 @@ class Containernet( Mininet ):
         """
         SAPswitch = self.addSwitch(sapName, cls=OVSBridge, ip=sapIP, prefix=SAP_PREFIX,
                        dpid=dpid, **params)
+        self.SAPswitches[sapName] = SAPswitch
+
+        NAT = params.get('NAT', False)
+        SAPNet = params.get('SAPNet')
+        if NAT and SAPNet:
+            self.addSAPNAT(SAPswitch, SAPNet)
+
         return SAPswitch
+
+    def removeExtSAP(self, sapName, SAPNet):
+        SAPswitch = self.SAPswitches[sapName]
+        info( 'stopping external SAP:' + SAPswitch.name + ' \n' )
+        SAPswitch.stop()
+        SAPswitch.terminate()
+
+        self.removeSAPNAT(SAPswitch, SAPNet)
+
 
     def addSAPNAT(self, SAPSwitch, SAPNet):
         """
@@ -1060,7 +1076,24 @@ class Containernet( Mininet ):
         chain.append_rule(rule)
 
         info("added SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
-        self.SAPswitches.append(SAPSwitch)
+
+    def removeSAPNAT(self, SAPSwitch, SAPNet):
+        # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
+        # so we use the iptables tool
+        rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
+        import shlex
+        p = Popen(shlex.split(rule0_))
+        p.communicate()
+
+        rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+
+        p = Popen(shlex.split(rule1_))
+        p.communicate()
+
+        rule2_ = "iptables -D FORWARD -i {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule2_))
+        p.communicate()
+
 
     def stop(self):
         super(Containernet, self).stop()
@@ -1076,7 +1109,7 @@ class Containernet( Mininet ):
                     chain.delete_rule(rule)
                     chain.delete_rule(rule)
                 except:
-                    pass
+                    continue
         table = iptc.Table(iptc.Table.FILTER)
         chain = iptc.Chain(table, 'FORWARD')
         for rule in chain.rules:
@@ -1087,7 +1120,7 @@ class Containernet( Mininet ):
                     chain.delete_rule(rule)
                     chain.delete_rule(rule)
                 except:
-                    pass
+                    continue
         for n in self.SAPswitches:
             info("{0} ".format(n))
         info("\n")

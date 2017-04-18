@@ -951,7 +951,8 @@ class Docker ( Host ):
         # check if container is still running
         container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
         if len(container_list) == 0:
-            warn("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            debug("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            self.waiting = False
             return ''
 
         exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
