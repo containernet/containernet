@@ -292,6 +292,7 @@ class Node( object ):
             cmd += ' printf "\\001%d\\012" $! '
         elif printPid and not isShellBuiltin( cmd ):
             cmd = 'mnexec -p ' + cmd
+        #info('execute cmd: {0}'.format(cmd))
         self.write( cmd + '\n' )
         self.lastPid = None
         self.waiting = True
@@ -891,13 +892,22 @@ class Docker ( Host ):
         elif chr( 127 ) in data:
             self.waiting = False
             data = data.replace( chr( 127 ), '' )
+            # remove last line (contains container prompt) and replace by clean line
+            data = data[:data.rfind('\n')] + '\n'
         # Suppress original cmd input (will otherwise be printed in docker TTY)
         if len( data ) > 0:
-            data = data.replace( self.lastCmd, '').lstrip()
-            # remove last line (container prompt) and replace by clean line
-            data = data[:data.rfind('\n')] + '\n'
-            # remove first line (contains the print sentinel command)
-            data = data.split('\n',1)[1]
+            data = data.replace(self.lastCmd, '').lstrip()
+            # remove first line (if it contains the print sentinel command)
+            first_line = data.split('\n', 1)[0]
+            if ";printf \\\\177" in first_line:
+                data = data.split('\n', 1)[1]
+            # check if output contains prompt:
+            promptre = r'root@.*:.*#'
+            prompt_found = re.findall(promptre, data)
+            if prompt_found:
+                #data = data[:data.rfind(prompt_found[0])] + '\n'
+                data = data + '\n'
+
         return data
 
     def popen( self, *args, **kwargs ):
@@ -941,7 +951,8 @@ class Docker ( Host ):
         # check if container is still running
         container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
         if len(container_list) == 0:
-            warn("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            debug("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            self.waiting = False
             return ''
 
         exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
@@ -1537,6 +1548,11 @@ class OVSSwitch( Switch ):
         self.batch = batch
         self.commands = []  # saved commands for batch startup
 
+        # add a prefix to the name of the deployed switch, to find it back easier later
+        prefix = params.get('prefix', '')
+        self.deployed_name = prefix + name
+
+
     @classmethod
     def setup( cls ):
         "Make sure Open vSwitch is installed and working"
@@ -1567,7 +1583,7 @@ class OVSSwitch( Switch ):
 
     def dpctl( self, *args ):
         "Run ovs-ofctl command"
-        return self.cmd( 'ovs-ofctl', args[ 0 ], self, *args[ 1: ] )
+        return self.cmd( 'ovs-ofctl', args[ 0 ], self.deployed_name, *args[ 1: ] )
 
     def vsctl( self, *args, **kwargs ):
         "Run ovs-vsctl command (or queue for later execution)"
@@ -1587,29 +1603,29 @@ class OVSSwitch( Switch ):
 
     def attach( self, intf ):
         "Connect a data port"
-        self.vsctl( 'add-port', self, intf )
+        self.vsctl( 'add-port', self.deployed_name, intf )
         self.cmd( 'ifconfig', intf, 'up' )
         self.TCReapply( intf )
 
-    def attachInternalIntf(self, intf_name, ip):
+    def attachInternalIntf(self, intf_name, net):
         """Add an interface of type:internal to the ovs switch
            and add routing entry to host"""
-        self.vsctl('add-port', self.name, intf_name, '--', 'set', ' interface', intf_name, 'type=internal')
-        int_intf = Intf(intf_name, node=self)
+        self.vsctl('add-port', self.deployed_name, intf_name, '--', 'set', ' interface', intf_name, 'type=internal')
+        int_intf = Intf(intf_name, node=self.deployed_name)
         #self.addIntf(int_intf, moveIntfFn=None)
-        self.cmd('ip route add', ip, 'dev', intf_name)
+        self.cmd('ip route add', net, 'dev', intf_name)
 
         return self.nameToIntf[intf_name]
 
     def detach( self, intf ):
         "Disconnect a data port"
-        self.vsctl( 'del-port', self, intf )
+        self.vsctl( 'del-port', self.deployed_name, intf )
 
     def controllerUUIDs( self, update=False ):
         """Return ovsdb UUIDs for our controllers
            update: update cached value"""
         if not self._uuids or update:
-            controllers = self.cmd( 'ovs-vsctl -- get Bridge', self,
+            controllers = self.cmd( 'ovs-vsctl -- get Bridge', self.deployed_name,
                                     'Controller' ).strip()
             if controllers.startswith( '[' ) and controllers.endswith( ']' ):
                 controllers = controllers[ 1 : -1 ]
@@ -1660,16 +1676,16 @@ class OVSSwitch( Switch ):
                 'OVS kernel switch does not work in a namespace' )
         int( self.dpid, 16 )  # DPID must be a hex string
         # Command to add interfaces
-        intfs = ''.join( ' -- add-port %s %s' % ( self, intf ) +
+        intfs = ''.join( ' -- add-port %s %s' % ( self.deployed_name, intf ) +
                          self.intfOpts( intf )
                          for intf in self.intfList()
                          if self.ports[ intf ] and not intf.IP() )
         # Command to create controller entries
-        clist = [ ( self.name + c.name, '%s:%s:%d' %
+        clist = [ ( self.deployed_name + c.name, '%s:%s:%d' %
                   ( c.protocol, c.IP(), c.port ) )
                   for c in controllers ]
         if self.listenPort:
-            clist.append( ( self.name + '-listen',
+            clist.append( ( self.deployed_name + '-listen',
                             'ptcp:%s' % self.listenPort ) )
         ccmd = '-- --id=@%s create Controller target=\\"%s\\"'
         if self.reconnectms:
@@ -1680,11 +1696,11 @@ class OVSSwitch( Switch ):
         cids = ','.join( '@%s' % name for name, _target in clist )
         # Try to delete any existing bridges with the same name
         if not self.isOldOVS():
-            cargs += ' -- --if-exists del-br %s' % self
+            cargs += ' -- --if-exists del-br %s' % self.deployed_name
         # One ovs-vsctl command to rule them all!
         self.vsctl( cargs +
-                    ' -- add-br %s' % self +
-                    ' -- set bridge %s controller=[%s]' % ( self, cids  ) +
+                    ' -- add-br %s' % self.deployed_name +
+                    ' -- set bridge %s controller=[%s]' % ( self.deployed_name, cids  ) +
                     self.bridgeOpts() +
                     intfs )
         # If necessary, restore TC config overwritten by OVS
@@ -1728,9 +1744,9 @@ class OVSSwitch( Switch ):
     def stop( self, deleteIntfs=True ):
         """Terminate OVS switch.
            deleteIntfs: delete interfaces? (True)"""
-        self.cmd( 'ovs-vsctl del-br', self )
+        self.cmd( 'ovs-vsctl del-br', self.deployed_name )
         if self.datapath == 'user':
-            self.cmd( 'ip link del', self )
+            self.cmd( 'ip link del', self.deployed_name )
         super( OVSSwitch, self ).stop( deleteIntfs )
 
     @classmethod
@@ -1741,7 +1757,7 @@ class OVSSwitch( Switch ):
             delcmd = '--if-exists ' + delcmd
         # First, delete them all from ovsdb
         run( 'ovs-vsctl ' +
-             ' -- '.join( delcmd % s for s in switches ), shell=True )
+             ' -- '.join( delcmd % s.deployed_name for s in switches ), shell=True )
         # Next, shut down all of the processes
         pids = ' '.join( str( switch.pid ) for switch in switches )
         run( 'kill -HUP ' + pids )
@@ -1762,9 +1778,16 @@ class OVSBridge( OVSSwitch ):
         kwargs.update( failMode='standalone' )
         OVSSwitch.__init__( self, *args, **kwargs )
 
-    def start( self, controllers ):
+        self.ip = kwargs.get('ip')
+
+    def start( self ):
         "Start bridge, ignoring controllers argument"
         OVSSwitch.start( self, controllers=[] )
+
+        # assign an ip address to this switch, so it can connect to the host
+        if self.ip:
+            self.cmd('ip address add', self.ip, 'dev', self.deployed_name)
+            self.cmd('ip link set', self.deployed_name, 'up')
 
     def connected( self ):
         "Are we forwarding yet?"

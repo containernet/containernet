@@ -91,6 +91,7 @@ import re
 import select
 import signal
 import random
+import iptc
 
 from time import sleep
 from itertools import chain, groupby
@@ -99,7 +100,7 @@ from math import ceil
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
 from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
-                           DefaultController, Controller, OVSSwitch )
+                           DefaultController, Controller, OVSSwitch, OVSBridge )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
 from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
@@ -107,8 +108,14 @@ from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
                            waitListening )
 from mininet.term import cleanUpScreens, makeTerms
 
+from subprocess import Popen
+
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0d1"
+
+# If an external SAP (Service Access Point) is made, it is deployed with this prefix in the name,
+# so it can be removed at a later time
+SAP_PREFIX = 'sap.'
 
 class Mininet( object ):
     "Network emulation with hosts spawned in network namespaces."
@@ -602,6 +609,7 @@ class Mininet( object ):
             host.terminate()
         info( '\n*** Done\n' )
 
+
     def run( self, test, *args, **kwargs ):
         "Perform a complete start/test/stop cycle."
         self.start()
@@ -979,6 +987,7 @@ class Containernet( Mininet ):
     def __init__(self, **params):
         # call original Mininet.__init__
         Mininet.__init__(self, **params)
+        self.SAPswitches = dict()
 
     def addDocker( self, name, cls=Docker, **params ):
         """
@@ -992,6 +1001,130 @@ class Containernet( Mininet ):
         Wrapper for removeHost. Just to be complete.
         """
         return self.removeHost(name, **params)
+
+
+    def addExtSAP(self, sapName, sapIP, dpid=None, **params):
+        """
+        Add an external Service Access Point, implemented as an OVSBridge
+        :param sapName:
+        :param sapIP:
+        :param dpid:
+        :param params:
+        :return:
+        """
+        SAPswitch = self.addSwitch(sapName, cls=OVSBridge, ip=sapIP, prefix=SAP_PREFIX,
+                       dpid=dpid, **params)
+        self.SAPswitches[sapName] = SAPswitch
+
+        NAT = params.get('NAT', False)
+        SAPNet = params.get('SAPNet')
+        if NAT and SAPNet:
+            self.addSAPNAT(SAPswitch, SAPNet)
+
+        return SAPswitch
+
+    def removeExtSAP(self, sapName, SAPNet):
+        SAPswitch = self.SAPswitches[sapName]
+        info( 'stopping external SAP:' + SAPswitch.name + ' \n' )
+        SAPswitch.stop()
+        SAPswitch.terminate()
+
+        self.removeSAPNAT(SAPswitch, SAPNet)
+
+
+    def addSAPNAT(self, SAPSwitch, SAPNet):
+        """
+        Add NAT to the Containernet, so external SAPs can reach the outside internet through the host
+        :param SAPSwitch: Instance of the external SAP switch
+        :param SAPNet: Subnet of the external SAP as str ('10.10.1.0/30')
+        :return:
+        """
+        # create NAT rule
+        table = iptc.Table(iptc.Table.NAT)
+        chain = iptc.Chain(table, 'POSTROUTING')
+        rule = iptc.Rule()
+        rule.target = iptc.Target(rule, "MASQUERADE")
+        rule.out_interface = "!{0}".format(SAPSwitch.deployed_name)
+        rule.src = SAPNet
+        # we first need to try to append the rule,
+        # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
+        try:
+            chain.append_rule(rule)
+            chain.delete_rule(rule)
+        except:
+            pass
+        # add rule to iptables NAT table
+        chain.append_rule(rule)
+
+        # create FORWARD rule
+        table = iptc.Table(iptc.Table.FILTER)
+        chain = iptc.Chain(table, 'FORWARD')
+        rule = iptc.Rule()
+        rule.target = iptc.Target(rule, "ACCEPT")
+        rule.out_interface = "{0}".format(SAPSwitch.deployed_name)
+        # we first need to try to append the rule,
+        # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
+        try:
+            chain.append_rule(rule)
+            chain.delete_rule(rule)
+        except:
+            pass
+        chain.append_rule(rule)
+        rule = iptc.Rule()
+        rule.target = iptc.Target(rule, "ACCEPT")
+        rule.in_interface = "{0}".format(SAPSwitch.deployed_name)
+        chain.append_rule(rule)
+
+        info("added SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
+
+    def removeSAPNAT(self, SAPSwitch, SAPNet):
+        # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
+        # so we use the iptables tool
+        rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
+        import shlex
+        p = Popen(shlex.split(rule0_))
+        p.communicate()
+
+        rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+
+        p = Popen(shlex.split(rule1_))
+        p.communicate()
+
+        rule2_ = "iptables -D FORWARD -i {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule2_))
+        p.communicate()
+
+
+    def stop(self):
+        super(Containernet, self).stop()
+
+        info('*** Removing NAT rules of %i SAPs\n' % len(self.SAPswitches))
+        table = iptc.Table(iptc.Table.NAT)
+        chain = iptc.Chain(table, 'POSTROUTING')
+        for rule in chain.rules:
+            if SAP_PREFIX in str(rule.out_interface):
+                debug("delete NAT rule from SAP: {0} - {1}\n".format(rule.out_interface, rule.src))
+                # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
+                try:
+                    chain.delete_rule(rule)
+                    chain.delete_rule(rule)
+                except:
+                    continue
+        table = iptc.Table(iptc.Table.FILTER)
+        chain = iptc.Chain(table, 'FORWARD')
+        for rule in chain.rules:
+            if SAP_PREFIX in str(rule.out_interface) or SAP_PREFIX in str(rule.in_interface):
+                debug("delete FORWARD rule from SAP: {0}-{1}-{2}\n".format(rule.in_interface, rule.out_interface, rule.src))
+                # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
+                try:
+                    chain.delete_rule(rule)
+                    chain.delete_rule(rule)
+                except:
+                    continue
+        for n in self.SAPswitches:
+            info("{0} ".format(n))
+        info("\n")
+
 
 
 class MininetWithControlNet( Mininet ):
