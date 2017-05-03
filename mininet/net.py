@@ -91,7 +91,8 @@ import re
 import select
 import signal
 import random
-import iptc
+import shlex
+import ipaddress
 
 from time import sleep
 from itertools import chain, groupby
@@ -1007,86 +1008,69 @@ class Containernet( Mininet ):
         """
         Add an external Service Access Point, implemented as an OVSBridge
         :param sapName:
-        :param sapIP:
+        :param sapIP: str format: x.x.x.x/x
         :param dpid:
         :param params:
         :return:
         """
-        SAPswitch = self.addSwitch(sapName, cls=OVSBridge, ip=sapIP, prefix=SAP_PREFIX,
-                       dpid=dpid, **params)
+        SAPswitch = self.addSwitch(sapName, cls=OVSBridge, prefix=SAP_PREFIX,
+                       dpid=dpid, ip=sapIP, **params)
         self.SAPswitches[sapName] = SAPswitch
 
         NAT = params.get('NAT', False)
-        SAPNet = params.get('SAPNet')
-        if NAT and SAPNet:
-            self.addSAPNAT(SAPswitch, SAPNet)
+        if NAT:
+            self.addSAPNAT(SAPswitch)
 
         return SAPswitch
 
-    def removeExtSAP(self, sapName, SAPNet):
+    def removeExtSAP(self, sapName):
         SAPswitch = self.SAPswitches[sapName]
         info( 'stopping external SAP:' + SAPswitch.name + ' \n' )
         SAPswitch.stop()
         SAPswitch.terminate()
 
-        self.removeSAPNAT(SAPswitch, SAPNet)
+        self.removeSAPNAT(SAPswitch)
 
 
-    def addSAPNAT(self, SAPSwitch, SAPNet):
+    def addSAPNAT(self, SAPSwitch):
         """
         Add NAT to the Containernet, so external SAPs can reach the outside internet through the host
         :param SAPSwitch: Instance of the external SAP switch
-        :param SAPNet: Subnet of the external SAP as str ('10.10.1.0/30')
+        :param SAPNet: Subnet of the external SAP as str (eg. '10.10.1.0/30')
         :return:
         """
+        SAPip = SAPSwitch.ip
+        SAPNet = str(ipaddress.IPv4Network(unicode(SAPip), strict=False))
+        # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
+        # so we use the iptables tool
         # create NAT rule
-        table = iptc.Table(iptc.Table.NAT)
-        chain = iptc.Chain(table, 'POSTROUTING')
-        rule = iptc.Rule()
-        rule.target = iptc.Target(rule, "MASQUERADE")
-        rule.out_interface = "!{0}".format(SAPSwitch.deployed_name)
-        rule.src = SAPNet
-        # we first need to try to append the rule,
-        # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
-        try:
-            chain.append_rule(rule)
-            chain.delete_rule(rule)
-        except:
-            pass
-        # add rule to iptables NAT table
-        chain.append_rule(rule)
+        rule0_ = "iptables -t nat -A POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
+        p = Popen(shlex.split(rule0_))
+        p.communicate()
 
         # create FORWARD rule
-        table = iptc.Table(iptc.Table.FILTER)
-        chain = iptc.Chain(table, 'FORWARD')
-        rule = iptc.Rule()
-        rule.target = iptc.Target(rule, "ACCEPT")
-        rule.out_interface = "{0}".format(SAPSwitch.deployed_name)
-        # we first need to try to append the rule,
-        # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
-        try:
-            chain.append_rule(rule)
-            chain.delete_rule(rule)
-        except:
-            pass
-        chain.append_rule(rule)
-        rule = iptc.Rule()
-        rule.target = iptc.Target(rule, "ACCEPT")
-        rule.in_interface = "{0}".format(SAPSwitch.deployed_name)
-        chain.append_rule(rule)
+        rule1_ = "iptables -A FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule1_))
+        p.communicate()
+
+        rule2_ = "iptables -A FORWARD -i {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule2_))
+        p.communicate()
 
         info("added SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
 
-    def removeSAPNAT(self, SAPSwitch, SAPNet):
+
+    def removeSAPNAT(self, SAPSwitch):
+
+        SAPip = SAPSwitch.ip
+        SAPNet = str(ipaddress.IPv4Network(unicode(SAPip), strict=False))
         # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
         # so we use the iptables tool
         rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
-        import shlex
         p = Popen(shlex.split(rule0_))
         p.communicate()
 
         rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
-
         p = Popen(shlex.split(rule1_))
         p.communicate()
 
@@ -1094,35 +1078,15 @@ class Containernet( Mininet ):
         p = Popen(shlex.split(rule2_))
         p.communicate()
 
+        info("remove SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
+
 
     def stop(self):
         super(Containernet, self).stop()
 
         info('*** Removing NAT rules of %i SAPs\n' % len(self.SAPswitches))
-        table = iptc.Table(iptc.Table.NAT)
-        chain = iptc.Chain(table, 'POSTROUTING')
-        for rule in chain.rules:
-            if SAP_PREFIX in str(rule.out_interface):
-                debug("delete NAT rule from SAP: {0} - {1}\n".format(rule.out_interface, rule.src))
-                # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
-                try:
-                    chain.delete_rule(rule)
-                    chain.delete_rule(rule)
-                except:
-                    continue
-        table = iptc.Table(iptc.Table.FILTER)
-        chain = iptc.Chain(table, 'FORWARD')
-        for rule in chain.rules:
-            if SAP_PREFIX in str(rule.out_interface) or SAP_PREFIX in str(rule.in_interface):
-                debug("delete FORWARD rule from SAP: {0}-{1}-{2}\n".format(rule.in_interface, rule.out_interface, rule.src))
-                # due to an issue with python-iptables, the first attempt does not succeed when the mininet CLI is running
-                try:
-                    chain.delete_rule(rule)
-                    chain.delete_rule(rule)
-                except:
-                    continue
-        for n in self.SAPswitches:
-            info("{0} ".format(n))
+        for SAPswitch in self.SAPswitches:
+            self.removeSAPNAT(self.SAPswitches[SAPswitch])
         info("\n")
 
 

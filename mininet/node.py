@@ -1778,6 +1778,7 @@ class OVSBridge( OVSSwitch ):
         kwargs.update( failMode='standalone' )
         OVSSwitch.__init__( self, *args, **kwargs )
 
+        # ip address of this bridge (eg. 10.10.0.1/24)
         self.ip = kwargs.get('ip')
 
     def start( self ):
