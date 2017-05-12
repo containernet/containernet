@@ -16,10 +16,11 @@ before_install:
   - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ansible libffi-dev libssl-dev
 
 install:
-  - cd ansible; sudo ansible-playbook -i "localhost," -c local -v install.yml; cd ..
+   - echo $(lsb_release -cs)  
+#  - cd ansible; sudo ansible-playbook -i "localhost," -c local -v install.yml; cd ..
 
 script:
-  - sudo py.test -v mininet/test/test_containernet.py
+#  - sudo py.test -v mininet/test/test_containernet.py
 
 notifications:
   email:
