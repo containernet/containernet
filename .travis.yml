@@ -5,8 +5,9 @@ matrix:
   include:
     - dist: trusty
       env: dist="14.04 LTS trusty"
-    - dist: xenial
-      env: dist="16.04 LTS xenial"
+    # May 2017: Xenial support in travis broken (prcise image is booted)
+    #- dist: xenial
+    #  env: dist="16.04 LTS xenial"
 
 virtualenv:
   system_site_packages: true
