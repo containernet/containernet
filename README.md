@@ -66,6 +66,20 @@ Start example topology with some empty Docker containers connected to the networ
 * run: `sudo python examples/dockerhosts.py`
 * use: `containernet> d1 ifconfig` to see config of container d1
 
+### Topology example
+
+In your custom topology script you can add Docker hosts as follows:
+
+```python
+
+info('*** Adding docker containers\n')
+d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
+d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", cpu_period=50000, cpu_quota=25000)
+d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_shares=20)
+d4 = net.addDocker('d4', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
+
+```
+
 ### Tests
 There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
 
