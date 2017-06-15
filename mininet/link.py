@@ -368,7 +368,7 @@ class TCIntf( Intf ):
         debug("at map stage w/cmds: %s\n" % cmds)
         tcoutputs = [ self.tc(cmd) for cmd in cmds ]
         for output in tcoutputs:
-            if output != '':
+            if output != '' and output != 'RTNETLINK answers: No such file or directory\r\n':
                 error( "*** Error: %s" % output )
         debug( "cmds:", cmds, '\n' )
         debug( "outputs:", tcoutputs, '\n' )
