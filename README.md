@@ -14,10 +14,11 @@ Based on: Mininet 2.2.1
 
 ### Cite this work
 
-If you use Containernet for your research and/or other publications, please cite the following paper to reference our work:
+If you use Containernet for your research and/or other publications, please cite (beside the original Mininet paper) the following paper to reference our work:
 
-* Manuel Peuster, Holger Karl, and Steven van Rossem. "**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**" to appear in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
-  * Pre-print online: http://arxiv.org/abs/1606.05995
+* Manuel Peuster, Holger Karl, and Steven van Rossem. "**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**" in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
+  * Link: http://ieeexplore.ieee.org/document/7919490/
+  * Pre-print: http://arxiv.org/abs/1606.05995
 
 ### NFV multi-PoP Extension
 
@@ -64,6 +65,20 @@ Start example topology with some empty Docker containers connected to the networ
 * `cd containernet`
 * run: `sudo python examples/dockerhosts.py`
 * use: `containernet> d1 ifconfig` to see config of container d1
+
+### Topology example
+
+In your custom topology script you can add Docker hosts as follows:
+
+```python
+
+info('*** Adding docker containers\n')
+d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
+d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", cpu_period=50000, cpu_quota=25000)
+d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_shares=20)
+d4 = net.addDocker('d4', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
+
+```
 
 ### Tests
 There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
