@@ -1,7 +1,7 @@
 - hosts: localhost
   tasks:
-   - name: updates apt
-     apt: update_cache=yes
+   #- name: updates apt
+   #  apt: update_cache=yes
 
    - name: install basic packages
      apt: name={{item}} state=installed
