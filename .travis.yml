@@ -3,8 +3,8 @@ sudo: required
 
 matrix:
   include:
-    #- dist: trusty
-    #  env: dist="14.04 LTS trusty"
+    - dist: trusty
+      env: dist="14.04 LTS trusty"
     # May 2017: Xenial support in travis broken (prcise image is booted)
     - dist: xenial
       env: dist="16.04 LTS xenial"
@@ -15,6 +15,8 @@ virtualenv:
 before_install:
   - sudo apt-get -qq update
   - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ansible libffi-dev libssl-dev
+  - sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+  - sudo apt-get -qq update 
 
 install:
   - cd ansible; sudo ansible-playbook -i "localhost," -c local -v install.yml; cd ..
