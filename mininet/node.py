@@ -292,6 +292,7 @@ class Node( object ):
             cmd += ' printf "\\001%d\\012" $! '
         elif printPid and not isShellBuiltin( cmd ):
             cmd = 'mnexec -p ' + cmd
+        #info('execute cmd: {0}'.format(cmd))
         self.write( cmd + '\n' )
         self.lastPid = None
         self.waiting = True
@@ -354,6 +355,11 @@ class Node( object ):
         log = info if verbose else debug
         log( '*** %s : %s\n' % ( self.name, args ) )
         if self.shell:
+            self.shell.poll()
+            if self.shell.returncode is not None:
+                print("shell died on ", self.name)
+                self.shell = None
+                self.startShell()
             self.sendCmd( *args, **kwargs )
             return self.waitOutput( verbose )
         else:
@@ -399,7 +405,7 @@ class Node( object ):
                             **kwargs )
         # Warning: this can fail with large numbers of fds!
         out, err = popen.communicate()
-        exitcode = popen.wait()
+        exitcode = popen.returncode
         return out, err, exitcode
 
     # Interface management, configuration, and routing
@@ -454,7 +460,7 @@ class Node( object ):
         if not intf:
             return self.defaultIntf()
         elif isinstance( intf, basestring):
-            return self.nameToIntf[ intf ]
+            return self.nameToIntf.get(intf)
         else:
             return intf
 
@@ -743,46 +749,48 @@ class Docker ( Host ):
 
 
     def startShell( self, mnopts=None ):
-        # creats host config for container
-        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
-        hc = self.dcli.create_host_config(
-            network_mode=None,
-            privileged=True,  # we need this to allow mininet network setup
-            binds=self.volumes,
-            publish_all_ports=self.publish_all_ports,
-            port_bindings=self.port_bindings,
-            mem_limit=self.resources.get('mem_limit'),
-            cpuset_cpus=self.resources.get('cpuset_cpus'),
-        )
-        # create new docker container
-        self.dc = self.dcli.create_container(
-            name="%s.%s" % (self.dnameprefix, self.name),
-            image=self.dimage,
-            command=self.dcmd,
-            stdin_open=True,  # keep container open
-            tty=True,  # allocate pseudo tty
-            environment=self.environment,
-            #network_disabled=True,  # docker stats breaks if we disable the default network
-            host_config=hc,
-            labels=['com.containernet'],
-            volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None]
-        )
-        # start the container
-        self.dcli.start(self.dc)
-        debug("Docker container %s started\n" % self.name)
-        # fetch information about new container
-        self.dcinfo = self.dcli.inspect_container(self.dc)
-        self.did = self.dcinfo.get("Id")
+        if self.dc is None:
+            # creats host config for container
+            # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+            hc = self.dcli.create_host_config(
+                network_mode=None,
+                privileged=True,  # we need this to allow mininet network setup
+                binds=self.volumes,
+                publish_all_ports=self.publish_all_ports,
+                port_bindings=self.port_bindings,
+                mem_limit=self.resources.get('mem_limit'),
+                cpuset_cpus=self.resources.get('cpuset_cpus'),
+            )
+            # create new docker container
+            self.dc = self.dcli.create_container(
+                name="%s.%s" % (self.dnameprefix, self.name),
+                image=self.dimage,
+                command=self.dcmd,
+                stdin_open=True,  # keep container open
+                tty=True,  # allocate pseudo tty
+                environment=self.environment,
+                #network_disabled=True,  # docker stats breaks if we disable the default network
+                host_config=hc,
+                labels=['com.containernet'],
+                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
+                hostname=self.name
+            )
+            # start the container
+            self.dcli.start(self.dc)
+            debug("Docker container %s started\n" % self.name)
+            # fetch information about new container
+            self.dcinfo = self.dcli.inspect_container(self.dc)
+            self.did = self.dcinfo.get("Id")
 
-        # let's initially set our resource limits
-        self.update_resources(**self.resources)
-        # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
-        #                     cpu_period=self.resources.get('cpu_period'),
-        #                     cpu_shares=self.resources.get('cpu_shares'),
-        #                     )
-        # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
-        #                        memswap_limit=self.resources.get('memswap_limit')
-        #                        )
+            # let's initially set our resource limits
+            self.update_resources(**self.resources)
+            # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
+            #                     cpu_period=self.resources.get('cpu_period'),
+            #                     cpu_shares=self.resources.get('cpu_shares'),
+            #                     )
+            # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
+            #                        memswap_limit=self.resources.get('memswap_limit')
+            #                        )
 
         # use a new shell to connect to container to ensure that we are not
         # blocked by initial container command
@@ -811,9 +819,13 @@ class Docker ( Host ):
         self.lastPid = None
         self.readbuf = ''
         self.waiting = False
+        #self.output = ''
 
         # fix container environment (sentinel chr(127))
-        self.cmd('export PS1="\\177"')
+        # we cannot set the sentinel in the docker shell here
+        # setting PS1 breaks the python docker api (update_container hangs...)
+        # the sentinel is added after each executed cmd in sendCmd
+        #self.cmd('export PS1="\\127"')
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -833,13 +845,51 @@ class Docker ( Host ):
             info("Warning: API error during container removal.\n")
         self.cleanup()
 
+    def sendCmd( self, *args, **kwargs ):
+        """Send a command, followed by a command to echo a sentinel,
+           and return without waiting for the command to complete.
+           args: command and arguments, or string
+           printPid: print command's PID? (False)"""
+        assert self.shell# and not self.waiting
+        printPid = kwargs.get( 'printPid', False )
+        # Allow sendCmd( [ list ] )
+        if len( args ) == 1 and isinstance( args[ 0 ], list ):
+            cmd = args[ 0 ]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len( args ) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance( cmd, str ):
+            cmd = ' '.join( [ str( c ) for c in cmd ] )
+        if not re.search( r'\w', cmd ):
+            # Replace empty commands with something harmless
+            cmd = 'echo -n'
+        self.lastCmd = cmd
+        # if a builtin command is backgrounded, it still yields a PID
+        if len( cmd ) > 0 and cmd[ -1 ] == '&':
+            # print ^A{pid}\n so monitor() can set lastPid
+            cmd += ' printf "\\001%d\\012" $! '
+        elif printPid and not isShellBuiltin( cmd ):
+            cmd = 'mnexec -p ' + cmd
+
+        # for Docker hosts, we need to add the sentinel ourselves
+        #output = self.cmd(*args, **kwargs)
+        #self.output = output + chr(127)
+        cmd = cmd + " ;printf \\\\177 " + '\n'
+        self.write( cmd )
+        self.lastPid = None
+        self.waiting = True
+
     def monitor( self, timeoutms=None, findPid=True ):
         """Monitor and return the output of a command.
            Set self.waiting to False if command has completed.
            timeoutms: timeout in ms or None to wait indefinitely
            findPid: look for PID from mnexec -p"""
+
+        # for Docker hosts, this is a patch, to make the containernet CLI work
         self.waitReadable( timeoutms )
         data = self.read( 1024 )
+        #data = self.output
         pidre = r'\[\d+\] \d+\r\n'
         # Look for PID
         marker = chr( 1 ) + r'\d+\r\n'
@@ -861,9 +911,22 @@ class Docker ( Host ):
         elif chr( 127 ) in data:
             self.waiting = False
             data = data.replace( chr( 127 ), '' )
+            # remove last line (contains container prompt) and replace by clean line
+            data = data[:data.rfind('\n')] + '\n'
         # Suppress original cmd input (will otherwise be printed in docker TTY)
         if len( data ) > 0:
-            data = data.replace( self.lastCmd, '').lstrip()
+            data = data.replace(self.lastCmd, '').lstrip()
+            # remove first line (if it contains the print sentinel command)
+            first_line = data.split('\n', 1)[0]
+            if ";printf \\\\177" in first_line:
+                data = data.split('\n', 1)[1]
+            # check if output contains prompt:
+            promptre = r'root@.*:.*#'
+            prompt_found = re.findall(promptre, data)
+            if prompt_found:
+                #data = data[:data.rfind(prompt_found[0])] + '\n'
+                data = data + '\n'
+
         return data
 
     def popen( self, *args, **kwargs ):
@@ -884,12 +947,38 @@ class Docker ( Host ):
 
            FIXME: Popen with Docker containers does not work.
            No idea why!
-           We fake it with normal self.cmd()
+           We fake it with normal Node.cmd() -> this hangs with certain containers, no idea why!
+           We use the docker api recommended way to execute commands inside containers
            """
         out = self.cmd(cmd)
         err = ""
         exitcode = 0
         return out, err, exitcode
+
+    def cmd(self, *args, **kwargs ):
+
+        # Allow sendCmd( [ list ] )
+        if len(args) == 1 and isinstance(args[0], list):
+            cmd = args[0]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len(args) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance(cmd, str):
+            cmd = ' '.join([str(c) for c in cmd])
+
+        # check if container is still running
+        container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
+        if len(container_list) == 0:
+            debug("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
+            self.waiting = False
+            return ''
+
+        exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
+        out = self.dcli.exec_start(exec_dict)
+        #info("cmd: {0} \noutput:{1}".format(cmd, out))
+        self.waiting = False
+        return out
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
@@ -1478,6 +1567,11 @@ class OVSSwitch( Switch ):
         self.batch = batch
         self.commands = []  # saved commands for batch startup
 
+        # add a prefix to the name of the deployed switch, to find it back easier later
+        prefix = params.get('prefix', '')
+        self.deployed_name = prefix + name
+
+
     @classmethod
     def setup( cls ):
         "Make sure Open vSwitch is installed and working"
@@ -1508,7 +1602,7 @@ class OVSSwitch( Switch ):
 
     def dpctl( self, *args ):
         "Run ovs-ofctl command"
-        return self.cmd( 'ovs-ofctl', args[ 0 ], self, *args[ 1: ] )
+        return self.cmd( 'ovs-ofctl', args[ 0 ], self.deployed_name, *args[ 1: ] )
 
     def vsctl( self, *args, **kwargs ):
         "Run ovs-vsctl command (or queue for later execution)"
@@ -1528,19 +1622,29 @@ class OVSSwitch( Switch ):
 
     def attach( self, intf ):
         "Connect a data port"
-        self.vsctl( 'add-port', self, intf )
+        self.vsctl( 'add-port', self.deployed_name, intf )
         self.cmd( 'ifconfig', intf, 'up' )
         self.TCReapply( intf )
 
+    def attachInternalIntf(self, intf_name, net):
+        """Add an interface of type:internal to the ovs switch
+           and add routing entry to host"""
+        self.vsctl('add-port', self.deployed_name, intf_name, '--', 'set', ' interface', intf_name, 'type=internal')
+        int_intf = Intf(intf_name, node=self.deployed_name)
+        #self.addIntf(int_intf, moveIntfFn=None)
+        self.cmd('ip route add', net, 'dev', intf_name)
+
+        return self.nameToIntf[intf_name]
+
     def detach( self, intf ):
         "Disconnect a data port"
-        self.vsctl( 'del-port', self, intf )
+        self.vsctl( 'del-port', self.deployed_name, intf )
 
     def controllerUUIDs( self, update=False ):
         """Return ovsdb UUIDs for our controllers
            update: update cached value"""
         if not self._uuids or update:
-            controllers = self.cmd( 'ovs-vsctl -- get Bridge', self,
+            controllers = self.cmd( 'ovs-vsctl -- get Bridge', self.deployed_name,
                                     'Controller' ).strip()
             if controllers.startswith( '[' ) and controllers.endswith( ']' ):
                 controllers = controllers[ 1 : -1 ]
@@ -1591,16 +1695,16 @@ class OVSSwitch( Switch ):
                 'OVS kernel switch does not work in a namespace' )
         int( self.dpid, 16 )  # DPID must be a hex string
         # Command to add interfaces
-        intfs = ''.join( ' -- add-port %s %s' % ( self, intf ) +
+        intfs = ''.join( ' -- add-port %s %s' % ( self.deployed_name, intf ) +
                          self.intfOpts( intf )
                          for intf in self.intfList()
                          if self.ports[ intf ] and not intf.IP() )
         # Command to create controller entries
-        clist = [ ( self.name + c.name, '%s:%s:%d' %
+        clist = [ ( self.deployed_name + c.name, '%s:%s:%d' %
                   ( c.protocol, c.IP(), c.port ) )
                   for c in controllers ]
         if self.listenPort:
-            clist.append( ( self.name + '-listen',
+            clist.append( ( self.deployed_name + '-listen',
                             'ptcp:%s' % self.listenPort ) )
         ccmd = '-- --id=@%s create Controller target=\\"%s\\"'
         if self.reconnectms:
@@ -1611,11 +1715,11 @@ class OVSSwitch( Switch ):
         cids = ','.join( '@%s' % name for name, _target in clist )
         # Try to delete any existing bridges with the same name
         if not self.isOldOVS():
-            cargs += ' -- --if-exists del-br %s' % self
+            cargs += ' -- --if-exists del-br %s' % self.deployed_name
         # One ovs-vsctl command to rule them all!
         self.vsctl( cargs +
-                    ' -- add-br %s' % self +
-                    ' -- set bridge %s controller=[%s]' % ( self, cids  ) +
+                    ' -- add-br %s' % self.deployed_name +
+                    ' -- set bridge %s controller=[%s]' % ( self.deployed_name, cids  ) +
                     self.bridgeOpts() +
                     intfs )
         # If necessary, restore TC config overwritten by OVS
@@ -1659,9 +1763,9 @@ class OVSSwitch( Switch ):
     def stop( self, deleteIntfs=True ):
         """Terminate OVS switch.
            deleteIntfs: delete interfaces? (True)"""
-        self.cmd( 'ovs-vsctl del-br', self )
+        self.cmd( 'ovs-vsctl del-br', self.deployed_name )
         if self.datapath == 'user':
-            self.cmd( 'ip link del', self )
+            self.cmd( 'ip link del', self.deployed_name )
         super( OVSSwitch, self ).stop( deleteIntfs )
 
     @classmethod
@@ -1672,7 +1776,7 @@ class OVSSwitch( Switch ):
             delcmd = '--if-exists ' + delcmd
         # First, delete them all from ovsdb
         run( 'ovs-vsctl ' +
-             ' -- '.join( delcmd % s for s in switches ), shell=True )
+             ' -- '.join( delcmd % s.deployed_name for s in switches ), shell=True )
         # Next, shut down all of the processes
         pids = ' '.join( str( switch.pid ) for switch in switches )
         run( 'kill -HUP ' + pids )
@@ -1693,9 +1797,17 @@ class OVSBridge( OVSSwitch ):
         kwargs.update( failMode='standalone' )
         OVSSwitch.__init__( self, *args, **kwargs )
 
-    def start( self, controllers ):
+        # ip address of this bridge (eg. 10.10.0.1/24)
+        self.ip = kwargs.get('ip')
+
+    def start( self ):
         "Start bridge, ignoring controllers argument"
         OVSSwitch.start( self, controllers=[] )
+
+        # assign an ip address to this switch, so it can connect to the host
+        if self.ip:
+            self.cmd('ip address add', self.ip, 'dev', self.deployed_name)
+            self.cmd('ip link set', self.deployed_name, 'up')
 
     def connected( self ):
         "Are we forwarding yet?"

@@ -15,10 +15,13 @@ from subprocess import ( Popen, PIPE, check_output as co,
 from subprocess import call
 import time
 import os
+import iptc
+import ipaddress
+import shlex
 
 from mininet.log import info
 from mininet.term import cleanUpScreens
-
+from mininet.net import SAP_PREFIX
 
 def sh( cmd ):
     "Print a command and send it to the shell"
@@ -118,6 +121,41 @@ class Cleanup( object ):
         # Containernet should also cleanup pending Docker
         cmd =  "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)"
         call(cmd, shell=True, stdout=open(os.devnull, 'wb'),  stderr=open(os.devnull, 'wb'))
+
+        # cleanup any remaining iptables rules from external SAPs with NAT
+        # we use iptc module to iterate through the loops, but due to a bug, we cannot use iptc to delete the rules
+        # we rely on iptables CLI to delete the found rules
+        info("***  Removing SAP NAT rules\n")
+        table = iptc.Table(iptc.Table.NAT)
+        chain = iptc.Chain(table, 'POSTROUTING')
+
+        for rule in chain.rules:
+            if SAP_PREFIX in str(rule.out_interface):
+                src_CIDR = str(ipaddress.IPv4Network(unicode(rule.src)))
+                rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".\
+                    format(rule.out_interface.strip('!'), src_CIDR)
+                p = Popen(shlex.split(rule0_))
+                p.communicate()
+                info("delete NAT rule from SAP: {1} - {0} - {2}\n".format(rule.out_interface, rule.in_interface, src_CIDR))
+
+
+        table = iptc.Table(iptc.Table.FILTER)
+        chain = iptc.Chain(table, 'FORWARD')
+        for rule in chain.rules:
+            src_CIDR = str(ipaddress.IPv4Network(unicode(rule.src)))
+            if SAP_PREFIX in str(rule.out_interface):
+                rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(rule.out_interface)
+                p = Popen(shlex.split(rule1_))
+                p.communicate()
+                info("delete FORWARD rule from SAP: {1} - {0} - {2}\n".format(rule.out_interface, rule.in_interface,
+                                                                              src_CIDR))
+
+            if SAP_PREFIX in str(rule.in_interface):
+                rule2_ = "iptables -D FORWARD -i {0} -j ACCEPT".format(rule.in_interface)
+                p = Popen(shlex.split(rule2_))
+                p.communicate()
+                info("delete FORWARD rule from SAP: {1} - {0} - {2}\n".format(rule.out_interface, rule.in_interface,
+                                                                              src_CIDR))
 
         info( "*** Cleanup complete.\n" )
 
