@@ -27,11 +27,11 @@ and bandwidth ('iperf'.)
 
 from subprocess import call
 from cmd import Cmd
+import os
 from os import isatty
 from select import poll, POLLIN
 import sys
 import time
-import os
 import atexit
 import string
 
@@ -59,7 +59,8 @@ class CLI( Cmd ):
         self.inPoller.register( stdin )
         self.inputFile = script
         Cmd.__init__( self )
-        # Containernet allows '.' in host identifiers to build human readable hierarchical name spaces:
+        # Containernet allows '.' in host identifiers to build human readable
+        # hierarchical name spaces:
         self.identchars = string.ascii_letters + string.digits + '_' + '.'
         info( '*** Starting CLI:\n' )
 
