@@ -96,6 +96,12 @@ vagrant up
 vagrant ssh
 ```
 
+### Work based on Containernet
+
+* Qiao, Yuansong, et al. "Doopnet: An emulator for network performance analysis of Hadoop clusters using Docker and Mininet." Computers and Communication (ISCC), 2016 IEEE Symposium on. IEEE, 2016.
+  * http://ieeexplore.ieee.org/document/7543832/
+  * https://github.com/ysqiao/doopnet
+
 ### Contact
 Manuel Peuster
 manuel (dot) peuster (at) upb (dot) de

@@ -648,6 +648,25 @@ class Host( Node ):
     pass
 
 
+class QemuHost( LibvirtHost ):
+    """Node that represents a qemu VM.
+    All communication is handled by libvirt.
+    """
+
+    def __init__(self):
+        pass
+
+    def startShell( self, mnopts=None ):
+        pass
+
+    def terminate( self ):
+        pass
+
+    def monitor( self, timeoutms=None, findPid=True ):
+        pass
+
+
+
 class Docker ( Host ):
     """Node that represents a docker container.
     This part is inspired by:

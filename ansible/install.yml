@@ -1,7 +1,7 @@
 - hosts: localhost
   tasks:
    - name: updates apt
-     apt: update_cache=yes
+     shell: apt-get -qq update
 
    - name: install basic packages
      apt: name={{item}} state=installed
@@ -24,7 +24,7 @@
      shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 
    - name: install Docker CE repos (3/3)
-     apt: update_cache=yes
+     shell: apt-get -qq update
 
    - name: install Docker CE
      apt: name=docker-ce state=installed
