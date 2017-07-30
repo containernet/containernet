@@ -59,16 +59,25 @@ import signal
 import select
 import docker
 import json
+import sys
+
 from subprocess import Popen, PIPE, check_output
 from time import sleep
 
 from mininet.log import info, error, warn, debug
 from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups )
+                           numCores, retry, mountCgroups, libvirtErrorHandler, macColonHex, ipParse )
 from mininet.moduledeps import moduleDeps, pathCheck, TUN
 from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
 from distutils.version import StrictVersion
+
+try:
+    import libvirt
+    import pexpect
+    from lxml import etree
+except ImportError:
+    pass
 
 class Node( object ):
     """A virtual network node is simply a shell in a network namespace.
@@ -648,25 +657,6 @@ class Host( Node ):
     pass
 
 
-class QemuHost( LibvirtHost ):
-    """Node that represents a qemu VM.
-    All communication is handled by libvirt.
-    """
-
-    def __init__(self):
-        pass
-
-    def startShell( self, mnopts=None ):
-        pass
-
-    def terminate( self ):
-        pass
-
-    def monitor( self, timeoutms=None, findPid=True ):
-        pass
-
-
-
 class Docker ( Host ):
     """Node that represents a docker container.
     This part is inspired by:
@@ -1159,9 +1149,188 @@ class Docker ( Host ):
 
 
 class LibvirtHost( Host ):
-    def __init__(self):
-        pass
+    """Base class for controlling a host that is managed by libvirt.
 
+    """
+    def __init__(self, name, disk_image, **kwargs):
+        # "private" dict for capabilities property
+        self._capabilities = None
+        # a lot of defaults
+        kwargs.setdefault('cpu_quota', -1)
+        kwargs.setdefault('cpu_period', None)
+        kwargs.setdefault('cpu_shares', None)
+        kwargs.setdefault('cpuset_cpus', None)
+        kwargs.setdefault('mem_limit', None)
+        kwargs.setdefault('memswap_limit', None)
+        kwargs.setdefault('environment', dict())
+        kwargs.setdefault('arch', 'x86_64')
+        kwargs.setdefault('type', 'kvm')
+        kwargs.setdefault('login', {'method': 'ssh',
+                                    'credentials': {
+                                        'user': 'root',
+                                        'keyfile': None,
+                                        'password': None
+                                        },
+                                    'prompt_regex': "root\@.*#"
+                                    })
+        kwargs.setdefault('cmd_endpoint', 'qemu:///system')
+        kwargs.setdefault('domain_xml', None)
+
+        self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
+        if self.lv_conn is None:
+            error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
+        self.lv_disk_image = disk_image
+
+        # domain object we get from libvirt
+        self.domain = None
+        # etree we store for domain manipulation
+        self.domain_tree = None
+        # XML serialization of the domain_tree
+        self.domain_xml = None
+        # domain name with prefix
+        self.domain_name = "%s.%s" % ("mn", name)
+
+        self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
+        if not self.mgmt_net:
+            error( "LibvirtHost.__init__: Could not find the libvirt management network: %s\n" % kwargs['mgmt_network'])
+
+        if kwargs['domain_xml'] is not None:
+            self.domain_xml = kwargs['domain_xml']
+            self.domain_tree = etree.XML(self.domain_xml)
+            if "title" not in list(self.domain_tree.getroot()):
+                etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
+            else:
+                self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
+        else:
+            self.build_domain(**kwargs)
+
+
+        debug("Created Domain object: %s\n" % name)
+        debug("image: %s\n" % str(self.lv_disk_image))
+        debug("kwargs: %s\n" % str(kwargs))
+
+        # libvirt will print error messages if we don't handle them here
+        libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
+
+        # call original Node.__init__
+        Host.__init__(self, name, **kwargs)
+
+    @property
+    def capabilities(self):
+        if self._capabilities is None:
+            self._capabilities = dict()
+
+            self._capabilities = etree.fromstring(self.lv_conn.getCapabilities())
+            if not self._capabilities.xpath('/capabilities/guest'):
+                error("LibvirtHost.capabilities: Could not get the capabilities from libvirt using endpoint %s.\n" %
+                      self.params['cmd_endpoint'])
+                return
+
+        return self._capabilities
+
+    def build_domain(self, **params):
+        # create a host config from params
+        # TODO check all params
+        domain = etree.Element("domain", type=params['type'])
+        etree.SubElement(domain, "name").text = self.domain_name
+        etree.SubElement(domain, "title").text = "com.containernet-%s" % self.domain_name
+        etree.SubElement(domain, "memory", unit="KiB").text = "1048576"
+        etree.SubElement(domain, "currentMemory", unit="KiB").text = "1048576"
+        etree.SubElement(domain, "vcpu", placement="static").text = "1"
+        os = etree.SubElement(domain, "os")
+        etree.SubElement(os, "type", arch="x86_64", machine="pc").text = "hvm"
+
+        devices = etree.SubElement(domain, "devices")
+        etree.SubElement(devices, "emulator").text = "/usr/sbin/qemu-system-x86_64"
+        net = etree.SubElement(devices, "interface", type="network")
+        etree.SubElement(net, "mac", address=params['mgmt_mac'])
+        etree.SubElement(net, "source", network=params['mgmt_network'])
+        disk = etree.SubElement(devices, "disk", type="file", device="disk")
+        etree.SubElement(disk, "source", file=self.lv_disk_image)
+        etree.SubElement(disk, "target", dev="sda")
+        etree.SubElement(disk, "driver", name="qemu", type="qcow2")
+        etree.SubElement(devices, "console", type="pty")
+
+        # store the domain_xml in pretty print for easier debugging
+        self.domain_xml = etree.tostring(domain, pretty_print=True)
+        self.domain_tree = etree.ElementTree(domain)
+
+
+    def startShell( self, mnopts=None ):
+        if not self.check_domain():
+            error("LibvirtHost.startShell: Domain '%s' failed validity checks\n" % self.name)
+            return False
+
+        # instantiate the domain in libvirt
+        self.domain = self.lv_conn.createXML(self.domain_xml, 0)
+
+        # try connection via ssh first
+        if self.params['login']['method'] == "ssh":
+            if self.params['login']['credentials']['keyfile'] is not None:
+                pass
+            elif self.params['login']['credentials']['password'] is not None:
+                pass
+            else:
+                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but no valid credentials.\n" %
+                      self.name)
+                return False
+            pass
+        else:
+            # fallback to username / password with pexpect
+            console = pexpect.spawn("virsh console %s" % self.domain_name)
+
+            # ignore the kernel messages at startup
+            try:
+                # kernel startup
+                while True:
+                    console.expect('.*\[.*\].*', timeout=5)
+            except pexpect.TIMEOUT:
+                pass
+
+            # once the timeout has triggered we can assume that we are now at the login prompt
+            # send an empty line as safeguard
+            try:
+                # try to login to the vm
+                console.sendline("")
+                console.expect('.*login:', timeout=5)
+                console.sendline("root")
+                console.expect('.*assword:.*')
+                console.sendline("hanswurst")
+                print console.before
+                print console.after
+            except pexpect.TIMEOUT:
+                pass
+
+    def check_domain(self):
+        try:
+            if self.lv_conn.lookupByName(self.domain_name):
+                error("LibvirtHost.check_domain: Domain '%s' does already exist.\n" % self.domain_name)
+                return False
+        except libvirt.libvirtError:
+            # domain does not yet exist. everything is fine
+            pass
+        debug( "LibvirtHost.check_domain: XML Representation of domain:\n%s\n" % self.domain_xml)
+        type = self.domain_tree.getroot().get('type')
+        # check if the wanted capabilities are available
+        cap = self.capabilities.xpath('/capabilities/guest/arch[@name = $name]/domain[@type = $type]',
+                                      name=self.params['arch'], type=type)
+        debug( "LibvirtHost.check_domain: Capabilities of the host system:\n%s\n" % self.capabilities )
+        if not cap:
+            error("LibvirtHost.check_domain: Libvirt endpoint \"%s\" does not seem to be able to run a "
+                  "domain of type \"%s\"\n" %
+                  (self.params['cmd_endpoint'], type))
+            return False
+
+        return True
+
+    def terminate( self ):
+        """ Stop libvirt host """
+        #TODO: Do this via shutdown() and check if the domain really is dead. If not kill it with destroy
+        # see domain.info() and virDomainState
+        self.domain.destroy()
+
+        # also destroy mgmt network if no other host is using it!
+        self.cleanup()
 
 
 class CPULimitedHost( Host ):

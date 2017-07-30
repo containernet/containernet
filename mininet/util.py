@@ -12,6 +12,11 @@ from os import O_NONBLOCK
 import os
 from functools import partial
 
+try:
+    import libvirt
+except ImportError:
+    pass
+
 # Command execution support
 
 def run( cmd ):
@@ -628,3 +633,9 @@ def waitListening( client=None, server='127.0.0.1', port=80, timeout=None ):
         time += .5
         result = runCmd( cmd )
     return True
+
+def libvirtErrorHandler(ignore, err):
+    """Libvirt will print errors to the screen.
+       To suppress the messages we add this callback."""
+    if err[3] != libvirt.VIR_ERR_ERROR:
+        warn("Non-error from libvirt: '%s'" % err[2])
