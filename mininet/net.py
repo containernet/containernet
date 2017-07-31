@@ -100,16 +100,25 @@ from math import ceil
 
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
-from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
+from mininet.node import ( Node, Docker, LibvirtHost, Host, OVSKernelSwitch,
                            DefaultController, Controller, OVSSwitch, OVSBridge )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
 from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
                            macColonHex, ipStr, ipParse, netParse, ipAdd,
-                           waitListening )
+                           waitListening, libvirtErrorHandler )
 from mininet.term import cleanUpScreens, makeTerms
 
 from subprocess import Popen
+
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    from lxml import etree
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    info("No libvirt functionality present. Can not deploy virtual machines.")
+    info("Install libvirt-python to enable virtual machine emulation.")
 
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0d1"
@@ -980,15 +989,28 @@ class Mininet( object ):
 
 class Containernet( Mininet ):
     """
-    A Mininet with Docker related methods.
+    A Mininet with Docker and Libvirt related methods.
     Inherits Mininet.
-    This class is not more than API beautification.
     """
 
     def __init__(self, **params):
+        if LIBVIRT_AVAILABLE:
+            self.cmd_endpoint = params.pop("cmd_endpoint", "qemu:///system")
+            self.lv_conn = None
+            self.libvirtManagementNetwork = None
+            self.mgmt_dict = params.pop('mgmt_net', dict())
+            self.mgmt_dict.setdefault("name", "mn.libvirt.mgmt")
+            self.mgmt_dict.setdefault("ip", "192.168.134.1")
+            self.mgmt_dict.setdefault("netmask", "255.255.255.0")
+            self.mgmt_dict.setdefault("mac", macColonHex(ipParse(self.mgmt_dict['ip'])))
+            # keep track of how many hosts we added to the mgmt net
+            self.allocated_dhcp_ips = 1
+            libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
+
         # call original Mininet.__init__
         Mininet.__init__(self, **params)
         self.SAPswitches = dict()
+
 
     def addDocker( self, name, cls=Docker, **params ):
         """
@@ -998,6 +1020,62 @@ class Containernet( Mininet ):
         return self.addHost( name, cls=cls, **params)
 
     def removeDocker( self, name, **params):
+        """
+        Wrapper for removeHost. Just to be complete.
+        """
+        return self.removeHost(name, **params)
+
+    def addLibvirthost( self, name, cls=LibvirtHost, **params ):
+        """
+        Wrapper for addHost method that adds a
+        Libvirt-based host.
+        """
+        if not LIBVIRT_AVAILABLE:
+            #TODO check packages if this is a complete list
+            error("No libvirt functionality available. Please install libvirt-python and lxml.\n")
+            return False
+        if self.libvirtManagementNetwork is None:
+            self.lv_conn = libvirt.open(self.cmd_endpoint)
+            # cleanup the network if it already exists
+            try:
+                self.libvirtManagementNetwork = self.lv_conn.networkLookupByName(self.mgmt_dict['name'])
+                self.libvirtManagementNetwork.destroy()
+            except:
+                pass
+
+            self.createManagementNetwork()
+
+        # inject the name of the management network into the host params so we can access it there
+        # we use setdefault so we don't overwrite existing values in here
+        params.setdefault("mgmt_network", self.mgmt_dict['name'])
+
+        # add host to the DHCP table of management network
+        params.setdefault("mgmt_mac", macColonHex(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips))
+        try:
+            host = etree.Element("host",
+                          ip=ipStr(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips),
+                          mac=macColonHex(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips),
+                          name=name)
+            info("Containernet.addLibvirthost: Adding DHCP entry for host %s.\n" % name)
+            debug("network XML:\n %s\n" % etree.tostring(host))
+            #COMMANDDICT = {"none": 0, "modify": 1, "delete": 2, "add-first": 4}
+            #SECTIONDICT = {"none": 0, "bridge": 1, "domain": 2, "ip": 3, "ip-dhcp-host": 4,
+            #   "ip-dhcp-range": 5, "forward": 6, "forward-interface": 7,
+            #   "forward-pf": 8, "portgroup": 9, "dns-host": 10, "dns-txt": 11,
+            #   "dns-srv": 12}
+            #FLAGSDICT = {"current": 0, "live": 1, "config": 2}
+            # command, section, flags
+            self.libvirtManagementNetwork.update(4, 4, 0, etree.tostring(host))
+        except libvirt.libvirtError:
+            error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed.\n" %
+                  name)
+            return False
+
+
+        return self.addHost( name, cls=cls, **params)
+
+
+    def removeLibvirthost( self, name, **params):
         """
         Wrapper for removeHost. Just to be complete.
         """
@@ -1080,6 +1158,25 @@ class Containernet( Mininet ):
 
         info("remove SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
 
+    def createManagementNetwork(self):
+        # build XML
+        network = etree.Element("network")
+        etree.SubElement(network, "name").text = self.mgmt_dict['name']
+        etree.SubElement(network, "mac", address=self.mgmt_dict['mac'])
+        ip = etree.SubElement(network, "ip", address=self.mgmt_dict['ip'],
+                         netmask=self.mgmt_dict['netmask'])
+        dhcp = etree.SubElement(ip, "dhcp")
+        etree.SubElement(network, "domain", name="mininet")
+
+        debug("Containernet.createManagementNetwork: Instantiating management network for libvirt:\n%s\n" %
+              etree.tostring(network, pretty_print=True))
+        self.libvirtManagementNetwork = self.lv_conn.networkCreateXML(etree.tostring(network))
+
+
+    def destroyManagementNetwork(self):
+        debug('*** Removing the libvirt management network ***\n')
+        self.libvirtManagementNetwork.destroy()
+
 
     def stop(self):
         super(Containernet, self).stop()
@@ -1088,6 +1185,7 @@ class Containernet( Mininet ):
         for SAPswitch in self.SAPswitches:
             self.removeSAPNAT(self.SAPswitches[SAPswitch])
         info("\n")
+        self.destroyManagementNetwork()
 
 
 
