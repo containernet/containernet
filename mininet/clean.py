@@ -22,7 +22,6 @@ from mininet.log import info
 from mininet.term import cleanUpScreens
 from mininet.net import SAP_PREFIX
 
-LIBVIRT_AVAILABLE = False
 try:
     import libvirt
     from lxml import etree
@@ -149,6 +148,7 @@ class Cleanup( object ):
         # are available
         if LIBVIRT_AVAILABLE:
             # TODO implement cleanup
+            # TODO remember possible snapshots!
             pass
 
 

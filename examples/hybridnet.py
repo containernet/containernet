@@ -27,21 +27,17 @@ def topology():
 
     info('*** Adding hosts\n')
     h1 = net.addHost('h1')
-    h2 = net.addLibvirthost("test1", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2")
+    v1 = net.addLibvirthost("test1", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2")
+    v2 = net.addLibvirthost("test2", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2")
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')
-    s2 = net.addSwitch('s2', cls=OVSSwitch)
-    s3 = net.addSwitch('s3')
 
-    info('*** Creating links\n')
-    net.addLink(h1, s1)
+    #info('*** Creating links\n')
+    #net.addLink(v1, s1)
 
     info('*** Starting network\n')
     net.start()
-
-
-    net.ping([h2], manualdestip="10.0.0.254")
 
     info('*** Running CLI\n')
     CLI(net)

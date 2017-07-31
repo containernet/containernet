@@ -66,7 +66,7 @@ from time import sleep
 
 from mininet.log import info, error, warn, debug
 from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups, libvirtErrorHandler, macColonHex, ipParse )
+                           numCores, retry, mountCgroups, libvirtErrorHandler )
 from mininet.moduledeps import moduleDeps, pathCheck, TUN
 from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
@@ -74,10 +74,11 @@ from distutils.version import StrictVersion
 
 try:
     import libvirt
-    import pexpect
     from lxml import etree
+    import pexpect
+    LIBVIRT_AVAILABLE = True
 except ImportError:
-    pass
+    info("No libvirt functionality present. Can not deploy virtual machines.")
 
 class Node( object ):
     """A virtual network node is simply a shell in a network namespace.
@@ -1155,12 +1156,6 @@ class LibvirtHost( Host ):
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
-        kwargs.setdefault('cpu_quota', -1)
-        kwargs.setdefault('cpu_period', None)
-        kwargs.setdefault('cpu_shares', None)
-        kwargs.setdefault('cpuset_cpus', None)
-        kwargs.setdefault('mem_limit', None)
-        kwargs.setdefault('memswap_limit', None)
         kwargs.setdefault('environment', dict())
         kwargs.setdefault('arch', 'x86_64')
         kwargs.setdefault('type', 'kvm')
@@ -1174,10 +1169,39 @@ class LibvirtHost( Host ):
                                     })
         kwargs.setdefault('cmd_endpoint', 'qemu:///system')
         kwargs.setdefault('domain_xml', None)
+        kwargs.setdefault('disk', {
+            'target': {
+                'dev': 'sda'
+            },
+            'driver': {
+                'name': 'qemu',
+                'type': 'qcow2'
+            }
+        })
+        kwargs.setdefault('os', {
+            'type': {
+                'arch': "x86_64",
+                'machine': "pc"
+            },
+            '_text': "hvm"
+        })
+        kwargs.setdefault('emulator', "/usr/sbin/qemu-system-x86_64")
+        kwargs.setdefault('memory', {
+            'unit': 'KiB',
+            'value': '1048576'
+        })
+        kwargs.setdefault('currentMemory', {
+            'unit': 'KiB',
+            'value': '1048576'
+        })
+        kwargs.setdefault('vcpu', '1')
+        kwargs.setdefault('snapshot', True)
+        kwargs.setdefault('snapshot_disk_image_path', None)
 
         self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
         if self.lv_conn is None:
             error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
+
         self.lv_disk_image = disk_image
 
         # domain object we get from libvirt
@@ -1188,6 +1212,8 @@ class LibvirtHost( Host ):
         self.domain_xml = None
         # domain name with prefix
         self.domain_name = "%s.%s" % ("mn", name)
+        # contains the lv domain snapshot, if we created one
+        self.lv_domain_snapshot = None
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1233,21 +1259,26 @@ class LibvirtHost( Host ):
         domain = etree.Element("domain", type=params['type'])
         etree.SubElement(domain, "name").text = self.domain_name
         etree.SubElement(domain, "title").text = "com.containernet-%s" % self.domain_name
-        etree.SubElement(domain, "memory", unit="KiB").text = "1048576"
-        etree.SubElement(domain, "currentMemory", unit="KiB").text = "1048576"
-        etree.SubElement(domain, "vcpu", placement="static").text = "1"
+        etree.SubElement(domain, "memory", unit=params['memory']['unit']).text = params['memory']['value']
+        etree.SubElement(domain, "currentMemory", unit=params['currentMemory']['unit']).text = \
+            params['currentMemory']['value']
+        etree.SubElement(domain, "vcpu", placement="static").text = str(params['vcpu'])
         os = etree.SubElement(domain, "os")
-        etree.SubElement(os, "type", arch="x86_64", machine="pc").text = "hvm"
+        etree.SubElement(os, "type", params['os']['type']).text = params['os']['_text']
 
         devices = etree.SubElement(domain, "devices")
-        etree.SubElement(devices, "emulator").text = "/usr/sbin/qemu-system-x86_64"
+        etree.SubElement(devices, "emulator").text = params['emulator']
+        # create a default network device for the management network
         net = etree.SubElement(devices, "interface", type="network")
         etree.SubElement(net, "mac", address=params['mgmt_mac'])
         etree.SubElement(net, "source", network=params['mgmt_network'])
+
         disk = etree.SubElement(devices, "disk", type="file", device="disk")
         etree.SubElement(disk, "source", file=self.lv_disk_image)
-        etree.SubElement(disk, "target", dev="sda")
-        etree.SubElement(disk, "driver", name="qemu", type="qcow2")
+        etree.SubElement(disk, "target", params['disk']['target'])
+        etree.SubElement(disk, "driver", params['disk']['driver'])
+
+        # add a console so we can try to use the serial console for issuing commands
         etree.SubElement(devices, "console", type="pty")
 
         # store the domain_xml in pretty print for easier debugging
@@ -1261,7 +1292,33 @@ class LibvirtHost( Host ):
             return False
 
         # instantiate the domain in libvirt
-        self.domain = self.lv_conn.createXML(self.domain_xml, 0)
+        self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
+        if self.params['snapshot']:
+            if self.params['snapshot_disk_image_path'] is None:
+                # find a safe new path within the directory
+                incr = 1
+                dst_image_path = "%s.mininet.snap" % self.lv_disk_image
+                if os.path.isfile(dst_image_path):
+                    while os.path.isfile("%s.%s" % (dst_image_path, incr)):
+                        incr += 1
+                    dst_image_path = "%s.%s" % (dst_image_path, incr)
+
+                self.params['snapshot_disk_image_path'] = dst_image_path
+
+            snapshot_xml = """
+            <domainsnapshot>
+                <description>Mininet snapshot</description>
+                <disks>
+                    <disk name='%s'>
+                        <source file='%s'/>
+                    </disk>
+                </disks>        
+            </domainsnapshot>
+            """ % (self.lv_disk_image, self.params['snapshot_disk_image_path'])
+            self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml,
+                                                                    libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY )
+
+        self.domain.resume()
 
         # try connection via ssh first
         if self.params['login']['method'] == "ssh":
@@ -1313,7 +1370,6 @@ class LibvirtHost( Host ):
         # check if the wanted capabilities are available
         cap = self.capabilities.xpath('/capabilities/guest/arch[@name = $name]/domain[@type = $type]',
                                       name=self.params['arch'], type=type)
-        debug( "LibvirtHost.check_domain: Capabilities of the host system:\n%s\n" % self.capabilities )
         if not cap:
             error("LibvirtHost.check_domain: Libvirt endpoint \"%s\" does not seem to be able to run a "
                   "domain of type \"%s\"\n" %
@@ -1324,9 +1380,11 @@ class LibvirtHost( Host ):
 
     def terminate( self ):
         """ Stop libvirt host """
-        #TODO: Do this via shutdown() and check if the domain really is dead. If not kill it with destroy
-        # see domain.info() and virDomainState
         self.domain.destroy()
+
+        # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
+        if self.params['snapshot'] and os.path.isfile(self.params['snapshot_disk_image_path']):
+            os.unlink(self.params['snapshot_disk_image_path'])
 
         # also destroy mgmt network if no other host is using it!
         self.cleanup()

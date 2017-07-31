@@ -111,7 +111,6 @@ from mininet.term import cleanUpScreens, makeTerms
 
 from subprocess import Popen
 
-LIBVIRT_AVAILABLE = False
 try:
     import libvirt
     from lxml import etree
@@ -619,7 +618,6 @@ class Mininet( object ):
             host.terminate()
         info( '\n*** Done\n' )
 
-
     def run( self, test, *args, **kwargs ):
         "Perform a complete start/test/stop cycle."
         self.start()
@@ -1066,6 +1064,7 @@ class Containernet( Mininet ):
             #FLAGSDICT = {"current": 0, "live": 1, "config": 2}
             # command, section, flags
             self.libvirtManagementNetwork.update(4, 4, 0, etree.tostring(host))
+            self.allocated_dhcp_ips += 1
         except libvirt.libvirtError:
             error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed.\n" %
                   name)
