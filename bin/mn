@@ -30,7 +30,7 @@ from mininet.node import ( Host, CPULimitedHost, Controller, OVSController,
                            UserSwitch, OVSSwitch, OVSBridge,
                            IVSSwitch )
 from mininet.nodelib import LinuxBridge
-from mininet.link import Link, TCLink, OVSLink
+from mininet.link import Link, TCLink, TCULink, OVSLink
 from mininet.topo import ( SingleSwitchTopo, LinearTopo,
                            SingleSwitchReversedTopo, MinimalTopo )
 from mininet.topolib import TreeTopo, TorusTopo
@@ -73,29 +73,30 @@ HOSTS = { 'proc': Host,
           'cfs': specialClass( CPULimitedHost, defaults=dict( sched='cfs' ) ) }
 
 CONTROLLERDEF = 'default'
-
 CONTROLLERS = { 'ref': Controller,
                 'ovsc': OVSController,
                 'nox': NOX,
                 'remote': RemoteController,
                 'ryu': Ryu,
-                'default': DefaultController,  # Note: replaced below
+                'default': DefaultController,  # Note: overridden below
                 'none': NullController }
 
 LINKDEF = 'default'
-LINKS = { 'default': Link,
+LINKS = { 'default': Link,  # Note: overridden below
           'tc': TCLink,
+          'tcu': TCULink,
           'ovs': OVSLink }
 
 
-# optional tests to run
-TESTS = [ 'cli', 'build', 'pingall', 'pingpair', 'iperf', 'all', 'iperfudp',
-          'none' ]
+# Names of tests that are Mininet() methods
+TESTNAMES = [ 'cli', 'build', 'pingall', 'pingpair', 'iperf', 'all',
+              'iperfudp', 'none' ]
 
-ALTSPELLING = { 'pingall': 'pingAll',
-                'pingpair': 'pingPair',
-                'iperfudp': 'iperfUdp',
-                'iperfUDP': 'iperfUdp' }
+# Map to alternate functions and/or spellings of Mininet() methods
+TESTS = { 'pingall': 'pingAll',
+          'pingpair': 'pingPair',
+          'iperfudp': 'iperfUdp',
+          'iperfUDP': 'iperfUdp' }
 
 
 def addDictOption( opts, choicesDict, default, name, **kwargs ):
@@ -158,7 +159,8 @@ class MininetRunner( object ):
 
     def setCustom( self, name, value ):
         "Set custom parameters for MininetRunner."
-        if name in ( 'topos', 'switches', 'hosts', 'controllers', 'links' ):
+        if name in ( 'topos', 'switches', 'hosts', 'controllers', 'links'
+                     'testnames', 'tests' ):
             # Update dictionaries
             param = name.upper()
             globals()[ param ].update( value )
@@ -208,10 +210,9 @@ class MininetRunner( object ):
                          type='string',
                          help='read custom classes or params from .py file(s)'
                          )
-
-        opts.add_option( '--test', type='choice', choices=TESTS,
-                         default=TESTS[ 0 ],
-                         help='|'.join( TESTS ) )
+        testList = TESTNAMES + TESTS.keys()
+        opts.add_option( '--test', default=[], action='append',
+                         dest='tests', help='|'.join( testList ) )
         opts.add_option( '--xterms', '-x', action='store_true',
                          default=False, help='spawn xterms for each node' )
         opts.add_option( '--ipbase', '-i', type='string', default='10.0.0.0/8',
@@ -225,7 +226,7 @@ class MininetRunner( object ):
                          help = '|'.join( LEVELS.keys() )  )
         opts.add_option( '--innamespace', action='store_true',
                          default=False, help='sw and ctrl in namespace?' )
-        opts.add_option( '--listenport', type='int', default=6634,
+        opts.add_option( '--listenport', type='int', default=6654,
                          help='base port for passive switch listening' )
         opts.add_option( '--nolistenport', action='store_true',
                          default=False, help="don't use passive listening " +
@@ -312,6 +313,10 @@ class MininetRunner( object ):
         host = customClass( HOSTS, self.options.host )
         controller = [ customClass( CONTROLLERS, c )
                        for c in self.options.controller ]
+        if self.options.switch == 'user' and self.options.link == 'default':
+            debug( '*** Using TCULink with UserSwitch\n' )
+            # Use link configured correctly for UserSwitch
+            self.options.link = 'tcu'
         link = customClass( LINKS, self.options.link )
 
         if self.validate:
@@ -358,23 +363,27 @@ class MininetRunner( object ):
         if self.options.pre:
             cli( mn, script=self.options.pre )
 
-        test = self.options.test
-        test = ALTSPELLING.get( test, test )
-
         mn.start()
 
-        if test == 'none':
-            pass
-        elif test == 'all':
-            mn.waitConnected()
-            mn.start()
-            mn.ping()
-            mn.iperf()
-        elif test == 'cli':
+        if not self.options.tests:
             cli( mn )
-        elif test != 'build':
-            mn.waitConnected()
-            getattr( mn, test )()
+
+        for test in self.options.tests:
+            test = TESTS.get( test, test )
+            if callable( test ):  # user added TESTMAP={'mytest': testfn}
+                test( mn )
+            elif test == 'none':
+                pass
+            elif test == 'all':
+                mn.waitConnected()
+                mn.start()
+                mn.ping()
+                mn.iperf()
+            elif test == 'cli':
+                cli( mn )
+            elif test != 'build':
+                mn.waitConnected()
+                getattr( mn, test )()
 
         if self.options.post:
             cli( mn, script=self.options.post )
