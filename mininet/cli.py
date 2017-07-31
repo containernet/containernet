@@ -27,11 +27,11 @@ and bandwidth ('iperf'.)
 
 from subprocess import call
 from cmd import Cmd
-import os
 from os import isatty
 from select import poll, POLLIN
 import sys
 import time
+import os
 import atexit
 import string
 
@@ -81,13 +81,15 @@ class CLI( Cmd ):
             return
         cls.readlineInited = True
         try:
-            from readline import read_history_file, write_history_file
+            from readline import ( read_history_file, write_history_file,
+                                   set_history_length )
         except ImportError:
             pass
         else:
             history_path = os.path.expanduser( '~/.mininet_history' )
             if os.path.isfile( history_path ):
                 read_history_file( history_path )
+                set_history_length( 1000 )
             atexit.register( lambda: write_history_file( history_path ) )
 
     def run( self ):
