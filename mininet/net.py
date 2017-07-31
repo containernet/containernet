@@ -1174,8 +1174,9 @@ class Containernet( Mininet ):
 
 
     def destroyManagementNetwork(self):
-        debug('*** Removing the libvirt management network ***\n')
-        self.libvirtManagementNetwork.destroy()
+        if self.libvirtManagementNetwork is not None:
+            debug('*** Removing the libvirt management network ***\n')
+            self.libvirtManagementNetwork.destroy()
 
 
     def stop(self):

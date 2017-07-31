@@ -22,6 +22,14 @@ from mininet.log import info
 from mininet.term import cleanUpScreens
 from mininet.net import SAP_PREFIX
 
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    from lxml import etree
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    info("No libvirt functionality present. Can not deploy virtual machines.")
+
 def sh( cmd ):
     "Print a command and send it to the shell"
     info( cmd + '\n' )
@@ -136,6 +144,13 @@ class Cleanup( object ):
                 p = Popen(shlex.split(rule0_))
                 p.communicate()
                 info("delete NAT rule from SAP: {1} - {0} - {2}\n".format(rule.out_interface, rule.in_interface, src_CIDR))
+
+        # cleanup pending virtual machines if libvirt is available using virsh instead of libvirt-python as no parameters
+        # are available
+        if LIBVIRT_AVAILABLE:
+            # TODO implement cleanup
+            pass
+
 
 
         table = iptc.Table(iptc.Table.FILTER)
