@@ -26,8 +26,16 @@ Link: basic link class for creating veth pairs
 
 from mininet.log import info, error, debug
 from mininet.util import makeIntfPair
+from mininet import LIBVIRT_AVAILABLE
 import mininet.node
 import re
+
+try:
+    import libvirt
+    from lxml import etree
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 
 class Intf( object ):
 
@@ -198,7 +206,16 @@ class Intf( object ):
 
     def delete( self ):
         "Delete interface"
-        self.cmd( 'ip link del ' + self.name )
+
+        if not isinstance(self.node, mininet.node.LibvirtHost):
+            self.cmd( 'ip link del ' + self.name )
+        else:
+            interface_xml = """
+                    <interface type='direct' name='{intfname}'>
+                        <mac address='{mac}'/>
+                        <source dev='{intfname}' mode='private'/>
+                    </interface>""".format(intfname=self.name, mac=self.MAC())
+            self.node.domain.detachDeviceFlags(interface_xml, libvirt.VIR_DOMAIN_AFFECT_CURRENT)
         # We used to do this, but it slows us down:
         # if self.node.inNamespace:
         # Link may have been dumped into root NS
@@ -501,9 +518,7 @@ class Link( object ):
     def delete( self ):
         "Delete this link"
         self.intf1.delete()
-        # We only need to delete one side, though this doesn't seem to
-        # cost us much and might help subclasses.
-        # self.intf2.delete()
+        self.intf2.delete()
 
 
     def stop( self ):

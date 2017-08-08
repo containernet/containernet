@@ -59,9 +59,10 @@ import signal
 import select
 import docker
 import json
+import time
 import sys
 
-from subprocess import Popen, PIPE, check_output
+from subprocess import Popen, PIPE, check_output, list2cmdline
 from time import sleep
 
 from mininet.log import info, error, warn, debug
@@ -76,6 +77,9 @@ try:
     import libvirt
     from lxml import etree
     import pexpect
+    import paramiko
+    import socket
+    from pexpect import pxssh
     LIBVIRT_AVAILABLE = True
 except ImportError:
     info("No libvirt functionality present. Can not deploy virtual machines.")
@@ -1016,11 +1020,11 @@ class Docker ( Host ):
         """
         :return: True if pull was successful. Else false.
         """
+        message = ""
         try:
             info('*** Image "%s:%s" not found. Trying to load the image. \n' % (repository, tag))
             info('*** This can take some minutes...\n')
 
-            message = ""
             for line in self.dcli.pull(repository, tag, stream=True):
                 # Collect output of the log for enhanced error feedback
                 message = message + json.dumps(json.loads(line), indent=4)
@@ -1159,13 +1163,10 @@ class LibvirtHost( Host ):
         kwargs.setdefault('environment', dict())
         kwargs.setdefault('arch', 'x86_64')
         kwargs.setdefault('type', 'kvm')
-        kwargs.setdefault('login', {'method': 'ssh',
-                                    'credentials': {
-                                        'user': 'root',
-                                        'keyfile': None,
-                                        'password': None
+        kwargs.setdefault('login', {'credentials': {
+                                        'username': 'root',
+                                        'password': 'containernet'
                                         },
-                                    'prompt_regex': "root\@.*#"
                                     })
         kwargs.setdefault('cmd_endpoint', 'qemu:///system')
         kwargs.setdefault('domain_xml', None)
@@ -1214,10 +1215,15 @@ class LibvirtHost( Host ):
         self.domain_name = "%s.%s" % ("mn", name)
         # contains the lv domain snapshot, if we created one
         self.lv_domain_snapshot = None
+        # keep track of our main ssh session
+        self.ssh_session = paramiko.SSHClient()
+        self.ssh_session.set_missing_host_key_policy(paramiko.AutoAddPolicy)
+        self.shell = None  # type: paramiko.Channel
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
             error( "LibvirtHost.__init__: Could not find the libvirt management network: %s\n" % kwargs['mgmt_network'])
+            return
 
         if kwargs['domain_xml'] is not None:
             self.domain_xml = kwargs['domain_xml']
@@ -1226,6 +1232,10 @@ class LibvirtHost( Host ):
                 etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
             else:
                 self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
+
+            if not self.check_domain(**kwargs):
+                warn( "LibvirtHost.__init__: Provided domain XML has errors!\n")
+
         else:
             self.build_domain(**kwargs)
 
@@ -1266,6 +1276,10 @@ class LibvirtHost( Host ):
         os = etree.SubElement(domain, "os")
         etree.SubElement(os, "type", params['os']['type']).text = params['os']['_text']
 
+        # we need acpi for dynamic interface attachment / removing
+        feature = etree.SubElement(domain, "features")
+        etree.SubElement(feature, "acpi")
+
         devices = etree.SubElement(domain, "devices")
         etree.SubElement(devices, "emulator").text = params['emulator']
         # create a default network device for the management network
@@ -1285,79 +1299,11 @@ class LibvirtHost( Host ):
         self.domain_xml = etree.tostring(domain, pretty_print=True)
         self.domain_tree = etree.ElementTree(domain)
 
-
-    def startShell( self, mnopts=None ):
-        if not self.check_domain():
+        if not self.check_domain(**params):
             error("LibvirtHost.startShell: Domain '%s' failed validity checks\n" % self.name)
             return False
 
-        # instantiate the domain in libvirt
-        self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
-        if self.params['snapshot']:
-            if self.params['snapshot_disk_image_path'] is None:
-                # find a safe new path within the directory
-                incr = 1
-                dst_image_path = "%s.mininet.snap" % self.lv_disk_image
-                if os.path.isfile(dst_image_path):
-                    while os.path.isfile("%s.%s" % (dst_image_path, incr)):
-                        incr += 1
-                    dst_image_path = "%s.%s" % (dst_image_path, incr)
-
-                self.params['snapshot_disk_image_path'] = dst_image_path
-
-            snapshot_xml = """
-            <domainsnapshot>
-                <description>Mininet snapshot</description>
-                <disks>
-                    <disk name='%s'>
-                        <source file='%s'/>
-                    </disk>
-                </disks>        
-            </domainsnapshot>
-            """ % (self.lv_disk_image, self.params['snapshot_disk_image_path'])
-            self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml,
-                                                                    libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY )
-
-        self.domain.resume()
-
-        # try connection via ssh first
-        if self.params['login']['method'] == "ssh":
-            if self.params['login']['credentials']['keyfile'] is not None:
-                pass
-            elif self.params['login']['credentials']['password'] is not None:
-                pass
-            else:
-                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but no valid credentials.\n" %
-                      self.name)
-                return False
-            pass
-        else:
-            # fallback to username / password with pexpect
-            console = pexpect.spawn("virsh console %s" % self.domain_name)
-
-            # ignore the kernel messages at startup
-            try:
-                # kernel startup
-                while True:
-                    console.expect('.*\[.*\].*', timeout=5)
-            except pexpect.TIMEOUT:
-                pass
-
-            # once the timeout has triggered we can assume that we are now at the login prompt
-            # send an empty line as safeguard
-            try:
-                # try to login to the vm
-                console.sendline("")
-                console.expect('.*login:', timeout=5)
-                console.sendline("root")
-                console.expect('.*assword:.*')
-                console.sendline("hanswurst")
-                print console.before
-                print console.after
-            except pexpect.TIMEOUT:
-                pass
-
-    def check_domain(self):
+    def check_domain(self, **kwargs):
         try:
             if self.lv_conn.lookupByName(self.domain_name):
                 error("LibvirtHost.check_domain: Domain '%s' does already exist.\n" % self.domain_name)
@@ -1369,14 +1315,280 @@ class LibvirtHost( Host ):
         type = self.domain_tree.getroot().get('type')
         # check if the wanted capabilities are available
         cap = self.capabilities.xpath('/capabilities/guest/arch[@name = $name]/domain[@type = $type]',
-                                      name=self.params['arch'], type=type)
+                                      name=kwargs['arch'], type=type)
         if not cap:
             error("LibvirtHost.check_domain: Libvirt endpoint \"%s\" does not seem to be able to run a "
                   "domain of type \"%s\"\n" %
-                  (self.params['cmd_endpoint'], type))
+                  (kwargs['cmd_endpoint'], type))
             return False
 
         return True
+
+    def startShell( self, mnopts=None ):
+        # instantiate the domain in libvirt
+        if self.domain is None:
+            self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
+            if self.params['snapshot']:
+                if self.params['snapshot_disk_image_path'] is None:
+                    # find a safe new path within the directory
+                    incr = 1
+                    dst_image_path = "%s.mininet.snap" % self.lv_disk_image
+                    if os.path.isfile(dst_image_path):
+                        while os.path.isfile("%s.%s" % (dst_image_path, incr)):
+                            incr += 1
+                        dst_image_path = "%s.%s" % (dst_image_path, incr)
+
+                    self.params['snapshot_disk_image_path'] = dst_image_path
+
+                snapshot_xml = """
+                <domainsnapshot>
+                    <description>Mininet snapshot</description>
+                    <disks>
+                        <disk name='%s'>
+                            <source file='%s'/>
+                        </disk>
+                    </disks>
+                </domainsnapshot>
+                """ % (self.lv_disk_image, self.params['snapshot_disk_image_path'])
+                self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml,
+                                                                        libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY )
+
+                info("LibvirtHost.startShell: Creating snapshot of domain %s at %s before starting it.\n" %
+                     (self.domain_name, self.params['snapshot_disk_image_path']))
+
+            self.domain.resume()
+            self.pid = self.getPid()
+
+        debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
+              self.domain_name)
+        while True:
+            try:
+                if "timeout" not in self.params['login']['credentials']:
+                    self.params['login']['credentials']['timeout'] = 60
+                self.ssh_session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
+                debug("LibvirtHost.startShell: Logged in to domain %s using ssh.\n" % self.domain_name)
+                break
+            except paramiko.BadHostKeyException as e:
+                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but HostKey problems. Error: %s\n" %
+                      (self.name, e))
+                return False
+            except paramiko.AuthenticationException as e:
+                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but SSH threw an authentication"
+                      "Error: %s\n" % (self.name, e))
+                return False
+            except paramiko.SSHException as e:
+                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but could not connect to the VM. "
+                      "Did you set up the management network correctly?."
+                      "Error: %s\n" % (self.name, e))
+                return False
+            except socket.error as e:
+                # if the domain is still starting up, allow connections to it to fail
+                pass
+
+        self.pollOut = select.poll()
+        # create a new channel
+        self.shell = self.ssh_session.invoke_shell()
+        self.shell.set_combine_stderr(True)
+        self.shell.settimeout(None)
+        self.pollOut.register(self.shell, select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR)
+        self.stdin = self.shell
+        self.stdout = self.shell
+        self.execed = False
+        self.lastCmd = None
+        self.lastPid = None
+        self.readbuf = ''
+        while self.shell.recv_ready():
+            self.read()
+        self.waiting = False
+        self.cmd( 'export PS1="\\177"')
+
+        # set the hostname
+        self.cmd( 'hostname %s' % self.name)
+        self.cmd( 'unset HISTFILE; stty -echo; set +m' )
+
+    def read( self, maxbytes=1024 ):
+        """Buffered read from node, potentially blocking.
+           maxbytes: maximum number of bytes to return"""
+        count = len( self.readbuf )
+        if count < maxbytes:
+            data = self.shell.recv(maxbytes - count )
+            self.readbuf += data
+        if maxbytes >= len( self.readbuf ):
+            result = self.readbuf
+            self.readbuf = ''
+        else:
+            result = self.readbuf[ :maxbytes ]
+            self.readbuf = self.readbuf[ maxbytes: ]
+        return result
+
+    def write( self, data ):
+        """Write data to node.
+           data: string"""
+        if self.shell.send_ready():
+            self.shell.sendall(data)
+        else:
+            raise Exception("Could not write to domain %s" % self.domain_name)
+
+    def addIntf( self, intf, port=None, moveIntfFn=moveIntf ):
+        """Add an interface.
+           intf: interface
+           port: port number (optional, typically OpenFlow port number)
+           moveIntfFn: function to move interface (optional)
+
+           Modified version for libvirt hosts.
+
+           Creates a macvtap device on the host machine and then adds the interface to the node.
+           """
+
+        # well "predictable" network interface names are not available on every possible domain
+        # so we use a different strategy
+        # enumerate all interfaces currently available on the node first
+        interface_list_cmd = "ls --color=never /sys/class/net"
+        before_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+        debug(before_interfaces)
+
+        interface_xml = """
+        <interface type='direct' name='{intfname}'>
+            <source dev='{intfname}' mode='private'/>
+        </interface>""".format(intfname=intf.name)
+        try:
+            debug("LibvirtHost.addIntf: Attaching device %s to domain %s.\n" % (intf.name, self.domain_name))
+            debug(interface_xml + "\n")
+            self.domain.attachDevice(interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not attach the interface to domain %s. Error: %s\n" % e)
+
+        # we wait until something changes in network devices
+        # the device that appears is our new interface
+        time.sleep(0.2)
+        after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+        while len(before_interfaces) == len(after_interfaces):
+            after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+            time.sleep(0.1)
+
+        assert len(before_interfaces) < len(after_interfaces)
+        # get name of the new interface
+        new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
+
+        # rename the interface
+        self.cmd("ip link set %s name %s" % (str(new_intf), intf))
+
+        if port is None:
+            port = self.newPort()
+        self.intfs[ port ] = intf
+        self.ports[ intf ] = port
+        self.nameToIntf[ intf.name ] = intf
+        debug( '\n' )
+        debug( 'added intf %s (%d) to node %s\n' % (
+                intf, port, self.name ) )
+        if self.inNamespace:
+            debug( 'moving', intf, 'into namespace for', self.name, '\n' )
+            moveIntfFn( intf.name, self  )
+
+    def monitor( self, timeoutms=None, findPid=True ):
+        """Monitor and return the output of a command.
+           Set self.waiting to False if command has completed.
+           timeoutms: timeout in ms or None to wait indefinitely
+           findPid: look for PID from mnexec -p"""
+
+        # it is not necessary to override this, but this removes the call to mnexec
+        ready = self.waitReadable( timeoutms )
+        if not ready:
+            return ''
+        data = self.read( 1024 )
+        # Look for sentinel/EOF
+        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
+            self.waiting = False
+            data = data[ :-1 ]
+        elif chr( 127 ) in data:
+            self.waiting = False
+            data = data.replace( chr( 127 ), '' )
+        return data
+
+    def sendCmd( self, *args, **kwargs ):
+        """Send a command using exec_command. This will issue the command directly.
+           self.shell will now contain the channel object associated with the command.
+           args: command and arguments, or string"""
+        assert self.ssh_session
+        # Allow sendCmd( [ list ] )
+        if len( args ) == 1 and isinstance( args[ 0 ], list ):
+            cmd = args[ 0 ]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len( args ) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance( cmd, str ):
+            cmd = ' '.join( [ str( c ) for c in cmd ] )
+        if not re.search( r'\w', cmd ):
+            # Replace empty commands with something harmless
+            cmd = 'echo -n'
+        self.lastCmd = cmd
+        # if a builtin command is backgrounded, it still yields a PID
+        if len( cmd ) > 0 and cmd[ -1 ] == '&':
+            # print ^A{pid}\n so monitor() can set lastPid
+            cmd += ' printf "\\001%d\\012" $! '
+
+        #cmd += ";printf \\\\177"
+        debug("LibvirtHost.sendCmd: Sending command %s over ssh.\n" % cmd)
+        self.write( cmd + '\n' )
+        self.waiting = True
+
+    def getPid(self):
+        """Gets the pid of the libvirt process running the host."""
+
+        # iterate over all system processes and look for one containing the uuid of the domain in the commandline
+        # I don't know if this is completely foolproof for all hypervisors that libvirt supports
+        for dirname in os.listdir('/proc'):
+            if dirname == 'curproc':
+                continue
+
+            try:
+                with open('/proc/%s/cmdline' % dirname, mode='rb') as fd:
+                    content = fd.read().decode().split('\x00')
+            except Exception:
+                continue
+
+            if str(self.domain.UUIDString()) in content:
+                return dirname
+
+    def waitOutput( self, verbose=False, findPid=True ):
+        """Wait for a command to complete.
+           verbose: print output interactively"""
+        log = info if verbose else debug
+        output = ''
+        while self.waiting:
+            data = self.monitor( findPid=findPid )
+            output += data
+            log( data )
+        return output
+
+    def cmd( self, *args, **kwargs ):
+        """Send a command, wait for output, and return it.
+           cmd: string"""
+        verbose = kwargs.get( 'verbose', False )
+        log = info if verbose else debug
+        log( '*** %s : %s\n' % ( self.name, args ) )
+
+        try:
+            self.sendCmd( *args, **kwargs )
+            return self.waitOutput( verbose )
+        except paramiko.SSHException as e:
+            info("LibvirtHost.cmd: Exception thrown. %s\n" % e)
+            warn( '(SSH session seems to be dead - ignoring cmd %s)\n' % args )
+            self.startShell()
+
+    def popen( self, *args, **kwargs ):
+        """Return a Popen() object in our namespace
+           args: Popen() args, single list, or string
+           kwargs: Popen() keyword args"""
+        # TODO: Implement wrapper around exec_command
+        return
+
+    def pexec( self, *args, **kwargs ):
+        """Execute a command using popen
+           returns: out, err, exitcode"""
+        # TODO write a wrapper around exec_command
+        return self.ssh_session.exec_command(list2cmdline(args))
 
     def terminate( self ):
         """ Stop libvirt host """
@@ -1384,9 +1596,8 @@ class LibvirtHost( Host ):
 
         # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
         if self.params['snapshot'] and os.path.isfile(self.params['snapshot_disk_image_path']):
-            os.unlink(self.params['snapshot_disk_image_path'])
+            os.remove(self.params['snapshot_disk_image_path'])
 
-        # also destroy mgmt network if no other host is using it!
         self.cleanup()
 
 

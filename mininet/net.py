@@ -1048,11 +1048,13 @@ class Containernet( Mininet ):
         params.setdefault("mgmt_network", self.mgmt_dict['name'])
 
         # add host to the DHCP table of management network
-        params.setdefault("mgmt_mac", macColonHex(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips))
+        host_ip_int = ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips
+        params.setdefault("mgmt_mac", macColonHex(host_ip_int))
+        params.setdefault("mgmt_ip", ipStr(host_ip_int))
         try:
             host = etree.Element("host",
-                          ip=ipStr(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips),
-                          mac=macColonHex(ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips),
+                          ip=ipStr(host_ip_int),
+                          mac=macColonHex(host_ip_int),
                           name=name)
             info("Containernet.addLibvirthost: Adding DHCP entry for host %s.\n" % name)
             debug("network XML:\n %s\n" % etree.tostring(host))

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/bin/env python2
 
 """
 This example shows how to create a simple network and
@@ -27,14 +27,21 @@ def topology():
 
     info('*** Adding hosts\n')
     h1 = net.addHost('h1')
-    v1 = net.addLibvirthost("test1", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2")
-    v2 = net.addLibvirthost("test2", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2")
+    credentials = {
+        'credentials': {
+            'username': 'root',
+            'password': 'containernet'
+        }
+    }
+    v1 = net.addLibvirthost("test1", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2", login=credentials)
+    v2 = net.addLibvirthost("test2", cls=LibvirtHost, disk_image="/home/xschlef/no-cow/test-vm1.qcow2", login=credentials)
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')
 
-    #info('*** Creating links\n')
-    #net.addLink(v1, s1)
+    info('*** Creating links\n')
+    net.addLink(v1, s1)
+    net.addLink(v2, s1)
 
     info('*** Starting network\n')
     net.start()

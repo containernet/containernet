@@ -11,9 +11,12 @@ from fcntl import fcntl, F_GETFL, F_SETFL
 from os import O_NONBLOCK
 import os
 from functools import partial
+from mininet import LIBVIRT_AVAILABLE
 
 try:
     import libvirt
+    from node import LibvirtHost
+    LIBVIRT_AVAILABLE = True
 except ImportError:
     pass
 
@@ -164,7 +167,7 @@ isShellBuiltin.builtIns = None
 
 def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
                   deleteIntfs=True, runCmd=None ):
-    """Make a veth pair connnecting new interfaces intf1 and intf2
+    """Make a veth pair connecting new interfaces intf1 and intf2
        intf1: name for interface 1
        intf2: name for interface 2
        addr1: MAC address for interface 1 (optional)
@@ -208,6 +211,15 @@ def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
     # second: move both endpoints into the corresponding namespaces
     moveIntf(intf1, node1)
     moveIntf(intf2, node2)
+
+    if LIBVIRT_AVAILABLE:
+        # for libvirthosts we need a macvtap device attached to the veth interface as libvirt does not support veth
+        # directly
+        if isinstance(intf1.node, LibvirtHost):
+            quietRun('ip netns exec %s ip link add link %s macvtap mode vepa') % (intf1.node.pid, intf1)
+
+        if isinstance(intf2.node, LibvirtHost):
+            quietRun('ip netns exec %s ip link add link %s macvtap mode vepa') % (intf2.node.pid, intf2)
 
 def retry( retries, delaySecs, fn, *args, **keywords ):
     """Try something several times before giving up.

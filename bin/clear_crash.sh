@@ -6,4 +6,4 @@ do
     sudo virsh destroy $domain
 done
 sudo virsh net-destroy mn.libvirt.mgmt
-sudo ./mn -c
+sudo mn -c
