@@ -24,7 +24,7 @@ TCIntf: interface with bandwidth limiting and delay via tc
 Link: basic link class for creating veth pairs
 """
 
-from mininet.log import info, error, debug
+from mininet.log import info, error, debug, warn
 from mininet.util import makeIntfPair
 from mininet import LIBVIRT_AVAILABLE
 import mininet.node
@@ -32,7 +32,8 @@ import re
 
 try:
     import libvirt
-    from lxml import etree
+    from xml.etree import ElementTree as etree
+    import xml.dom.minidom as minidom
     LIBVIRT_AVAILABLE = True
 except ImportError:
     pass
@@ -94,6 +95,10 @@ class Intf( object ):
         """Set the MAC address for an interface.
            macstr: MAC address as string"""
         self.mac = macstr
+
+        if isinstance(self.node, mininet.node.LibvirtHost) and not self.node.isQemu:
+            warn("Intf.setMac: Trying to set MAC on a non qemu LibvirtHost will not work correctly.\n")
+
         return ( self.ifconfig( 'down' ) +
                  self.ifconfig( 'hw', 'ether', macstr ) +
                  self.ifconfig( 'up' ) )
@@ -113,6 +118,8 @@ class Intf( object ):
 
     def updateMAC( self ):
         "Return updated MAC address based on ifconfig"
+        if isinstance(self.node, mininet.node.LibvirtHost) and not self.node.isQemu:
+            warn("Intf.setMac: Trying to set MAC on a non qemu LibvirtHost will not work correctly.\n")
         ifconfig = self.ifconfig()
         macs = self._macMatchRegex.findall( ifconfig )
         self.mac = macs[ 0 ] if macs else None
@@ -152,6 +159,14 @@ class Intf( object ):
                 return True
         else:
             return "UP" in self.ifconfig()
+
+    def getInterfaceXML(self):
+        dom_xml = minidom.parseString(self.node.getDomainXML())
+        for interface in dom_xml.getElementsByTagName("interface"):
+            source = interface.getElementsByTagName("source")
+            source[0].getAttribute("dev")
+            if source and source[0].getAttribute("dev") == self.name:
+                return interface.toxml()
 
     def rename( self, newname ):
         "Rename interface"
@@ -210,12 +225,14 @@ class Intf( object ):
         if not isinstance(self.node, mininet.node.LibvirtHost):
             self.cmd( 'ip link del ' + self.name )
         else:
-            interface_xml = """
-                    <interface type='direct' name='{intfname}'>
-                        <mac address='{mac}'/>
-                        <source dev='{intfname}' mode='private'/>
-                    </interface>""".format(intfname=self.name, mac=self.MAC())
-            self.node.domain.detachDeviceFlags(interface_xml, libvirt.VIR_DOMAIN_AFFECT_CURRENT)
+            try:
+                xml = self.getInterfaceXML()
+                if xml is not None:
+                    self.node.domain.detachDeviceFlags(xml, libvirt.VIR_DOMAIN_AFFECT_CURRENT)
+                    debug("Intf.delete: Removing interface described by:\n%s\n" % xml)
+            except libvirt.libvirtError as e:
+                error("Intf.delete: Could not remove interface %s from node %s. Error: %s.\n" %
+                      (self.node.name, self.name, e))
         # We used to do this, but it slows us down:
         # if self.node.inNamespace:
         # Link may have been dumped into root NS
