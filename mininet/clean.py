@@ -146,7 +146,10 @@ class Cleanup( object ):
                     virsh(cmd)
 
             info("***  Removing the default libvirt management network (mn.libvirt.mgmt)\n")
-            virsh("net-destroy mn.libvirt.mgmt")
+            cmd = "net-list --transient --name"
+            for net in virsh(cmd).splitlines():
+                if "mn.libvirt.mgmt" in net:
+                    virsh("net-destroy mn.libvirt.mgmt")
 
         # cleanup any remaining iptables rules from external SAPs with NAT
         # we use iptc module to iterate through the loops, but due to a bug, we cannot use iptc to delete the rules

@@ -1067,9 +1067,9 @@ class Containernet( Mininet ):
             # command, section, flags
             self.libvirtManagementNetwork.update(4, 4, 0, etree.tostring(host))
             self.allocated_dhcp_ips += 1
-        except libvirt.libvirtError:
-            error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed.\n" %
-                  name)
+        except libvirt.libvirtError as e:
+            error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed."
+                  " Error: %s\n" % (name, e))
             return False
 
 
@@ -1178,6 +1178,9 @@ class Containernet( Mininet ):
         if self.libvirtManagementNetwork is not None:
             debug('*** Removing the libvirt management network ***\n')
             self.libvirtManagementNetwork.destroy()
+            self.libvirtManagementNetwork = None
+            self.lv_conn = None
+            self.allocated_dhcp_ips = 1
 
 
     def stop(self):
