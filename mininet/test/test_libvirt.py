@@ -477,5 +477,4 @@ class testContainernetTCLinks( simpleTestTopology ):
 
 
 if __name__ == '__main__':
-    setLogLevel('info')
     unittest.main()
