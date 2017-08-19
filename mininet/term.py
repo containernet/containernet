@@ -51,6 +51,33 @@ def makeTerm( node, title='Node', term='xterm', display=None, cmd='bash'):
     if term not in cmds:
         error( 'invalid terminal type: %s' % term )
         return
+    # Docker Hosts don't have DISPLAY. So instead of
+    # X11 tunnel, we use terminals from outside Docker
+    from mininet.node import Docker
+    if isinstance( node, Docker ):
+        if display is None:
+            cmds[ term ] = cmds[ term ][:-1]
+        else:
+            cmds[ term ].append(display)
+        cmds[term].append('-e')
+        from subprocess import Popen, PIPE
+        term = Popen( cmds[ term ] + 
+            [ 'env TERM=ansi docker exec -it %s.%s %s' % ( 
+            node.dnameprefix, node.name, cmd ) ], stdout=PIPE, stdin=PIPE, stderr=PIPE )
+        if term:
+            return [ term ]
+        # Failover alternative for Docker
+        # host = None --> Needs docker interface
+        # port = 6000
+        # from mininet.log import warn
+        # warn('Warning: Docker Exec Failed. Trying TCP Connection for Terminal\n')
+        # pipe = node.popen( [ 'socat', 'TCP-LISTEN:%d,fork,reuseaddr' % port,
+        #     'EXEC:\'%s\',pty,stderr,setsid,sigint,sane' % cmd ] );
+        # term = Popen( cmds[ term ] + 
+        #     [ 'socat FILE:`tty`,raw,echo=0 TCP:%s:%s' % (
+        #      host, port ) ], stdout=PIPE, stdin=PIPE, stderr=PIPE )
+        # return [ pipe, term ] if pipe else [ term ]
+        return []
     display, tunnel = tunnelX11( node, display )
     if display is None:
         return []
