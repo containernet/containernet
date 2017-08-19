@@ -938,10 +938,10 @@ class Docker ( Host ):
 
     def cmd(self, *args, **kwargs ):
 
-        # Allow cmd( [ list ] )
+        # Allow sendCmd( [ list ] )
         if len(args) == 1 and isinstance(args[0], list):
             cmd = args[0]
-        # Allow cmd( cmd, arg1, arg2... )
+        # Allow sendCmd( cmd, arg1, arg2... )
         elif len(args) > 0:
             cmd = args
         # Convert to string
@@ -955,18 +955,8 @@ class Docker ( Host ):
             self.waiting = False
             return ''
 
-        verbose = kwargs.get( 'verbose', False )
-        log = info if verbose else debug
-        log( '*** %s : %s\n' % ( self.name, cmd ) )
-
         exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
-        sout = self.dcli.exec_start(exec_dict, stream=True)
-        # Get a Generator. Fixes cmdPrint()
-        # Refer: http://docker-py.readthedocs.io/en/2.0.2/api.html
-        out = '';
-        for elm in sout:
-            log(elm);
-            out += elm;
+        out = self.dcli.exec_start(exec_dict)
         #info("cmd: {0} \noutput:{1}".format(cmd, out))
         self.waiting = False
         return out
