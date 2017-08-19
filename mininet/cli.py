@@ -453,6 +453,7 @@ class CLI( Cmd ):
                     data = node.monitor()
                     output( data )
                 if not node.waiting:
+                    quietRun( 'stty isig' )
                     break
             except KeyboardInterrupt:
                 # There is an at least one race condition here, since
