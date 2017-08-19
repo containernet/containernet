@@ -436,7 +436,7 @@ class CLI( Cmd ):
             # Buffer by character, so that interactive
             # commands sort of work
             quietRun( 'stty -isig -icanon min 1' )
-        while True:
+        while node.shell:
             try:
                 bothPoller.poll()
                 # XXX BL: this doesn't quite do what we want.

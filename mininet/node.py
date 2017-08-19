@@ -680,7 +680,7 @@ class Docker ( Host ):
         self.dimage = dimage
         self.dnameprefix = "mn"
         self.dcmd = dcmd if dcmd is not None else "/bin/bash"
-        self.dc = None  # pointer to the container
+        self.dc = None  # pointer to the dict containing 'Id' and 'Warnings' keys of the container
         self.dcinfo = None
         self.did = None # Id of running container
         #  let's store our resource limits to have them available through the
@@ -710,103 +710,118 @@ class Docker ( Host ):
 
         self.volumes = defaults['volumes']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
-        self.environment.update({"PS1": chr(127)})  # CLI support
+        # setting PS1 at "docker run" may break the python docker api (update_container hangs...)
+        # self.environment.update({"PS1": chr(127)})  # CLI support
         self.publish_all_ports = defaults['publish_all_ports']
         self.port_bindings = defaults['port_bindings']
 
         # setup docker client
-        self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
+        # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
+        self.dcli = docker.from_env().api
 
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
 
+        # for DEBUG
         debug("Created docker container object %s\n" % name)
         debug("image: %s\n" % str(self.dimage))
         debug("dcmd: %s\n" % str(self.dcmd))
         debug("kwargs: %s\n" % str(kwargs))
 
+        # creats host config for container
+        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+        hc = self.dcli.create_host_config(
+            network_mode=None,
+            privileged=True,  # we need this to allow mininet network setup
+            binds=self.volumes,
+            publish_all_ports=self.publish_all_ports,
+            port_bindings=self.port_bindings,
+            mem_limit=self.resources.get('mem_limit'),
+            cpuset_cpus=self.resources.get('cpuset_cpus'),
+        )
+
+        # create new docker container
+        self.dc = self.dcli.create_container(
+            name="%s.%s" % (self.dnameprefix, name),
+            image=self.dimage,
+            command=self.dcmd,
+            stdin_open=True,  # keep container open
+            tty=True,  # allocate pseudo tty
+            environment=self.environment,
+            #network_disabled=True,  # docker stats breaks if we disable the default network
+            host_config=hc,
+            labels=['com.containernet'],
+            volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
+            hostname=name
+        )
+
+        # start the container
+        self.dcli.start(self.dc)
+        debug("Docker container %s started\n" % name)
+
+        # fetch information about new container
+        self.dcinfo = self.dcli.inspect_container(self.dc)
+        self.did = self.dcinfo.get("Id")
+
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
 
+        # let's initially set our resource limits
+        self.update_resources(**self.resources)
+        # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
+        #                     cpu_period=self.resources.get('cpu_period'),
+        #                     cpu_shares=self.resources.get('cpu_shares'),
+        #                     )
+        # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
+        #                        memswap_limit=self.resources.get('memswap_limit')
+        #                        )
 
-    def startShell( self, mnopts=None ):
-        if self.dc is None:
-            # creats host config for container
-            # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
-            hc = self.dcli.create_host_config(
-                network_mode=None,
-                privileged=True,  # we need this to allow mininet network setup
-                binds=self.volumes,
-                publish_all_ports=self.publish_all_ports,
-                port_bindings=self.port_bindings,
-                mem_limit=self.resources.get('mem_limit'),
-                cpuset_cpus=self.resources.get('cpuset_cpus'),
-            )
-            # create new docker container
-            self.dc = self.dcli.create_container(
-                name="%s.%s" % (self.dnameprefix, self.name),
-                image=self.dimage,
-                command=self.dcmd,
-                stdin_open=True,  # keep container open
-                tty=True,  # allocate pseudo tty
-                environment=self.environment,
-                #network_disabled=True,  # docker stats breaks if we disable the default network
-                host_config=hc,
-                labels=['com.containernet'],
-                volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
-                hostname=self.name
-            )
-            # start the container
-            self.dcli.start(self.dc)
-            debug("Docker container %s started\n" % self.name)
-            # fetch information about new container
-            self.dcinfo = self.dcli.inspect_container(self.dc)
-            self.did = self.dcinfo.get("Id")
 
-            # let's initially set our resource limits
-            self.update_resources(**self.resources)
-            # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
-            #                     cpu_period=self.resources.get('cpu_period'),
-            #                     cpu_shares=self.resources.get('cpu_shares'),
-            #                     )
-            # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
-            #                        memswap_limit=self.resources.get('memswap_limit')
-            #                        )
-
-        # use a new shell to connect to container to ensure that we are not
-        # blocked by initial container command
-        cmd = ["docker",
-               "exec",
-               "-it",
-               "%s.%s" % (self.dnameprefix, self.name),
-               "/bin/bash"
-               ]
+    # Command support via shell process in namespace
+    def startShell( self, *args, **kwargs ):
+        "Start a shell process for running commands"
+        if self.shell:
+            error( "%s: shell is already running\n" % self.name )
+            return
+        # mnexec: (c)lose descriptors, (d)etach from tty,
+        # (p)rint pid, and run in (n)amespace
+        # opts = '-cd' if mnopts is None else mnopts
+        # if self.inNamespace:
+        #     opts += 'n'
+        # bash -i: force interactive
+        # -s: pass $* to shell, and make process easy to find in ps
+        # prompt is set to sentinel chr( 127 )
+        cmd = [ 'docker', 'exec', '-it',  '%s.%s' % ( self.dnameprefix, self.name ), 'env', 'PS1=' + chr( 127 ),
+                'bash', '--norc', '-is', 'mininet:' + self.name ]
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
         master, slave = pty.openpty()
         self.shell = self._popen( cmd, stdin=slave, stdout=slave, stderr=slave,
                                   close_fds=False )
-        # original Mininet membervars set in startShell method
         self.stdin = os.fdopen( master, 'rw' )
         self.stdout = self.stdin
         self.pid = self._get_pid()
         self.pollOut = select.poll()
         self.pollOut.register( self.stdout )
+        # Maintain mapping between file descriptors and nodes
+        # This is useful for monitoring multiple nodes
+        # using select.poll()
         self.outToNode[ self.stdout.fileno() ] = self
         self.inToNode[ self.stdin.fileno() ] = self
         self.execed = False
         self.lastCmd = None
         self.lastPid = None
         self.readbuf = ''
+        # Wait for prompt
+        while True:
+            data = self.read( 1024 )
+            if data[ -1 ] == chr( 127 ):
+                break
+            self.pollOut.poll()
         self.waiting = False
-        #self.output = ''
-
-        # fix container environment (sentinel chr(127))
-        # we cannot set the sentinel in the docker shell here
-        # setting PS1 breaks the python docker api (update_container hangs...)
-        # the sentinel is added after each executed cmd in sendCmd
-        #self.cmd('export PS1="\\127"')
+        # +m: disable job control notification
+        self.cmd( 'unset HISTFILE; stty -echo; set +m' )
 
     def _get_volume_mount_name(self, volume_str):
         """ Helper to extract mount names from volume specification strings """
@@ -828,144 +843,62 @@ class Docker ( Host ):
 
     def sendCmd( self, *args, **kwargs ):
         """Send a command, followed by a command to echo a sentinel,
-           and return without waiting for the command to complete.
-           args: command and arguments, or string
-           printPid: print command's PID? (False)"""
-        assert self.shell# and not self.waiting
-        printPid = kwargs.get( 'printPid', False )
-        # Allow sendCmd( [ list ] )
-        if len( args ) == 1 and isinstance( args[ 0 ], list ):
-            cmd = args[ 0 ]
-        # Allow sendCmd( cmd, arg1, arg2... )
-        elif len( args ) > 0:
-            cmd = args
-        # Convert to string
-        if not isinstance( cmd, str ):
-            cmd = ' '.join( [ str( c ) for c in cmd ] )
-        if not re.search( r'\w', cmd ):
-            # Replace empty commands with something harmless
-            cmd = 'echo -n'
-        self.lastCmd = cmd
-        # if a builtin command is backgrounded, it still yields a PID
-        if len( cmd ) > 0 and cmd[ -1 ] == '&':
-            # print ^A{pid}\n so monitor() can set lastPid
-            cmd += ' printf "\\001%d\\012" $! '
-        elif printPid and not isShellBuiltin( cmd ):
-            cmd = 'mnexec -p ' + cmd
-
-        # for Docker hosts, we need to add the sentinel ourselves
-        #output = self.cmd(*args, **kwargs)
-        #self.output = output + chr(127)
-        cmd = cmd + " ;printf \\\\177 " + '\n'
-        self.write( cmd )
-        self.lastPid = None
-        self.waiting = True
-
-    def monitor( self, timeoutms=None, findPid=True ):
-        """Monitor and return the output of a command.
-           Set self.waiting to False if command has completed.
-           timeoutms: timeout in ms or None to wait indefinitely
-           findPid: look for PID from mnexec -p"""
-
-        # for Docker hosts, this is a patch, to make the containernet CLI work
-        self.waitReadable( timeoutms )
-        data = self.read( 1024 )
-        #data = self.output
-        pidre = r'\[\d+\] \d+\r\n'
-        # Look for PID
-        marker = chr( 1 ) + r'\d+\r\n'
-        if findPid and chr( 1 ) in data:
-            # suppress the job and PID of a backgrounded command
-            if re.findall( pidre, data ):
-                data = re.sub( pidre, '', data )
-            # Marker can be read in chunks; continue until all of it is read
-            while not re.findall( marker, data ):
-                data += self.read( 1024 )
-            markers = re.findall( marker, data )
-            if markers:
-                self.lastPid = int( markers[ 0 ][ 1: ] )
-                data = re.sub( marker, '', data )
-        # Look for sentinel/EOF
-        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
-            self.waiting = False
-            data = data[ :-1 ]
-        elif chr( 127 ) in data:
-            self.waiting = False
-            data = data.replace( chr( 127 ), '' )
-            # remove last line (contains container prompt) and replace by clean line
-            data = data[:data.rfind('\n')] + '\n'
-        # Suppress original cmd input (will otherwise be printed in docker TTY)
-        if len( data ) > 0:
-            data = data.replace(self.lastCmd, '').lstrip()
-            # remove first line (if it contains the print sentinel command)
-            first_line = data.split('\n', 1)[0]
-            if ";printf \\\\177" in first_line:
-                data = data.split('\n', 1)[1]
-            # check if output contains prompt:
-            promptre = r'root@.*:.*#'
-            prompt_found = re.findall(promptre, data)
-            if prompt_found:
-                #data = data[:data.rfind(prompt_found[0])] + '\n'
-                data = data + '\n'
-
-        return data
+           and return without waiting for the command to complete."""
+        self._check_shell()
+        if not self.shell:
+            return
+        Host.sendCmd( self, *args, **kwargs )
 
     def popen( self, *args, **kwargs ):
         """Return a Popen() object in node's namespace
            args: Popen() args, single list, or string
            kwargs: Popen() keyword args"""
-        # Tell mnexec to execute command in our cgroup
-        mncmd = ["docker",
-                 "exec",
-                 "-it",
-                 "%s.%s" % (self.dnameprefix, self.name)
-                 ]
+        if not self._is_container_running():
+            error( "ERROR: Can't connect to Container \'%s\'' for docker host \'%s\'!\n" % (self.did, self.name) )
+            return
+        mncmd = ["docker", "exec", "-t", "%s.%s" % (self.dnameprefix, self.name)]
         return Host.popen( self, *args, mncmd=mncmd, **kwargs )
 
-    def pexec( self, cmd, *args, **kwargs ):
-        """Execute a command using popen
-           returns: out, err, exitcode
-
-           FIXME: Popen with Docker containers does not work.
-           No idea why!
-           We fake it with normal Node.cmd() -> this hangs with certain containers, no idea why!
-           We use the docker api recommended way to execute commands inside containers
-           """
-        out = self.cmd(cmd)
-        err = ""
-        exitcode = 0
-        return out, err, exitcode
-
     def cmd(self, *args, **kwargs ):
-
-        # Allow sendCmd( [ list ] )
-        if len(args) == 1 and isinstance(args[0], list):
-            cmd = args[0]
-        # Allow sendCmd( cmd, arg1, arg2... )
-        elif len(args) > 0:
-            cmd = args
-        # Convert to string
-        if not isinstance(cmd, str):
-            cmd = ' '.join([str(c) for c in cmd])
-
-        # check if container is still running
-        container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
-        if len(container_list) == 0:
-            debug("container {0} not found, cannot execute command: {1}".format(self.name, cmd))
-            self.waiting = False
-            return ''
-
-        exec_dict = self.dcli.exec_create(self.dc, cmd, privileged=True)
-        out = self.dcli.exec_start(exec_dict)
-        #info("cmd: {0} \noutput:{1}".format(cmd, out))
-        self.waiting = False
-        return out
+        """Send a command, wait for output, and return it.
+           cmd: string"""
+        verbose = kwargs.get( 'verbose', False )
+        log = info if verbose else debug
+        log( '*** %s : %s\n' % ( self.name, args ) )
+        self.sendCmd( *args, **kwargs )
+        return self.waitOutput( verbose )
 
     def _get_pid(self):
         state = self.dcinfo.get("State", None)
         if state:
             return state.get("Pid", -1)
         return -1
+
+    def _check_shell(self):
+        """Verify if shell is alive and
+           try to restart if needed"""
+        if self._is_container_running():
+            if self.shell:
+                self.shell.poll()
+                if self.shell.returncode is not None:
+                    debug("*** Shell died for docker host \'%s\'!\n" % self.name )
+                    self.shell = None
+                    debug("*** Restarting Shell of docker host \'%s\'!\n" % self.name )
+                    self.startShell()
+            else:
+                debug("*** Restarting Shell of docker host \'%s\'!\n" % self.name )
+                self.startShell()
+        else:
+            error( "ERROR: Can't connect to Container \'%s\'' for docker host \'%s\'!\n" % (self.did, self.name) )
+            if self.shell:
+                self.shell = None
+
+    def _is_container_running(self):
+        """Verify if container is alive"""
+        container_list = self.dcli.containers(filters={"id": self.did, "status": "running"})
+        if len(container_list) == 0:
+            return False;
+        return True
 
     def _check_image_exists(self, imagename, pullImage=False):
         # split tag from repository if a tag is specified
