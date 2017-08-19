@@ -435,7 +435,7 @@ class CLI( Cmd ):
         if self.isatty():
             # Buffer by character, so that interactive
             # commands sort of work
-            quietRun( 'stty -icanon min 1' )
+            quietRun( 'stty -isig -icanon min 1' )
         while True:
             try:
                 bothPoller.poll()
