@@ -832,13 +832,12 @@ class Docker ( Host ):
 
     def terminate( self ):
         """ Stop docker container """
-        self.dcli.stop(self.dc, timeout=1)
-        # also remove the container
-        # TODO this should be optional later
+        if not self._is_container_running():
+            return
         try:
             self.dcli.remove_container(self.dc, force=True, v=True)
         except docker.errors.APIError as e:
-            info("Warning: API error during container removal.\n")
+            warn("Warning: API error during container removal.\n")
         self.cleanup()
 
     def sendCmd( self, *args, **kwargs ):
