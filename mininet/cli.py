@@ -435,8 +435,8 @@ class CLI( Cmd ):
         if self.isatty():
             # Buffer by character, so that interactive
             # commands sort of work
-            quietRun( 'stty -icanon min 1' )
-        while True:
+            quietRun( 'stty -isig -icanon min 1' )
+        while node.shell:
             try:
                 bothPoller.poll()
                 # XXX BL: this doesn't quite do what we want.
@@ -453,6 +453,7 @@ class CLI( Cmd ):
                     data = node.monitor()
                     output( data )
                 if not node.waiting:
+                    quietRun( 'stty isig' )
                     break
             except KeyboardInterrupt:
                 # There is an at least one race condition here, since
