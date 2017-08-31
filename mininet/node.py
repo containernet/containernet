@@ -743,6 +743,7 @@ class Docker ( Host ):
                 port_bindings=self.port_bindings,
                 mem_limit=self.resources.get('mem_limit'),
                 cpuset_cpus=self.resources.get('cpuset_cpus'),
+                dns=self.dns
             )
             # create new docker container
             self.dc = self.dcli.create_container(
@@ -757,7 +758,6 @@ class Docker ( Host ):
                 labels=['com.containernet'],
                 volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
                 hostname=self.name
-                dns=self.dns
             )
             # start the container
             self.dcli.start(self.dc)
