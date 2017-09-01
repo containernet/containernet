@@ -81,7 +81,7 @@ try:
     import socket
     LIBVIRT_AVAILABLE = True
 except ImportError:
-    info("No libvirt functionality present. Cannot deploy virtual machines.")
+    pass
 
 class Node( object ):
     """A virtual network node is simply a shell in a network namespace.

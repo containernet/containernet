@@ -25,10 +25,9 @@ from mininet.net import SAP_PREFIX
 LIBVIRT_AVAILABLE = False
 try:
     import libvirt
-    from lxml import etree
     LIBVIRT_AVAILABLE = True
 except ImportError:
-    info("No libvirt functionality present. Can not deploy virtual machines.")
+    pass
 
 def sh( cmd ):
     "Print a command and send it to the shell"

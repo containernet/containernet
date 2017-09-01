@@ -114,7 +114,6 @@ from subprocess import Popen
 LIBVIRT_AVAILABLE = False
 try:
     import libvirt
-    from lxml import etree
     LIBVIRT_AVAILABLE = True
 except ImportError:
     info("No libvirt functionality present. Can not deploy virtual machines.")
