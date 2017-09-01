@@ -22,6 +22,7 @@ from mininet.log import info
 from mininet.term import cleanUpScreens
 from mininet.net import SAP_PREFIX
 
+LIBVIRT_AVAILABLE = False
 try:
     import libvirt
     from lxml import etree

@@ -993,17 +993,17 @@ class Containernet( Mininet ):
     """
 
     def __init__(self, **params):
+        self.libvirtManagementNetwork = None
+        self.cmd_endpoint = params.pop("cmd_endpoint", "qemu:///system")
+        self.lv_conn = None
+        self.mgmt_dict = params.pop('mgmt_net', dict())
+        self.mgmt_dict.setdefault("name", "mn.libvirt.mgmt")
+        self.mgmt_dict.setdefault("ip", "192.168.134.1")
+        self.mgmt_dict.setdefault("netmask", "255.255.255.0")
+        self.mgmt_dict.setdefault("mac", macColonHex(ipParse(self.mgmt_dict['ip'])))
+        # keep track of how many hosts we added to the mgmt net
+        self.allocated_dhcp_ips = 1
         if LIBVIRT_AVAILABLE:
-            self.cmd_endpoint = params.pop("cmd_endpoint", "qemu:///system")
-            self.lv_conn = None
-            self.libvirtManagementNetwork = None
-            self.mgmt_dict = params.pop('mgmt_net', dict())
-            self.mgmt_dict.setdefault("name", "mn.libvirt.mgmt")
-            self.mgmt_dict.setdefault("ip", "192.168.134.1")
-            self.mgmt_dict.setdefault("netmask", "255.255.255.0")
-            self.mgmt_dict.setdefault("mac", macColonHex(ipParse(self.mgmt_dict['ip'])))
-            # keep track of how many hosts we added to the mgmt net
-            self.allocated_dhcp_ips = 1
             libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
 
         # call original Mininet.__init__
