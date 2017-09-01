@@ -1,4 +1,4 @@
-#!/bin/env python2
+#!/usr/bin/env python2
 import unittest
 import os
 import time
@@ -107,7 +107,7 @@ class simpleTestTopology( unittest.TestCase ):
 
         return hosts
 
-#@unittest.skip("test")
+@unittest.skip("test")
 class testContainernetConnectivity( simpleTestTopology ):
     """
     Tests to check connectivity of Docker containers within
@@ -211,7 +211,7 @@ class testContainernetConnectivity( simpleTestTopology ):
     def testLvMultipleInterfaces( self ):
         """
         l1 -- s1 -- l2 -- s2 -- l3
-        d2 has two interfaces, each with its own subnet
+        l2 has two interfaces, each with its own subnet
         """
         # create network
         self.createNet(nswitches=2, nhosts=0, nlibvirt=2)
@@ -238,7 +238,8 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.assertTrue(self.net.ping([self.l[1]], manualdestip="11.0.0.2") <= 0.0)
         # stop Mininet network
         self.stopNet()
-#@unittest.skip("test")
+
+@unittest.skip("test")
 class testContainernetLibvirtCommandExecution( simpleTestTopology ):
     """
     Test to check the command execution inside Libvirt containers by
@@ -265,7 +266,7 @@ class testContainernetLibvirtCommandExecution( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-# @unittest.skip("test")
+@unittest.skip("test")
 class testContainernetDynamicTopologies( simpleTestTopology ):
     """
     Tests to check dynamic topology support which allows to add
@@ -420,7 +421,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-#@unittest.skip("test")
+@unittest.skip("test")
 class testContainernetTCLinks( simpleTestTopology ):
     """
     Tests to check TCLinks together with LibvirtHosts
@@ -474,6 +475,137 @@ class testContainernetTCLinks( simpleTestTopology ):
                [self.l[0]], manualdestip="10.0.0.3", timeout=1) >= 100.0)
         # stop Mininet network
         self.stopNet()
+
+
+class testContainernetLibvirtResourceLimitAPI( simpleTestTopology ):
+    """
+    Test to check the resource limitation API of the Docker integration.
+    TODO: Also check if values are set correctly in the guest VMs
+    """
+
+    def testCPUShare( self ):
+        """
+        l0, l1 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=0)
+        # add dockers
+        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name, cpu_shares=10)
+        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name, cpu_shares=90)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(l0, self.s[0])
+        self.net.addLink(l1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testCPULimitCFSBased( self ):
+        """
+        l0, l1 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
+                                     vcpu_period=50000, vcpu_quota=10000)
+        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
+                                     vcpu_period=50000, vcpu_quota=10000)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(l0, self.s[0])
+        self.net.addLink(l1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testMemLimits( self ):
+        """
+        l0, l1 with CPU share limits
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
+                                     mem_limit=512)
+        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
+                                     mem_limit=768)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(l0, self.s[0])
+        self.net.addLink(l1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testRuntimeCPULimitUpdate(self):
+        """
+        Test CPU limit update at runtime
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
+                                     cpu_shares=50)
+        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
+                                     vcpu_period=50000, vcpu_quota=10000)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(l0, self.s[0])
+        self.net.addLink(l1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
+        # update limits
+        l0.updateCpuLimit(cpu_shares=512)
+        self.assertEqual(l0.resources['cpu_shares'], 512)
+        l1.updateCpuLimit(vcpu_period=50001, vcpu_quota=20000)
+        self.assertEqual(l1.resources['vcpu_period'], 50001)
+        self.assertEqual(l1.resources['vcpu_quota'], 20000)
+        # stop Mininet network
+        self.stopNet()
+
+    def testRuntimeMemoryLimitUpdate(self):
+        """
+        Test mem limit update at runtime
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
+                                     mem_limit=512)
+        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name)
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(l0, self.s[0])
+        self.net.addLink(l1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
+        # update limits
+        l0.updateMemoryLimit(mem_limit=1500)
+        l1.updateMemoryLimit(mem_limit=512)
+
+        #TODO query libvirt or run cmd inside vm
+        # stop Mininet network
+        self.stopNet()
+
 
 
 if __name__ == '__main__':

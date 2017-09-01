@@ -111,6 +111,7 @@ from mininet.term import cleanUpScreens, makeTerms
 
 from subprocess import Popen
 
+LIBVIRT_AVAILABLE = False
 try:
     import libvirt
     from lxml import etree
@@ -1029,7 +1030,6 @@ class Containernet( Mininet ):
         Libvirt-based host.
         """
         if not LIBVIRT_AVAILABLE:
-            #TODO check packages if this is a complete list
             error("No libvirt functionality available. Please install libvirt-python and lxml.\n")
             return False
         if self.libvirtManagementNetwork is None:

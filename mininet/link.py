@@ -26,10 +26,10 @@ Link: basic link class for creating veth pairs
 
 from mininet.log import info, error, debug, warn
 from mininet.util import makeIntfPair
-from mininet import LIBVIRT_AVAILABLE
 import mininet.node
 import re
 
+LIBVIRT_AVAILABLE = False
 try:
     import libvirt
     from xml.etree import ElementTree as etree

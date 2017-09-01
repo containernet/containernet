@@ -73,16 +73,15 @@ from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
 from distutils.version import StrictVersion
 
+LIBVIRT_AVAILABLE = False
 try:
     import libvirt
-    from lxml import etree
     import xml.dom.minidom as minidom
-    import pexpect
     import paramiko
     import socket
     LIBVIRT_AVAILABLE = True
 except ImportError:
-    info("No libvirt functionality present. Can not deploy virtual machines.")
+    info("No libvirt functionality present. Cannot deploy virtual machines.")
 
 class Node( object ):
     """A virtual network node is simply a shell in a network namespace.
@@ -1174,6 +1173,36 @@ INTERFACE_XML_NON_QEMU = """
             <source dev='{intfname}' mode='private'/>
         </interface>
         """
+DOMAIN_XML = """
+<domain type="{type}">
+  <name>{name}</name>
+  <title>{title}</title>
+  <memory unit="{memunit}">{memory}</memory>
+  <currentMemory unit="{curmemunit}">{curmemory}</currentMemory>
+  <vcpu current="{curcpu}">{cpumax}</vcpu>
+  <os>
+    <type arch="{arch}" machine="{machine}">{ostype}</type>
+  </os>
+  <features>
+    <acpi/>
+  </features>
+  <devices>
+    <emulator>{emulator}</emulator>
+    <interface type="network">
+      <mac address="{mgmt_mac}"/>
+      <source network="{mgmt_name}"/>
+    </interface>
+    <disk device="disk" type="file">
+      <source file="{disk_image}"/>
+      <target dev="{disk_target_dev}"/>
+      <driver name="{disk_driver}" type="{disk_type}"/>
+    </disk>
+    <console type="pty"/>
+  </devices>
+</domain>
+"""
+
+
 class LibvirtHost( Host ):
     """Base class for controlling a host that is managed by libvirt.
 
@@ -1183,7 +1212,6 @@ class LibvirtHost( Host ):
         self._capabilities = None
         # a lot of defaults
         kwargs.setdefault('environment', dict())
-        kwargs.setdefault('arch', 'x86_64')
         kwargs.setdefault('type', 'kvm')
         kwargs.setdefault('login', {'credentials': {
                                         'username': 'root',
@@ -1221,6 +1249,15 @@ class LibvirtHost( Host ):
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
 
+        kwargs.setdefault('resources', {
+            'vcpu_quota': -1,
+            'vcpu_period': None,
+            'cpu_shares': None,
+            'numcores': kwargs['vcpu'],
+        })
+
+        self.resources = kwargs['resources']
+
         self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
         if self.lv_conn is None:
             error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
@@ -1228,7 +1265,7 @@ class LibvirtHost( Host ):
         self.lv_disk_image = disk_image
 
         # domain object we get from libvirt
-        self.domain = None  # type: libvirt.virDomain
+        self.domain = None
         # etree we store for domain manipulation
         self.domain_tree = None
         # XML serialization of the domain_tree
@@ -1240,7 +1277,8 @@ class LibvirtHost( Host ):
         # keep track of our main ssh session
         self.ssh_session = paramiko.SSHClient()
         self.ssh_session.set_missing_host_key_policy(paramiko.AutoAddPolicy)
-        self.shell = None  # type: paramiko.Channel
+        self.shell = None
+        self.maxCpus = 1
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1249,11 +1287,12 @@ class LibvirtHost( Host ):
 
         if kwargs['domain_xml'] is not None:
             self.domain_xml = kwargs['domain_xml']
-            self.domain_tree = etree.XML(self.domain_xml)
-            if "title" not in list(self.domain_tree.getroot()):
-                etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
-            else:
-                self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
+            # TODO write this check with minidom
+            #self.domain_tree = etree.XML(self.domain_xml)
+            #if "title" not in list(self.domain_tree.getroot()):
+            #    etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
+            #else:
+            #    self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
 
             if not self.check_domain(**kwargs):
                 warn("LibvirtHost.__init__: Provided domain XML has errors!\n")
@@ -1275,14 +1314,7 @@ class LibvirtHost( Host ):
     @property
     def capabilities(self):
         if self._capabilities is None:
-            self._capabilities = dict()
-
-            self._capabilities = etree.fromstring(self.lv_conn.getCapabilities())
-            if not self._capabilities.xpath('/capabilities/guest'):
-                error("LibvirtHost.capabilities: Could not get the capabilities from libvirt using endpoint %s.\n" %
-                      self.params['cmd_endpoint'])
-                return
-
+            self._capabilities = minidom.parseString(self.lv_conn.getCapabilities())
         return self._capabilities
 
     def getDomainXML(self):
@@ -1291,46 +1323,52 @@ class LibvirtHost( Host ):
     @property
     def isQemu(self):
         # very simple way to determine if libvirt will use qemu
-        return "qemu" in self.params['cmd_endpoint']
+        return "qemu" in self.params['emulator']
+
+    @property
+    def isKvm(self):
+        return "kvm" in self.params['type']
 
     def build_domain(self, **params):
         # create a host config from params
         # TODO check all params
-        domain = etree.Element("domain", type=params['type'])
-        etree.SubElement(domain, "name").text = self.domain_name
-        etree.SubElement(domain, "title").text = "com.containernet-%s" % self.domain_name
-        etree.SubElement(domain, "memory", unit=params['memory']['unit']).text = params['memory']['value']
-        etree.SubElement(domain, "currentMemory", unit=params['currentMemory']['unit']).text = \
-            params['currentMemory']['value']
-        etree.SubElement(domain, "vcpu", placement="static").text = str(params['vcpu'])
-        os = etree.SubElement(domain, "os")
-        etree.SubElement(os, "type", params['os']['type']).text = params['os']['_text']
 
-        # we need acpi for dynamic interface attachment / removing
-        feature = etree.SubElement(domain, "features")
-        etree.SubElement(feature, "acpi")
+        caps_xml = minidom.parseString(self.lv_conn.getDomainCapabilities(params['emulator'],
+                                           params['os']['type']['arch'],
+                                           params['os']['type']['machine'],
+                                           params['type']))
+        for item in caps_xml.getElementsByTagName('vcpu'):
+            if item.getAttribute('max') is not None:
+                self.maxCpus = int(item.getAttribute('max'))
 
-        devices = etree.SubElement(domain, "devices")
-        etree.SubElement(devices, "emulator").text = params['emulator']
-        # create a default network device for the management network
-        net = etree.SubElement(devices, "interface", type="network")
-        etree.SubElement(net, "mac", address=params['mgmt_mac'])
-        etree.SubElement(net, "source", network=params['mgmt_network'])
+        # todo check capabilities for ACPI ! else disable hotplugging of interfaces
+        domain = DOMAIN_XML.format(
+            type=params['type'],
+            name=self.domain_name,
+            title="com.containernet-%s" % self.domain_name,
+            memunit=params['memory']['unit'],
+            memory=params['memory']['value'],
+            curmemunit=params['currentMemory']['unit'],
+            curmemory=params['currentMemory']['value'],
+            curcpu=params['vcpu'],
+            cpumax=self.maxCpus,
+            arch=params['os']['type']['arch'],
+            machine=params['os']['type']['machine'],
+            ostype=params['os']['_text'],
+            emulator=params['emulator'],
+            mgmt_mac=params['mgmt_mac'],
+            mgmt_name=params['mgmt_network'],
+            disk_image=self.lv_disk_image,
+            disk_driver=params['disk']['driver']['name'],
+            disk_type=params['disk']['driver']['type'],
+            disk_target_dev=params['disk']['target']['dev']
+        )
 
-        disk = etree.SubElement(devices, "disk", type="file", device="disk")
-        etree.SubElement(disk, "source", file=self.lv_disk_image)
-        etree.SubElement(disk, "target", params['disk']['target'])
-        etree.SubElement(disk, "driver", params['disk']['driver'])
-
-        # add a console so we can try to use the serial console for issuing commands
-        etree.SubElement(devices, "console", type="pty")
-
-        # store the domain_xml in pretty print for easier debugging
-        self.domain_xml = etree.tostring(domain, pretty_print=True)
-        self.domain_tree = etree.ElementTree(domain)
+        # store the domain_xml until we have the real one from libvirt
+        self.domain_xml = domain
 
         if not self.check_domain(**params):
-            error("LibvirtHost.startShell: Domain '%s' failed validity checks\n" % self.name)
+            error("LibvirtHost.buildDomain: Domain '%s' failed validity checks\n" % self.name)
             return False
 
     def check_domain(self, **kwargs):
@@ -1342,19 +1380,15 @@ class LibvirtHost( Host ):
             # domain does not yet exist. everything is fine
             pass
         debug("LibvirtHost.check_domain: XML Representation of domain:\n%s\n" % self.domain_xml)
-        type = self.domain_tree.getroot().get('type')
-        # check if the wanted capabilities are available
-        cap = self.capabilities.xpath('/capabilities/guest/arch[@name = $name]/domain[@type = $type]',
-                                      name=kwargs['arch'], type=type)
-        if not cap:
-            error("LibvirtHost.check_domain: Libvirt endpoint \"%s\" does not seem to be able to run a "
-                  "domain of type \"%s\"\n" %
-                  (kwargs['cmd_endpoint'], type))
-            return False
+
+        # todo check domain against capabilities of the host
 
         return True
 
     def startShell(self, mnopts=None):
+        """ Starts a domain and tries to connect via SSH.
+
+        Raises: libvirt.libvirtError if the domain can not be started."""
         # instantiate the domain in libvirt
         if self.domain is None:
             self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
@@ -1378,6 +1412,7 @@ class LibvirtHost( Host ):
                 info("LibvirtHost.startShell: Creating snapshot of domain %s at %s before starting it.\n" %
                      (self.domain_name, self.params['snapshot_disk_image_path']))
 
+            self.update_resources()
             self.domain.resume()
             self.pid = self.getPid()
 
@@ -1409,6 +1444,7 @@ class LibvirtHost( Host ):
                 # if the domain is still starting up, allow connections to it to fail
                 pass
 
+        self.domain_xml = self.getDomainXML()
         self.pollOut = select.poll()
         # create a new channel
         self.shell = self.ssh_session.invoke_shell()
@@ -1514,7 +1550,7 @@ class LibvirtHost( Host ):
            timeoutms: timeout in ms or None to wait indefinitely
            findPid: look for PID from mnexec -p"""
 
-        # it is not necessary to override this, but this removes the call to mnexec
+        # pruned version for LibvirtHosts
         ready = self.waitReadable( timeoutms )
         if not ready:
             return ''
@@ -1620,6 +1656,70 @@ class LibvirtHost( Host ):
             os.remove(self.params['snapshot_disk_image_path'])
 
         self.cleanup()
+
+    def update_resources(self, **kwargs):
+        """
+        Update the libvirt host's resources using libvirt
+        :return:
+        """
+
+        self.resources.update(kwargs)
+        # filter out None values to avoid errors
+        resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
+        info("{1}: update resources {0}\n".format(resources_filtered, self.name))
+        self.updateCpuLimit(**kwargs)
+
+    def updateCpuLimit(self, vcpu_quota=-1, vcpu_period=-1, cpu_shares=-1, numcores=None, **kwargs):
+        """
+        Update CPU resource limitations using the libvirt API.
+
+        Args:
+            cpu_quota: vcpu_quota
+            cpu_period: vcpu_period
+            cpu_shares: cpu_shares
+            numcores: numer of usuable cores
+        """
+        # TODO rework this to use self.domain.schedulerParameters() self.resources should reflect that
+        params = {}
+        if vcpu_quota > 0:
+            params['vcpu_quota'] = vcpu_quota
+        if vcpu_period > 0:
+            params['vcpu_period'] = vcpu_period
+        if cpu_shares > 0:
+            params['cpu_shares'] = cpu_shares
+        # todo look at CPUTUNE in libvirt for cpu pinning etc.
+        try:
+            if len(params) > 0:
+                self.domain.setSchedulerParameters(params)
+                self.resources.update(params)
+            if numcores is not None:
+                if self.maxCpus >= numcores:
+                    self.domain.setVcpusFlags(numcores)
+                else:
+                    warn("LibvirtHost.updateCpuLimit: Can not set numcores to %d as the domain only allows %d cores.\n"
+                         % (numcores, self.maxCpus))
+        except libvirt.libvirtError as e:
+            error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
+
+    def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1, **kwargs):
+        """
+        Update Memory resource limitations.
+        This method allows to update resource limitations at runtime
+
+        Args:
+            mem_limit: memory limit in megabytes
+            memswap_limit: swap limit in megabytes
+
+        """
+        try:
+            if mem_limit != -1:
+                self.domain.setMemoryFlags(mem_limit)
+                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d MB.\n" % (self.name, mem_limit))
+
+            if memswap_limit != -1:
+                error("LibvirtHost.updateMemoryLimit: Setting swap is not yet implemented.\n")
+        except libvirt.libvirtError as e:
+            error("LibvirtHost.updateMemoryLimit: Error setting memory limits. Error: %s\n" % e)
 
 
 class CPULimitedHost( Host ):
