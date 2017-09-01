@@ -985,6 +985,20 @@ class Mininet( object ):
         cls.inited = True
 
 
+MANAGEMENT_NETWORK_XML = """
+    <network>
+        <name>{name}</name>
+        <mac address="{mac}"/>
+        <ip address="{ip}" netmask="{netmask}">
+            <dhcp/>
+        </ip>
+        <domain name="mininet"/>
+    </network>
+"""
+
+HOST_XML = """
+    <host ip="{ip}" mac="{mac}" name="{name}"/>
+"""
 class Containernet( Mininet ):
     """
     A Mininet with Docker and Libvirt related methods.
@@ -1051,12 +1065,9 @@ class Containernet( Mininet ):
         params.setdefault("mgmt_mac", macColonHex(host_ip_int))
         params.setdefault("mgmt_ip", ipStr(host_ip_int))
         try:
-            host = etree.Element("host",
-                          ip=ipStr(host_ip_int),
-                          mac=macColonHex(host_ip_int),
-                          name=name)
+            host_xml = HOST_XML.format(ip=ipStr(host_ip_int), mac=macColonHex(host_ip_int), name=name)
             info("Containernet.addLibvirthost: Adding DHCP entry for host %s.\n" % name)
-            debug("network XML:\n %s\n" % etree.tostring(host))
+            debug("network XML:\n %s\n" % host_xml)
             #COMMANDDICT = {"none": 0, "modify": 1, "delete": 2, "add-first": 4}
             #SECTIONDICT = {"none": 0, "bridge": 1, "domain": 2, "ip": 3, "ip-dhcp-host": 4,
             #   "ip-dhcp-range": 5, "forward": 6, "forward-interface": 7,
@@ -1064,7 +1075,7 @@ class Containernet( Mininet ):
             #   "dns-srv": 12}
             #FLAGSDICT = {"current": 0, "live": 1, "config": 2}
             # command, section, flags
-            self.libvirtManagementNetwork.update(4, 4, 0, etree.tostring(host))
+            self.libvirtManagementNetwork.update(4, 4, 0, host_xml)
             self.allocated_dhcp_ips += 1
         except libvirt.libvirtError as e:
             error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed."
@@ -1160,17 +1171,16 @@ class Containernet( Mininet ):
 
     def createManagementNetwork(self):
         # build XML
-        network = etree.Element("network")
-        etree.SubElement(network, "name").text = self.mgmt_dict['name']
-        etree.SubElement(network, "mac", address=self.mgmt_dict['mac'])
-        ip = etree.SubElement(network, "ip", address=self.mgmt_dict['ip'],
-                         netmask=self.mgmt_dict['netmask'])
-        dhcp = etree.SubElement(ip, "dhcp")
-        etree.SubElement(network, "domain", name="mininet")
+        network_xml = MANAGEMENT_NETWORK_XML.format(
+            name=self.mgmt_dict['name'],
+            mac=self.mgmt_dict['mac'],
+            ip=self.mgmt_dict['ip'],
+            netmask=self.mgmt_dict['netmask']
+        )
 
         debug("Containernet.createManagementNetwork: Instantiating management network for libvirt:\n%s\n" %
-              etree.tostring(network, pretty_print=True))
-        self.libvirtManagementNetwork = self.lv_conn.networkCreateXML(etree.tostring(network))
+              network_xml)
+        self.libvirtManagementNetwork = self.lv_conn.networkCreateXML(network_xml)
 
 
     def destroyManagementNetwork(self):

@@ -16,15 +16,15 @@ def topology():
 
     "Create a network with some docker containers acting as hosts."
 
-    net = Containernet(controller=Controller, mgmt_net={'mac': '00:AA:BB:CC:DD:EE'}, cmd_endpoint="qemu:///system")
+    net = Containernet(controller=Controller)
 
     info('*** Adding controller\n')
     net.addController('c0')
 
     info('*** Adding hosts\n')
     h1 = net.addHost('h1')
-
-    v1 = net.addLibvirthost("test1", disk_image="/srv/images/test-vm1.qcow2")
+    d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
+    v1 = net.addLibvirthost("v1", disk_image="/srv/images/test-vm1.qcow2")
 
     info('*** Adding switch\n')
     s1 = net.addSwitch('s1')
@@ -32,6 +32,7 @@ def topology():
     info('*** Creating links\n')
     net.addLink(h1, s1)
     net.addLink(v1, s1)
+    net.addLink(d1, s1)
     v1.setMAC('00:AA:BB:CC:DD:EF')
 
     info('*** Starting network\n')
