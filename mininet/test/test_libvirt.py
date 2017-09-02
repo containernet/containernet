@@ -107,7 +107,7 @@ class simpleTestTopology( unittest.TestCase ):
 
         return hosts
 
-@unittest.skip("test")
+#@unittest.skip("test")
 class testContainernetConnectivity( simpleTestTopology ):
     """
     Tests to check connectivity of Docker containers within
@@ -239,7 +239,7 @@ class testContainernetConnectivity( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-@unittest.skip("test")
+#@unittest.skip("test")
 class testContainernetLibvirtCommandExecution( simpleTestTopology ):
     """
     Test to check the command execution inside Libvirt containers by
@@ -266,7 +266,7 @@ class testContainernetLibvirtCommandExecution( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-@unittest.skip("test")
+#@unittest.skip("test")
 class testContainernetDynamicTopologies( simpleTestTopology ):
     """
     Tests to check dynamic topology support which allows to add
@@ -297,7 +297,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-    # @unittest.skip("test")
+    #@unittest.skip("test")
     def testSimpleRemove( self ):
         """
         start: l0 -- s0 -- l1
@@ -329,7 +329,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-    # @unittest.skip("test")
+    #@unittest.skip("test")
     def testFullyDynamic( self ):
         """
         start: s1 -- h1 (for ping tests)
@@ -421,7 +421,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-@unittest.skip("test")
+#@unittest.skip("test")
 class testContainernetTCLinks( simpleTestTopology ):
     """
     Tests to check TCLinks together with LibvirtHosts
