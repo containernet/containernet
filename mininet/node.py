@@ -1169,7 +1169,7 @@ class LibvirtHost( Host ):
             },
             '_text': "hvm"
         })
-        kwargs.setdefault('emulator', "/usr/sbin/qemu-system-x86_64")
+        kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
         kwargs.setdefault('memory', {
             'unit': 'KiB',
             'value': '1048576'
@@ -1209,7 +1209,6 @@ class LibvirtHost( Host ):
         self.lv_domain_snapshot = None
         # keep track of our main ssh session
         self.ssh_session = paramiko.SSHClient()
-        self.ssh_session.set_missing_host_key_policy(paramiko.AutoAddPolicy)
         self.shell = None
         self.maxCpus = 1
 
@@ -1355,8 +1354,8 @@ class LibvirtHost( Host ):
             try:
                 if "timeout" not in self.params['login']['credentials']:
                     self.params['login']['credentials']['timeout'] = 60
-                if "auth_timeout" not in self.params['login']['credentials']:
-                    self.params['login']['credentials']['auth_timeout'] = 30
+
+                self.ssh_session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 self.ssh_session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
                 debug("LibvirtHost.startShell: Logged in to domain %s using ssh.\n" % self.domain_name)
                 break
@@ -1450,6 +1449,7 @@ class LibvirtHost( Host ):
             self.domain.attachDevice(interface_xml)
         except libvirt.libvirtError as e:
             error("Could not attach interface %s to node %s. Error: %s\n" % (intf.name, self.name, e))
+            return
 
         # we wait until something changes in network devices
         # the device that appears is our new interface
