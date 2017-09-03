@@ -29,7 +29,7 @@ class simpleTestTopology( unittest.TestCase ):
         self.l = []
         self.docker_cli = None
         self.lv_conn_qemu = libvirt.open('qemu:///system')
-        self.image_name = "/home/xschlef/no-cow/test-vm1.qcow2"
+        self.image_name = "/srv/images/test-vm1.qcow2"
         super(simpleTestTopology, self).__init__(*args, **kwargs)
 
     def createNet(
