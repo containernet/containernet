@@ -1087,6 +1087,7 @@ class Docker ( Host ):
 SNAPSHOT_XML = """
                 <domainsnapshot>
                     <description>Mininet snapshot</description>
+                    <memory snapshot='external' file='{path}.mem'/>
                     <disks>
                         <disk name='{image}'>
                             <source file='{path}'/>
@@ -1106,6 +1107,12 @@ INTERFACE_XML_NON_QEMU = """
             <source dev='{intfname}' mode='private'/>
         </interface>
         """
+INTERFACE_XML_MGMT = """
+        <interface type="network">
+            <mac address="{mgmt_mac}"/>
+            <source network="{mgmt_name}"/>
+        </interface>
+        """
 DOMAIN_XML = """
 <domain type="{type}">
   <name>{name}</name>
@@ -1121,10 +1128,6 @@ DOMAIN_XML = """
   </features>
   <devices>
     <emulator>{emulator}</emulator>
-    <interface type="network">
-      <mac address="{mgmt_mac}"/>
-      <source network="{mgmt_name}"/>
-    </interface>
     <disk device="disk" type="file">
       <source file="{disk_image}"/>
       <target dev="{disk_target_dev}"/>
@@ -1140,7 +1143,7 @@ class LibvirtHost( Host ):
     """Base class for controlling a host that is managed by libvirt.
 
     """
-    def __init__(self, name, disk_image, **kwargs):
+    def __init__(self, name, disk_image, use_existing_vm=False, keep_running=False, **kwargs):
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
@@ -1212,33 +1215,83 @@ class LibvirtHost( Host ):
         self.shell = None
         self.maxCpus = 1
 
+        self.use_existing_vm = use_existing_vm
+        self.keep_running = keep_running
+
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
             error("LibvirtHost.__init__: Could not find the libvirt management network: %s\n" % kwargs['mgmt_network'])
             return
 
-        if kwargs['domain_xml'] is not None:
-            self.domain_xml = kwargs['domain_xml']
-            # TODO write this check with minidom
-            #self.domain_tree = etree.XML(self.domain_xml)
-            #if "title" not in list(self.domain_tree.getroot()):
-            #    etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
-            #else:
-            #    self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
+        if not self.use_existing_vm:
+            if kwargs['domain_xml'] is not None:
+                self.domain_xml = kwargs['domain_xml']
+                # TODO write this check with minidom
+                #self.domain_tree = etree.XML(self.domain_xml)
+                #if "title" not in list(self.domain_tree.getroot()):
+                #    etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
+                #else:
+                #    self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
 
-            if not self.check_domain(**kwargs):
-                warn("LibvirtHost.__init__: Provided domain XML has errors!\n")
+                if not self.check_domain(**kwargs):
+                    warn("LibvirtHost.__init__: Provided domain XML has errors!\n")
 
+            else:
+                self.build_domain(**kwargs)
+
+            debug("Created Domain object: %s\n" % self.domain_name)
+            debug("image: %s\n" % str(self.lv_disk_image))
+            debug("kwargs: %s\n" % str(kwargs))
         else:
-            self.build_domain(**kwargs)
-
-
-        debug("Created Domain object: %s\n" % name)
-        debug("image: %s\n" % str(self.lv_disk_image))
-        debug("kwargs: %s\n" % str(kwargs))
+            self.domain_name = name
+            try:
+                self.domain = self.lv_conn.lookupByName(self.domain_name)
+                self.domain_xml = self.getDomainXML()
+            except libvirt.libvirtError:
+                error("LibvirtHost.__init__: Domain '%s' does not exist. Cannot use preexisting domain.\n"
+                      % self.domain_name)
+                return
+            debug("Using preexisting domain %s.\n" % self.domain_name)
+            if not self.domain.isActive():
+                # launch but immediately pause the domain if it is not running yet
+                self.domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
 
         # libvirt will print error messages if we don't handle them here
         libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
+
+        # instantiate the domain in libvirt
+        if self.domain is None:
+            self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
+
+        if kwargs['snapshot']:
+            if kwargs['snapshot_disk_image_path'] is None:
+                # find a safe new path within the directory
+                incr = 1
+                dst_image_path = "%s.mininet.snap" % self.lv_disk_image
+                if os.path.isfile(dst_image_path):
+                    while os.path.isfile("%s.%s" % (dst_image_path, incr)):
+                        incr += 1
+                    dst_image_path = "%s.%s" % (dst_image_path, incr)
+
+                kwargs['snapshot_disk_image_path'] = dst_image_path
+
+            snapshot_xml = SNAPSHOT_XML.format(image=self.lv_disk_image,
+                                               path=kwargs['snapshot_disk_image_path'])
+
+            info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
+                 (self.domain_name, kwargs['snapshot_disk_image_path']))
+            try:
+                self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml)
+            except libvirt.libvirtError as e:
+                error("LibvirtHost.__init__: Could not create Snapshot for domain '%s'.\n"
+                      % self.domain_name)
+                raise e
+
+        self.attach_management_network(**kwargs)
+
+        if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
+            self.domain.resume()
+        self.update_resources()
 
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
@@ -1288,8 +1341,6 @@ class LibvirtHost( Host ):
             machine=params['os']['type']['machine'],
             ostype=params['os']['_text'],
             emulator=params['emulator'],
-            mgmt_mac=params['mgmt_mac'],
-            mgmt_name=params['mgmt_network'],
             disk_image=self.lv_disk_image,
             disk_driver=params['disk']['driver']['name'],
             disk_type=params['disk']['driver']['type'],
@@ -1321,33 +1372,6 @@ class LibvirtHost( Host ):
         """ Starts a domain and tries to connect via SSH.
 
         Raises: libvirt.libvirtError if the domain can not be started."""
-        # instantiate the domain in libvirt
-        if self.domain is None:
-            self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
-            if self.params['snapshot']:
-                if self.params['snapshot_disk_image_path'] is None:
-                    # find a safe new path within the directory
-                    incr = 1
-                    dst_image_path = "%s.mininet.snap" % self.lv_disk_image
-                    if os.path.isfile(dst_image_path):
-                        while os.path.isfile("%s.%s" % (dst_image_path, incr)):
-                            incr += 1
-                        dst_image_path = "%s.%s" % (dst_image_path, incr)
-
-                    self.params['snapshot_disk_image_path'] = dst_image_path
-
-                snapshot_xml = SNAPSHOT_XML.format(image=self.lv_disk_image,
-                                                   path=self.params['snapshot_disk_image_path'])
-                self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml,
-                                                                        libvirt.VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY)
-
-                info("LibvirtHost.startShell: Creating snapshot of domain %s at %s before starting it.\n" %
-                     (self.domain_name, self.params['snapshot_disk_image_path']))
-
-            self.update_resources()
-            self.domain.resume()
-            self.pid = self.getPid()
-
         debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
               self.domain_name)
         while True:
@@ -1377,6 +1401,7 @@ class LibvirtHost( Host ):
                 pass
 
         self.domain_xml = self.getDomainXML()
+        self.pid = self.getPid()
         self.pollOut = select.poll()
         # create a new channel
         self.shell = self.ssh_session.invoke_shell()
@@ -1449,7 +1474,7 @@ class LibvirtHost( Host ):
             self.domain.attachDevice(interface_xml)
         except libvirt.libvirtError as e:
             error("Could not attach interface %s to node %s. Error: %s\n" % (intf.name, self.name, e))
-            return
+            raise Exception("Error while attaching a new interface.")
 
         # we wait until something changes in network devices
         # the device that appears is our new interface
@@ -1580,13 +1605,48 @@ class LibvirtHost( Host ):
 
         return out, err, exitcode
 
+    def remove_snapshot(self):
+        # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
+        if os.path.isfile(self.params['snapshot_disk_image_path']):
+            os.remove(self.params['snapshot_disk_image_path'])
+        if os.path.isfile("%s.mem" % self.params['snapshot_disk_image_path']):
+            os.remove("%s.mem" % self.params['snapshot_disk_image_path'])
+
+    def attach_management_network(self, **kwargs):
+        info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
+        interface_xml = INTERFACE_XML_MGMT.format(mgmt_mac=kwargs['mgmt_mac'], mgmt_name=kwargs['mgmt_network'])
+        try:
+            self.domain.attachDevice(interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not attach the interface for the management network to node %s. Error: %s\n" %
+                  (self.name, e))
+            raise Exception("Error while attaching the management interface.")
+
+    def detach_management_network(self):
+        info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
+             self.domain_name)
+        interface_xml = INTERFACE_XML_MGMT.format(self.params['mgmt_mac'], mgmt_name=self.params['mgmt_network'])
+        try:
+            self.domain.detachDevice(interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not detach the interface for the management network from node %s. Error: %s\n" %
+                  (self.name, e))
+
     def terminate( self ):
         """ Stop libvirt host """
-        self.domain.destroy()
-
-        # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
-        if self.params['snapshot'] and os.path.isfile(self.params['snapshot_disk_image_path']):
-            os.remove(self.params['snapshot_disk_image_path'])
+        if not self.keep_running:
+            if not self.use_existing_vm:
+                self.domain.destroy()
+                if self.params['snapshot']:
+                    self.remove_snapshot()
+            else:
+                self.detach_management_network()
+                if self.params['snapshot']:
+                    info("LibvirtHost.terminate: Reverting to snapshot.\n")
+                    self.domain.revertToSnapshot(self.lv_domain_snapshot)
+                    self.remove_snapshot()
+                info("Terminating domain %s with shutdown command.\n" % self.domain_name)
+                self.domain.shutdown()
 
         self.cleanup()
 
@@ -1599,7 +1659,7 @@ class LibvirtHost( Host ):
         self.resources.update(kwargs)
         # filter out None values to avoid errors
         resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
-        info("{1}: update resources {0}\n".format(resources_filtered, self.name))
+        info("{1}: update resources {0}\n".format(resources_filtered, self.domain_name))
         self.updateCpuLimit(**kwargs)
 
     def updateCpuLimit(self, vcpu_quota=-1, vcpu_period=-1, cpu_shares=-1, numcores=None, **kwargs):
