@@ -1095,6 +1095,11 @@ SNAPSHOT_XML = """
                     </disks>
                 </domainsnapshot>
                 """
+SNAPSHOT_XML_RUNNING = """
+                <domainsnapshot>
+                    <description>Mininet snapshot</description>
+                </domainsnapshot>
+                """
 INTERFACE_XML = """
         <interface type='direct' trustGuestRxFilters='yes'>
             <model type='virtio'/>
@@ -1143,7 +1148,7 @@ class LibvirtHost( Host ):
     """Base class for controlling a host that is managed by libvirt.
 
     """
-    def __init__(self, name, disk_image, use_existing_vm=False, keep_running=False, **kwargs):
+    def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
@@ -1216,7 +1221,6 @@ class LibvirtHost( Host ):
         self.maxCpus = 1
 
         self.use_existing_vm = use_existing_vm
-        self.keep_running = keep_running
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1275,11 +1279,17 @@ class LibvirtHost( Host ):
 
                 kwargs['snapshot_disk_image_path'] = dst_image_path
 
-            snapshot_xml = SNAPSHOT_XML.format(image=self.lv_disk_image,
+            if self.use_existing_vm:
+                snapshot_xml = SNAPSHOT_XML_RUNNING
+                info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" %
+                     (self.domain_name))
+            else:
+                snapshot_xml = SNAPSHOT_XML.format(image=self.lv_disk_image,
                                                path=kwargs['snapshot_disk_image_path'])
+                info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
+                     (self.domain_name, kwargs['snapshot_disk_image_path']))
 
-            info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
-                 (self.domain_name, kwargs['snapshot_disk_image_path']))
+
             try:
                 self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml)
             except libvirt.libvirtError as e:
@@ -1625,7 +1635,8 @@ class LibvirtHost( Host ):
     def detach_management_network(self):
         info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
              self.domain_name)
-        interface_xml = INTERFACE_XML_MGMT.format(self.params['mgmt_mac'], mgmt_name=self.params['mgmt_network'])
+        interface_xml = INTERFACE_XML_MGMT.format(mgmt_mac=self.params['mgmt_mac'],
+                                                  mgmt_name=self.params['mgmt_network'])
         try:
             self.domain.detachDevice(interface_xml)
         except libvirt.libvirtError as e:
@@ -1634,19 +1645,19 @@ class LibvirtHost( Host ):
 
     def terminate( self ):
         """ Stop libvirt host """
-        if not self.keep_running:
-            if not self.use_existing_vm:
-                self.domain.destroy()
-                if self.params['snapshot']:
-                    self.remove_snapshot()
+        if not self.use_existing_vm:
+            self.domain.destroy()
+            if self.params['snapshot']:
+                self.remove_snapshot()
+        else:
+            self.detach_management_network()
+            if self.params['snapshot']:
+                info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
+                self.domain.revertToSnapshot(self.lv_domain_snapshot)
+                self.lv_domain_snapshot.delete()
             else:
-                self.detach_management_network()
-                if self.params['snapshot']:
-                    info("LibvirtHost.terminate: Reverting to snapshot.\n")
-                    self.domain.revertToSnapshot(self.lv_domain_snapshot)
-                    self.remove_snapshot()
-                info("Terminating domain %s with shutdown command.\n" % self.domain_name)
                 self.domain.shutdown()
+                info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
 
         self.cleanup()
 
