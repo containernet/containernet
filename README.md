@@ -1,7 +1,7 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
+[![Join the chat at https://gitter.im/containernet/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/containernet/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
 ### Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
@@ -96,13 +96,10 @@ vagrant up
 vagrant ssh
 ```
 
-### Work based on Containernet
-
-* Qiao, Yuansong, et al. "Doopnet: An emulator for network performance analysis of Hadoop clusters using Docker and Mininet." Computers and Communication (ISCC), 2016 IEEE Symposium on. IEEE, 2016.
-  * http://ieeexplore.ieee.org/document/7543832/
-  * https://github.com/ysqiao/doopnet
-
 ### Contact
-Manuel Peuster
-manuel (dot) peuster (at) upb (dot) de
+#### Support
+If you have any questions, please use GitHub's [issue system](https://github.com/containernet/containernet/issues) or Containernet's [Gitter channel](https://gitter.im/containernet/) to get in touch.
+
+#### Lead developer:
+* Manuel Peuster <manuel (dot) peuster (at) upb (dot) de>
 
