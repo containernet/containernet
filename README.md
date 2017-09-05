@@ -1,7 +1,7 @@
 Containernet
 ============
 
-[![Join the chat at https://gitter.im/mpeuster/containernet](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/mpeuster/containernet?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
+[![Join the chat at https://gitter.im/containernet/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/containernet/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
 ### Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
@@ -9,23 +9,19 @@ This fork of Mininet allows to use Docker containers as Mininet hosts. This enab
 
 Based on: Mininet 2.2.2
 
-* Mininet:  http://mininet.org
+* Containernet website: https://containernet.github.io/
+* Mininet website:  http://mininet.org
 * Original Mininet repository: https://github.com/mininet/mininet
 
 ### Cite this work
 
 If you use Containernet for your research and/or other publications, please cite (beside the original Mininet paper) the following paper to reference our work:
 
-* Manuel Peuster, Holger Karl, and Steven van Rossem. "**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**" in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
-  * Link: http://ieeexplore.ieee.org/document/7919490/
-  * Pre-print: http://arxiv.org/abs/1606.05995
+* Manuel Peuster, Holger Karl, and Steven van Rossem. "**[MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**](http://ieeexplore.ieee.org/document/7919490/)" in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
 
 ### NFV multi-PoP Extension
 
-There is an extension of Containernet called MeDICINE which is a full-featured multi-PoP emulation platform for NFV scenarios which is developed as part of the SONATA project.
-
-* MeDICINE platform repository: https://github.com/sonata-nfv/son-emu
-* SONATA project: http://www.sonata-nfv.eu
+There is an extension of Containernet called [son-emu](https://github.com/sonata-nfv/son-emu) which is a full-featured multi-PoP emulation platform for NFV scenarios which is developed as part of the [SONATA](http://www.sonata-nfv.eu) project.
 
 ### Features
 
@@ -49,15 +45,14 @@ There is an extension of Containernet called MeDICINE which is a full-featured m
 ### Installation
 Automatic installation is provided through an Ansible playbook.
 * Requires: Ubuntu **16.04 LTS**
-* `sudo apt-get update`
-* `sudo apt-get upgrade`
-* `sudo apt-get install ansible git aptitude`
-* `sudo vim /etc/ansible/hosts`
-* Add: `localhost ansible_connection=local`
-* `git clone https://github.com/containernet/containernet.git`
-* `cd containernet/ansible`
-* `sudo ansible-playbook install.yml`
-* Wait (and have a coffee) ...
+
+```bash
+sudo apt-get install ansible git aptitude
+git clone https://github.com/containernet/containernet.git
+cd containernet/ansible
+sudo ansible-playbook -i "localhost," -c local install.yml
+```
+Wait (and have a coffee) ...
 
 ### Usage / Run
 Start example topology with some empty Docker containers connected to the network.
@@ -96,13 +91,16 @@ vagrant up
 vagrant ssh
 ```
 
-### Work based on Containernet
-
-* Qiao, Yuansong, et al. "Doopnet: An emulator for network performance analysis of Hadoop clusters using Docker and Mininet." Computers and Communication (ISCC), 2016 IEEE Symposium on. IEEE, 2016.
-  * http://ieeexplore.ieee.org/document/7543832/
-  * https://github.com/ysqiao/doopnet
-
 ### Contact
+#### Support
+If you have any questions, please use GitHub's [issue system](https://github.com/containernet/containernet/issues) or Containernet's [Gitter channel](https://gitter.im/containernet/) to get in touch.
+
+#### Contribute
+Your contributions are very welcome! Please fork the GitHub repository and create a pull request. We use [Travis-CI](https://travis-ci.org/containernet/containernet) to automatically test new commits. 
+
+#### Lead developer:
 Manuel Peuster
-manuel (dot) peuster (at) upb (dot) de
+* Mail: <manuel (dot) peuster (at) upb (dot) de>
+* GitHub: [@mpeuster](https://github.com/mpeuster)
+* Website: [Paderborn University](https://cs.uni-paderborn.de/cn/person/?tx_upbperson_personsite%5BpersonId%5D=13271&tx_upbperson_personsite%5Bcontroller%5D=Person&cHash=bafec92c0ada0bdfe8af6e2ed99efb4e)
 

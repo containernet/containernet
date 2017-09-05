@@ -707,7 +707,9 @@ class Docker ( Host ):
                      'volumes': [],  # use ["/home/user1/:/mnt/vol2:rw"]
                      'publish_all_ports': True,
                      'port_bindings': {},
-                   }
+                     'dns': [],
+                     }
+
         defaults.update( kwargs )
 
         # keep resource in a dict for easy update during container lifetime
@@ -726,6 +728,7 @@ class Docker ( Host ):
         # self.environment.update({"PS1": chr(127)})  # CLI support
         self.publish_all_ports = defaults['publish_all_ports']
         self.port_bindings = defaults['port_bindings']
+        self.dns = defaults['dns']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -750,6 +753,7 @@ class Docker ( Host ):
             port_bindings=self.port_bindings,
             mem_limit=self.resources.get('mem_limit'),
             cpuset_cpus=self.resources.get('cpuset_cpus'),
+            dns=self.dns,
         )
 
         # create new docker container
