@@ -173,7 +173,7 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.createNet(nswitches=2, nhosts=0, nlibvirt=2)
         # add additional Docker with special IP
         self.l.append(self.net.addLibvirthost(
-            'd%d' % len(self.d), ip="11.0.0.2", disk_image=self.image_name))
+            'vm%d' % len(self.d), ip="11.0.0.2", disk_image=self.image_name))
         # setup links
         self.net.addLink(self.s[0], self.s[1])
         self.net.addLink(self.l[0], self.s[0])
