@@ -30,12 +30,13 @@ class simpleTestTopology( unittest.TestCase ):
         self.docker_cli = None
         self.lv_conn_qemu = libvirt.open('qemu:///system')
         self.image_name = "/srv/images/test-vm1.qcow2"
+        self.vm_names = ["vm1", "vm2", "vm3"]
         super(simpleTestTopology, self).__init__(*args, **kwargs)
 
     def createNet(
             self,
             nswitches=1, nhosts=0, ndockers=0, nlibvirt=0,
-            autolinkswitches=False):
+            autolinkswitches=False, use_running=True):
         """
         Creates a Mininet instance and automatically adds some
         nodes to it.
@@ -57,8 +58,10 @@ class simpleTestTopology( unittest.TestCase ):
         for i in range(0, ndockers):
             self.d.append(self.net.addDocker('d%d' % i, dimage="ubuntu:trusty"))
 
-        for i in range(0, nlibvirt):
-            self.l.append(self.net.addLibvirthost('l%d' % i, disk_image=self.image_name))
+        for i in range(1, nlibvirt+1):
+            self.l.append(self.net.addLibvirthost('vm%d' % i,
+                                                  disk_image=self.image_name,
+                                                  use_existing_vm=use_running))
 
     def startNet(self):
         self.net.start()
@@ -80,8 +83,6 @@ class simpleTestTopology( unittest.TestCase ):
 
     @staticmethod
     def tearDown():
-
-
         cleanup()
         # make sure that all pending docker containers are killed
         with open(os.devnull, 'w') as devnull:
@@ -116,7 +117,7 @@ class testContainernetConnectivity( simpleTestTopology ):
 
     def testHostLv( self ):
         """
-        l1 -- h1
+        vm1 -- h1
         """
         # create network
         self.createNet(nswitches=0, nhosts=1, nlibvirt=1)
@@ -134,7 +135,7 @@ class testContainernetConnectivity( simpleTestTopology ):
 
     def testLvLv( self ):
         """
-        l1 -- l2
+        vm1 -- vm2
         """
         # create network
         self.createNet(nswitches=0, nhosts=0, nlibvirt=2)
@@ -150,48 +151,9 @@ class testContainernetConnectivity( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-    def testHostSwitchLv( self ):
-        """
-        l1 -- s1 -- h1
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=1, nlibvirt=1)
-        # setup links
-        self.net.addLink(self.h[0], self.s[0])
-        self.net.addLink(self.l[0], self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping
-        self.assertTrue(self.net.pingAll() <= 0.0)
-        # stop Mininet network
-        self.stopNet()
-
-    def testDockerSwitchLv( self ):
-        """
-        d1 -- s1 -- l1
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, ndockers=1, nlibvirt=1)
-        # setup links
-        self.net.addLink(self.d[0], self.s[0])
-        self.net.addLink(self.l[0], self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
-        self.assertTrue(len(self.getContainernetContainers()) == 1)
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping
-        self.assertTrue(self.net.pingAll() <= 0.0)
-        # stop Mininet network
-        self.stopNet()
-
     def testLvSwitchLv( self ):
         """
-        l1 -- s1 -- l1
+        vm1 -- s1 -- vm1
         """
         # create network
         self.createNet(nswitches=1, nhosts=0, nlibvirt=2)
@@ -210,8 +172,8 @@ class testContainernetConnectivity( simpleTestTopology ):
 
     def testLvMultipleInterfaces( self ):
         """
-        l1 -- s1 -- l2 -- s2 -- l3
-        l2 has two interfaces, each with its own subnet
+        vm1 -- s1 -- vm2 -- s2 -- vm3
+        vm2 has two interfaces, each with its own subnet
         """
         # create network
         self.createNet(nswitches=2, nhosts=0, nlibvirt=2)
@@ -240,87 +202,53 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.stopNet()
 
 #@unittest.skip("test")
-class testContainernetLibvirtCommandExecution( simpleTestTopology ):
-    """
-    Test to check the command execution inside Libvirt containers by
-    using the Mininet API.
-    """
-
-    def testCommandSimple( self ):
-        """
-        d1 ls
-        d1 ifconfig -a
-        d1 ping 127.0.0.1 -c 3
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=1)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(self.l[0], self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
-        self.assertTrue("etc" in self.l[0].cmd("ls /"))
-        self.assertTrue("l0-eth0" in self.l[0].cmd("ifconfig -a"))
-        self.assertTrue("0%" in self.l[0].cmd("ping 127.0.0.1 -c 3"))
-        # stop Mininet network
-        self.stopNet()
-
-#@unittest.skip("test")
 class testContainernetDynamicTopologies( simpleTestTopology ):
     """
     Tests to check dynamic topology support which allows to add
     and remove containers to/from a running Mininet network instance.
     """
 
-    def testSimpleAdd( self ):
+    def testRunningAdd( self ):
         """
-        start: l0 -- s0
-        add l1
+        start: vm1 -- s0
+        add vm2
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=1)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=1, use_running=True)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         # start Mininet network
         self.startNet()
-        # check number of running docker containers
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
         self.assertTrue(len(self.net.hosts) == 1)
-        l1 = self.net.addLibvirthost('l1', disk_image=self.image_name)
-        self.net.addLink(l1, self.s[0], params1={"ip": "10.0.0.254/8"})
-        # check number of running hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
+        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        self.l.append(vm2)
+        self.net.addLink(vm2, self.s[0], params1={"ip": "10.0.0.254/8"})
         self.assertTrue(len(self.net.hosts) == 2)
         # check connectivity by using ping
         self.assertTrue(self.net.ping([self.l[0]], manualdestip="10.0.0.254") <= 0.0)
         # stop Mininet network
         self.stopNet()
 
-    #@unittest.skip("test")
-    def testSimpleRemove( self ):
+    def testRunningRemove( self ):
         """
-        start: l0 -- s0 -- l1
-        remove d1
+        start: vm1 -- s0 -- vm2
+        remove vm2
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=2)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=2, use_running=True)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
         # start Mininet network
         self.startNet()
-        # check number of running docker containers
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
         self.assertTrue(len(self.net.hosts) == 2)
         self.assertTrue(len(self.net.links) == 2)
         # check connectivity by using ping
         self.assertTrue(self.net.ping([self.l[0]], manualdestip="10.0.0.2") <= 0.0)
-        # remove d2 on-the-fly
+        # remove vm2 on-the-fly
         self.net.removeLink(node1=self.l[1], node2=self.s[0])
-        self.net.removeDocker(self.l[1])
+        self.net.removeLibvirthost(self.l[1])
         # check number of running hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
         self.assertTrue(len(self.net.hosts) == 1)
         self.assertTrue(len(self.net.links) == 1)
         # check connectivity by using ping (now it should be broken)
@@ -329,14 +257,13 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-    #@unittest.skip("test")
-    def testFullyDynamic( self ):
+    def testRunningDynamic( self ):
         """
         start: s1 -- h1 (for ping tests)
-        add d0, d1, l0, l1
-        remove d0, l0
-        add l3
-        remove d0, l1, l3
+        add vm1, vm2
+        remove vm1
+        add vm3
+        remove vm1, vm3
         """
         # create network
         self.createNet(nswitches=1, nhosts=1)
@@ -348,70 +275,41 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(self.getContainernetLibvirtHosts() == 0)
         self.assertTrue(len(self.net.hosts) == 1)
         self.assertTrue(len(self.net.links) == 1)
-        ### add some hosts: d0, d1, l0, l1
-        d0 = self.net.addDocker('d0', dimage="ubuntu:trusty")
-        self.net.addLink(d0, self.s[0], params1={"ip": "10.0.0.200/8"})
-        d1 = self.net.addDocker('d1', dimage="ubuntu:trusty")
-        self.net.addLink(d1, self.s[0], params1={"ip": "10.0.0.201/8"})
-        l0 = self.net.addLibvirthost('l0', disk_image=self.image_name)
-        self.net.addLink(l0, self.s[0], params1={"ip": "10.0.0.202/8"})
-        l1 = self.net.addLibvirthost('l1', disk_image=self.image_name)
-        self.net.addLink(l1, self.s[0], params1={"ip": "10.0.0.203/8"})
+        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
+        self.net.addLink(vm1, self.s[0], params1={"ip": "10.0.0.202/8"})
+        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        self.net.addLink(vm2, self.s[0], params1={"ip": "10.0.0.203/8"})
         # check number of running hosts
-        self.assertTrue(len(self.getContainernetContainers()) == 2)
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
-        self.assertTrue(len(self.net.hosts) == 5)
-        self.assertTrue(len(self.net.links) == 5)
-        # check connectivity by using ping
-        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.200") <= 0.0)
-        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.201") <= 0.0)
-        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.202") <= 0.0)
-        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.203") <= 0.0)
-        ### remove d0, l0
-        self.net.removeLink(node1=d0, node2=self.s[0])
-        self.net.removeDocker(d0)
-        self.net.removeLink(node1=l0, node2=self.s[0])
-        self.net.removeLibvirthost(l0)
-        # check number of running hosts
-        self.assertTrue(len(self.getContainernetContainers()) == 1)
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
         self.assertTrue(len(self.net.hosts) == 3)
         self.assertTrue(len(self.net.links) == 3)
         # check connectivity by using ping
-        self.assertTrue(self.net.ping(
-               [self.h[0]], manualdestip="10.0.0.200", timeout=1) >= 100.0)
+        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.202") <= 0.0)
+        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.203") <= 0.0)
+        self.net.removeLink(node1=vm1, node2=self.s[0])
+        self.net.removeLibvirthost(vm1)
+        # check number of running hosts
+        self.assertTrue(len(self.net.hosts) == 2)
+        self.assertTrue(len(self.net.links) == 2)
+        # check connectivity by using ping
         self.assertTrue(self.net.ping(
                [self.h[0]], manualdestip="10.0.0.202", timeout=1) >= 100.0)
-        ### add libvirt: l3
-        l3 = self.net.addLibvirthost('l3', disk_image=self.image_name)
-        self.net.addLink(l3, self.s[0], params1={"ip": "10.0.0.204/8"})
-        # check number of running docker containers
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
-        self.assertTrue(len(self.getContainernetContainers()) == 1)
-        self.assertTrue(len(self.net.hosts) == 4)
-        self.assertTrue(len(self.net.links) == 4)
+        ### add libvirt: vm3
+        vm3 = self.net.addLibvirthost('vm3', use_existing_vm=True)
+        self.net.addLink(vm3, self.s[0], params1={"ip": "10.0.0.204/8"})
+        self.assertTrue(len(self.net.hosts) == 3)
+        self.assertTrue(len(self.net.links) == 3)
         # check connectivity by using ping
         self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.204") <= 0.0)
         ### remove all containers
-        self.net.removeLink(node1=l1, node2=self.s[0])
-        self.net.removeLibvirthost(l1)
+        self.net.removeLink(node1=vm2, node2=self.s[0])
+        self.net.removeLibvirthost(vm2)
         self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.204") <= 0.0)
-        self.net.removeLink(node1=l3, node2=self.s[0])
-        self.net.removeLibvirthost(l3)
-        # check connectivity by using ping
-        self.assertTrue(self.net.ping([self.h[0]], manualdestip="10.0.0.201") <= 0.0)
-        self.net.removeLink(node1=d1, node2=self.s[0])
-        self.net.removeDocker(d1)
+        self.net.removeLink(node1=vm3, node2=self.s[0])
+        self.net.removeLibvirthost(vm3)
         # check number of running hosts
-        self.assertTrue(len(self.getContainernetContainers()) == 0)
-        self.assertTrue(self.getContainernetLibvirtHosts() == 0)
         self.assertTrue(len(self.net.hosts) == 1)
         self.assertTrue(len(self.net.links) == 1)
         # check connectivity by using ping
-        self.assertTrue(self.net.ping(
-               [self.h[0]], manualdestip="10.0.0.200", timeout=1) >= 100.0)
-        self.assertTrue(self.net.ping(
-               [self.h[0]], manualdestip="10.0.0.201", timeout=1) >= 100.0)
         self.assertTrue(self.net.ping(
                [self.h[0]], manualdestip="10.0.0.202", timeout=1) >= 100.0)
         self.assertTrue(self.net.ping(
@@ -421,7 +319,6 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-#@unittest.skip("test")
 class testContainernetTCLinks( simpleTestTopology ):
     """
     Tests to check TCLinks together with LibvirtHosts
@@ -429,10 +326,10 @@ class testContainernetTCLinks( simpleTestTopology ):
 
     def testCustomDelay( self ):
         """
-        d0,d1 -- s0 --delay-- d2
+        vm1,vm2 -- s0 --delay-- vm3
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=3)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=3, use_running=True)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
@@ -440,7 +337,6 @@ class testContainernetTCLinks( simpleTestTopology ):
         # start Mininet network
         self.startNet()
         # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 3)
         self.assertTrue(len(self.net.hosts) == 3)
         # check connectivity by using ping: default link
         _, _, res = self.net.pingFull([self.l[0]], manualdestip="10.0.0.2")[0]
@@ -453,10 +349,10 @@ class testContainernetTCLinks( simpleTestTopology ):
 
     def testCustomLoss( self ):
         """
-        d0,d1 -- s0 --loss-- d2
+        vm1,vm2 -- s0 --loss-- vm3
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=3)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=3, use_running=True)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
@@ -464,8 +360,6 @@ class testContainernetTCLinks( simpleTestTopology ):
             self.s[0], self.l[2], cls=TCLink, loss=100)  # 100% loss
         # start Mininet network
         self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 3)
         self.assertTrue(len(self.net.hosts) == 3)
         # check connectivity by using ping: default link
         self.assertTrue(self.net.ping(
@@ -477,136 +371,6 @@ class testContainernetTCLinks( simpleTestTopology ):
         self.stopNet()
 
 
-class testContainernetLibvirtResourceLimitAPI( simpleTestTopology ):
-    """
-    Test to check the resource limitation API of the Docker integration.
-    TODO: Also check if values are set correctly in the guest VMs
-    """
-
-    def testCPUShare( self ):
-        """
-        l0, l1 with CPU share limits
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=0)
-        # add dockers
-        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name, cpu_shares=10)
-        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name, cpu_shares=90)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(l0, self.s[0])
-        self.net.addLink(l1, self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping: default link
-        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
-        # stop Mininet network
-        self.stopNet()
-
-    def testCPULimitCFSBased( self ):
-        """
-        l0, l1 with CPU share limits
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, ndockers=0)
-        # add dockers
-        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
-                                     vcpu_period=50000, vcpu_quota=10000)
-        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
-                                     vcpu_period=50000, vcpu_quota=10000)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(l0, self.s[0])
-        self.net.addLink(l1, self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping: default link
-        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
-        # stop Mininet network
-        self.stopNet()
-
-    def testMemLimits( self ):
-        """
-        l0, l1 with CPU share limits
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, ndockers=0)
-        # add dockers
-        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
-                                     mem_limit=512)
-        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
-                                     mem_limit=768)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(l0, self.s[0])
-        self.net.addLink(l1, self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping: default link
-        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
-        # stop Mininet network
-        self.stopNet()
-
-    def testRuntimeCPULimitUpdate(self):
-        """
-        Test CPU limit update at runtime
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, ndockers=0)
-        # add dockers
-        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
-                                     cpu_shares=50)
-        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name,
-                                     vcpu_period=50000, vcpu_quota=10000)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(l0, self.s[0])
-        self.net.addLink(l1, self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping: default link
-        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
-        # update limits
-        l0.updateCpuLimit(cpu_shares=512)
-        self.assertEqual(l0.resources['cpu_shares'], 512)
-        l1.updateCpuLimit(vcpu_period=50001, vcpu_quota=20000)
-        self.assertEqual(l1.resources['vcpu_period'], 50001)
-        self.assertEqual(l1.resources['vcpu_quota'], 20000)
-        # stop Mininet network
-        self.stopNet()
-
-    def testRuntimeMemoryLimitUpdate(self):
-        """
-        Test mem limit update at runtime
-        """
-        # create network
-        self.createNet(nswitches=1, nhosts=0, ndockers=0)
-        # add dockers
-        l0 = self.net.addLibvirthost('l0', ip='10.0.0.1', disk_image=self.image_name,
-                                     mem_limit=512)
-        l1 = self.net.addLibvirthost('l1', ip='10.0.0.2', disk_image=self.image_name)
-        # setup links (we always need one connection to suppress warnings)
-        self.net.addLink(l0, self.s[0])
-        self.net.addLink(l1, self.s[0])
-        # start Mininet network
-        self.startNet()
-        # check number of running docker containers
-        self.assertTrue(len(self.net.hosts) == 2)
-        # check connectivity by using ping: default link
-        self.assertTrue(self.net.ping([l0, l1]) <= 0.0)
-        # update limits
-        l0.updateMemoryLimit(mem_limit=1500)
-        l1.updateMemoryLimit(mem_limit=512)
-
-        #TODO query libvirt or run cmd inside vm
-        # stop Mininet network
-        self.stopNet()
-
-
-
 if __name__ == '__main__':
+    #setLogLevel('debug')
     unittest.main()
