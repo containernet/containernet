@@ -125,8 +125,6 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.net.addLink(self.h[0], self.l[0])
         # start Mininet network
         self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 1)
         self.assertTrue(len(self.net.hosts) == 2)
         # check connectivity by using ping
         self.assertTrue(self.net.pingAll() <= 0.0)
@@ -143,8 +141,6 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.net.addLink(self.l[0], self.l[1])
         # start Mininet network
         self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
         self.assertTrue(len(self.net.hosts) == 2)
         # check connectivity by using ping
         self.assertTrue(self.net.pingAll() <= 0.0)
@@ -162,8 +158,6 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.net.addLink(self.l[1], self.s[0])
         # start Mininet network
         self.startNet()
-        # check number of hosts
-        self.assertTrue(self.getContainernetLibvirtHosts() == 2)
         self.assertTrue(len(self.net.hosts) == 2)
         # check connectivity by using ping
         self.assertTrue(self.net.pingAll() <= 0.0)
@@ -191,8 +185,6 @@ class testContainernetConnectivity( simpleTestTopology ):
 
         # start Mininet network
         self.startNet()
-        # check number of running docker containers
-        self.assertTrue(self.getContainernetLibvirtHosts() == 3)
         self.assertTrue(len(self.net.hosts) == 3)
         # check connectivity by using ping
         self.assertTrue(self.net.ping([self.l[0], self.l[1]]) <= 0.0)

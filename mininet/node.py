@@ -1635,7 +1635,7 @@ class LibvirtHost( Host ):
         try:
             self.domain.attachDevice(interface_xml)
         except libvirt.libvirtError as e:
-            error("Could not attach the interface for the management network to node %s. Error: %s\n" %
+            error("Could not attach the management interface to node %s. Error: %s\n" %
                   (self.domain_name, e))
             raise Exception("Error while attaching the management interface.")
 
@@ -1650,8 +1650,8 @@ class LibvirtHost( Host ):
         try:
             self.domain.detachDevice(interface_xml)
         except libvirt.libvirtError as e:
-            error("Could not detach the interface for the management network from node %s. Error: %s\n" %
-                  (self.name, e))
+            error("Could not detach the management interface from domain %s. Error: %s\n" %
+                  (self.domain_name, e))
 
     def terminate( self ):
         """ Stop libvirt host """
