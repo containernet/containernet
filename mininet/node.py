@@ -1116,7 +1116,7 @@ INTERFACE_XML_MGMT = """
         <interface type="network">
             <mac address="{mgmt_mac}"/>
             <source network="{mgmt_name}"/>
-            <address bus="0x00" domain="0x0000" function="0x0" slot="0x08" type="pci"/>
+            <address bus="0x00" domain="0x0000" function="0x0" slot="{mgmt_slot}" type="pci"/>
         </interface>
         """
 DOMAIN_XML = """
@@ -1197,6 +1197,8 @@ class LibvirtHost( Host ):
             'cpu_shares': None,
             'numcores': kwargs['vcpu'],
         })
+
+        kwargs.setdefault('mgmt_pci_slot', '0x08')
 
         self.resources = kwargs['resources']
 
@@ -1625,19 +1627,26 @@ class LibvirtHost( Host ):
 
     def attach_management_network(self, **kwargs):
         info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
-        interface_xml = INTERFACE_XML_MGMT.format(mgmt_mac=kwargs['mgmt_mac'], mgmt_name=kwargs['mgmt_network'])
+        interface_xml = INTERFACE_XML_MGMT.format(
+            mgmt_mac=kwargs['mgmt_mac'],
+            mgmt_name=kwargs['mgmt_network'],
+            mgmt_slot=kwargs['mgmt_pci_slot']
+        )
         try:
             self.domain.attachDevice(interface_xml)
         except libvirt.libvirtError as e:
             error("Could not attach the interface for the management network to node %s. Error: %s\n" %
-                  (self.name, e))
+                  (self.domain_name, e))
             raise Exception("Error while attaching the management interface.")
 
     def detach_management_network(self):
         info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
              self.domain_name)
-        interface_xml = INTERFACE_XML_MGMT.format(mgmt_mac=self.params['mgmt_mac'],
-                                                  mgmt_name=self.params['mgmt_network'])
+        interface_xml = INTERFACE_XML_MGMT.format(
+            mgmt_mac=self.params['mgmt_mac'],
+            mgmt_name=self.params['mgmt_network'],
+            mgmt_slot=self.params['mgmt_pci_slot']
+        )
         try:
             self.domain.detachDevice(interface_xml)
         except libvirt.libvirtError as e:
