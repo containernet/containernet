@@ -1116,6 +1116,7 @@ INTERFACE_XML_MGMT = """
         <interface type="network">
             <mac address="{mgmt_mac}"/>
             <source network="{mgmt_name}"/>
+            <address bus="0x00" domain="0x0000" function="0x0" slot="0x08" type="pci"/>
         </interface>
         """
 DOMAIN_XML = """
