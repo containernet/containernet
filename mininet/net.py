@@ -992,7 +992,7 @@ MANAGEMENT_NETWORK_XML = """
         <ip address="{ip}" netmask="{netmask}">
             <dhcp/>
         </ip>
-        <domain name="mininet"/>
+        <domain name="mininet.local" localOnly="yes"/>
     </network>
 """
 

@@ -12,6 +12,12 @@ from os import O_NONBLOCK
 import os
 from functools import partial
 
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 # Command execution support
 
 def run( cmd ):
