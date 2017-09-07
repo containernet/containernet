@@ -463,7 +463,7 @@ def fixLimits():
         sysctlTestAndSet( 'kernel.pty.max', 20000 )
     # pylint: disable=broad-except
     except Exception:
-        warn( "*** Error setting resource limits. "
+        warn( "*** Warning: setting resource limits. "
               "Mininet's performance may be affected.\n" )
     # pylint: enable=broad-except
 
