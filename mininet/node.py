@@ -1196,15 +1196,12 @@ class LibvirtHost( Host ):
         kwargs.setdefault('snapshot_disk_image_path', None)
 
         kwargs.setdefault('resources', {
-            'vcpu_quota': -1,
-            'vcpu_period': None,
-            'cpu_shares': None,
-            'numcores': kwargs['vcpu'],
+            'cpu_quota': -1,
+            'cpu_period': -1,
+            'cpu_shares': -1,
         })
 
         kwargs.setdefault('mgmt_pci_slot', '0x08')
-
-        self.resources = kwargs['resources']
 
         self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
         if self.lv_conn is None:
@@ -1228,6 +1225,8 @@ class LibvirtHost( Host ):
         self.maxCpus = 1
 
         self.use_existing_vm = use_existing_vm
+        # set resources to empty dict
+        self.resources = {}
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1237,16 +1236,8 @@ class LibvirtHost( Host ):
         if not self.use_existing_vm:
             if kwargs['domain_xml'] is not None:
                 self.domain_xml = kwargs['domain_xml']
-                # TODO write this check with minidom
-                #self.domain_tree = etree.XML(self.domain_xml)
-                #if "title" not in list(self.domain_tree.getroot()):
-                #    etree.SubElement(self.domain_tree.getroot(), "title").text = "com.containernet - %s" % self.domain_name
-                #else:
-                #    self.domain_tree.getroot().get('title').text = "com.containernet - %s" % self.domain_name
-
                 if not self.check_domain(**kwargs):
                     warn("LibvirtHost.__init__: Provided domain XML has errors!\n")
-
             else:
                 self.build_domain(**kwargs)
 
@@ -1308,7 +1299,7 @@ class LibvirtHost( Host ):
 
         if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
             self.domain.resume()
-        self.update_resources()
+        self.update_resources(**kwargs['resources'])
 
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
@@ -1368,7 +1359,7 @@ class LibvirtHost( Host ):
         self.domain_xml = domain
 
         if not self.check_domain(**params):
-            error("LibvirtHost.buildDomain: Domain '%s' failed validity checks\n" % self.name)
+            error("LibvirtHost.buildDomain: Domain '%s' failed validity checks\n" % self.domain_name)
             return False
 
     def check_domain(self, **kwargs):
@@ -1666,9 +1657,13 @@ class LibvirtHost( Host ):
         else:
             self.detach_management_network()
             if self.params['snapshot']:
-                info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
-                self.domain.revertToSnapshot(self.lv_domain_snapshot)
-                self.lv_domain_snapshot.delete()
+                try:
+                    info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
+                    self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+                    self.lv_domain_snapshot.delete()
+                except libvirt.libvirtError as e:
+                    error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
+                          (self.domain_name, e))
             else:
                 self.domain.shutdown()
                 info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
@@ -1686,38 +1681,49 @@ class LibvirtHost( Host ):
         resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
         info("{1}: update resources {0}\n".format(resources_filtered, self.domain_name))
         self.updateCpuLimit(**kwargs)
+        self.updateMemoryLimit(**kwargs)
 
-    def updateCpuLimit(self, vcpu_quota=-1, vcpu_period=-1, cpu_shares=-1, numcores=None, **kwargs):
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None, **kwargs):
         """
-        Update CPU resource limitations using the libvirt API.
-
+        Update CPU resource limitations.
+        This method allows to update resource limitations at runtime by bypassing the Docker API
+        and directly manipulating the cgroup options.
         Args:
-            cpu_quota: vcpu_quota
-            cpu_period: vcpu_period
-            cpu_shares: cpu_shares
-            numcores: numer of usuable cores
+            cpu_quota: cfs quota us
+            cpu_period: cfs period us
+            cpu_shares: cpu shares
+            cores: specifies which cores should be accessible for the container e.g. "0-2,16" represents
+                Cores 0, 1, 2, and 16
         """
-        # TODO rework this to use self.domain.schedulerParameters() self.resources should reflect that
         params = {}
-        if vcpu_quota > 0:
-            params['vcpu_quota'] = vcpu_quota
-        if vcpu_period > 0:
-            params['vcpu_period'] = vcpu_period
-        if cpu_shares > 0:
+        if cpu_quota != -1:
+            params['vcpu_quota'] = cpu_quota
+        if cpu_period != -1:
+            params['vcpu_period'] = cpu_period
+        if cpu_shares != -1:
             params['cpu_shares'] = cpu_shares
-        # todo look at CPUTUNE in libvirt for cpu pinning etc.
         try:
             if len(params) > 0:
                 self.domain.setSchedulerParameters(params)
-                self.resources.update(params)
-            if numcores is not None:
-                if self.maxCpus >= numcores:
-                    self.domain.setVcpusFlags(numcores)
-                else:
-                    warn("LibvirtHost.updateCpuLimit: Can not set numcores to %d as the domain only allows %d cores.\n"
-                         % (numcores, self.maxCpus))
+            if cores is not None:
+                maxcpus = len(self.domain.emulatorPinInfo())
+                mapping = [0 for cpu in xrange(0, maxcpus)]
+
+                for inp in cores.split(","):
+                    if "-" in inp:
+                        start, end = inp.split("-")
+                        for cpu in xrange(int(start), int(end) + 1):
+                            mapping[cpu] = 1
+                    else:
+                        mapping[int(inp)] = 1
+
+                debug("LibvirtHost.updateCpuLimit: Setting emulatorpinning to %s for node %s.\n" % (str(mapping),
+                                                                                                    self.name))
+                self.domain.pinEmulator(tuple(mapping))
+                params['cores'] = cores
+            self.resources.update(params)
         except libvirt.libvirtError as e:
-            error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
+            error("LibvirtHost.updateCpuLimit: Error setting CPU limits for %s. Error: %s\n" % (self.name, e))
 
     def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1, **kwargs):
         """
@@ -1725,14 +1731,15 @@ class LibvirtHost( Host ):
         This method allows to update resource limitations at runtime
 
         Args:
-            mem_limit: memory limit in megabytes
+            mem_limit: memory limit depending on the unit chosen in domain_xml !
             memswap_limit: swap limit in megabytes
 
         """
         try:
             if mem_limit != -1:
-                self.domain.setMemoryFlags(mem_limit)
-                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d MB.\n" % (self.name, mem_limit))
+                self.domain.setMemoryFlags(mem_limit, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+                self.resources['mem_limit'] = mem_limit
+                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d.\n" % (self.name, mem_limit))
 
             if memswap_limit != -1:
                 error("LibvirtHost.updateMemoryLimit: Setting swap is not yet implemented.\n")
