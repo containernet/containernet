@@ -17,7 +17,8 @@
        - iptables
        - software-properties-common
        - qemu-kvm
-       - libvirt0
+       - libvirt-bin
+       - libvirt-dev
        - python-paramiko
 
    - name: install Docker CE repos (1/3)
