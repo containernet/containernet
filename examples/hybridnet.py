@@ -18,25 +18,23 @@ def topology():
 
     net = Containernet(controller=Controller)
 
+    info('*** Adding switch\n')
+    s1 = net.addSwitch('s1', batch=True)
     info('*** Adding controller\n')
     net.addController('c0')
 
     info('*** Adding hosts\n')
     h1 = net.addHost('h1')
     d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
-    v1 = net.addLibvirthost("v1", disk_image="/srv/images/test-vm1.qcow2")
-
-    info('*** Adding switch\n')
-    s1 = net.addSwitch('s1')
-
-    info('*** Creating links\n')
-    net.addLink(h1, s1)
-    net.addLink(v1, s1)
-    net.addLink(d1, s1)
-    v1.setMAC('00:AA:BB:CC:DD:EF')
+    v1 = net.addLibvirthost("vm1", disk_image="/srv/images/ubuntu16.04.qcow2")
 
     info('*** Starting network\n')
     net.start()
+
+    info('*** Creating links\n')
+    net.addLink(h1, s1)
+    net.addLink(d1, s1)
+    net.addLink(v1, s1)
 
     info('*** Running CLI\n')
     CLI(net)
@@ -45,5 +43,5 @@ def topology():
     net.stop()
 
 if __name__ == '__main__':
-    setLogLevel('debug')
+    setLogLevel('info')
     topology()

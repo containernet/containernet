@@ -1043,7 +1043,7 @@ class Containernet( Mininet ):
         Libvirt-based host.
         """
         if not LIBVIRT_AVAILABLE:
-            error("No libvirt functionality available. Please install libvirt-python and lxml.\n")
+            error("No libvirt functionality available. Please install the required modules!\n")
             return False
         if self.libvirtManagementNetwork is None:
             self.lv_conn = libvirt.open(self.cmd_endpoint)

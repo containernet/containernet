@@ -36,7 +36,7 @@
      pip: name=pytest state=latest
    
    - name: install libvirt-python
-     pip: name=pytest state=latest
+     pip: name=libvirt-python state=latest
 
    - name: install docker-py
      pip: name=docker version=2.0.2
