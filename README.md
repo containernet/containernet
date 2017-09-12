@@ -58,7 +58,7 @@ Wait (and have a coffee) ...
 Start example topology with some empty Docker containers connected to the network.
 
 * `cd containernet`
-* run: `sudo python examples/dockerhosts.py`
+* run: `sudo python examples/containernet_example.py`
 * use: `containernet> d1 ifconfig` to see config of container d1
 
 ### Topology example
@@ -89,6 +89,16 @@ git clone https://github.com/containernet/containernet.git
 cd containernet
 vagrant up
 vagrant ssh
+```
+
+### Nested Docker Deployment
+Containernet can be executed within a privileged container (nested container deployment).
+
+```bash
+# build the container
+docker build -t containernet-img .
+# run the container
+docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet-img /bin/bash
 ```
 
 ### Contact
