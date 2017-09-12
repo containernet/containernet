@@ -117,7 +117,7 @@ try:
     LIBVIRT_AVAILABLE = True
 except ImportError:
     info("No libvirt functionality present. Can not deploy virtual machines.")
-    info("Install libvirt-python to enable virtual machine emulation.")
+    info("Install libvirt-python as well as python-paramiko to enable virtual machine emulation.")
 
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0d1"

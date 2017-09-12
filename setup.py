@@ -41,10 +41,7 @@ setup(
         'urllib3',
         'docker==2.0.2',
         'python-iptables',
-        'pytest',
-        'libvirt-python',
-        'xmltodict'
-
+        'pytest'
     ],
     scripts=scripts,
 )

@@ -16,6 +16,9 @@
        - python-pip
        - iptables
        - software-properties-common
+       - qemu-kvm
+       - libvirt0
+       - python-paramiko
 
    - name: install Docker CE repos (1/3)
      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -30,6 +33,9 @@
      apt: name=docker-ce state=installed
 
    - name: install pytest
+     pip: name=pytest state=latest
+   
+   - name: install libvirt-python
      pip: name=pytest state=latest
 
    - name: install docker-py
