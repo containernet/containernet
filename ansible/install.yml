@@ -20,6 +20,13 @@
        - libvirt-bin
        - libvirt-dev
        - python-paramiko
+       - python-libvirt
+
+   - name: disable apparmor libvirt profile (to allow attaching of interfaces to running vms)
+     file: src=/etc/apparmor.d/usr.sbin.libvirtd dest=/etc/apparmor.d/disable/usr.sbin.libvirtd state=link
+
+   - name: unload apparmor libvirt profile
+     shell: apparmor_parser -R usr.sbin.libvirtd
 
    - name: install Docker CE repos (1/3)
      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -36,9 +43,6 @@
    - name: install pytest
      pip: name=pytest state=latest
    
-   - name: install libvirt-python
-     pip: name=libvirt-python state=latest
-
    - name: install docker-py
      pip: name=docker version=2.0.2
 
