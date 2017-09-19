@@ -1016,6 +1016,7 @@ class Containernet( Mininet ):
         self.mgmt_dict.setdefault("mac", macColonHex(ipParse(self.mgmt_dict['ip'])))
         # keep track of how many hosts we added to the mgmt net
         self.allocated_dhcp_ips = 1
+        self.libvirt = LIBVIRT_AVAILABLE
         if LIBVIRT_AVAILABLE:
             libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
 
@@ -1036,6 +1037,12 @@ class Containernet( Mininet ):
         Wrapper for removeHost. Just to be complete.
         """
         return self.removeHost(name, **params)
+
+    def addHost(self, name, cls=None, **params):
+        if cls is LibvirtHost:
+            return self.addLibvirthost(name, cls=cls, **params)
+        else:
+            return Mininet.addHost(self, name, cls=cls, **params)
 
     def addLibvirthost( self, name, cls=LibvirtHost, **params ):
         """
@@ -1082,8 +1089,7 @@ class Containernet( Mininet ):
                   " Error: %s\n" % (name, e))
             return False
 
-
-        return self.addHost( name, cls=cls, **params)
+        return Mininet.addHost(self, name, cls=cls, **params)
 
 
     def removeLibvirthost( self, name, **params):
