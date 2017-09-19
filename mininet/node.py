@@ -1184,12 +1184,12 @@ class LibvirtHost( Host ):
         })
         kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
         kwargs.setdefault('memory', {
-            'unit': 'KiB',
-            'value': '1048576'
+            'unit': 'MiB',
+            'value': '1024'
         })
         kwargs.setdefault('currentMemory', {
-            'unit': 'KiB',
-            'value': '1048576'
+            'unit': 'MiB',
+            'value': '1024'
         })
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
@@ -1215,18 +1215,24 @@ class LibvirtHost( Host ):
         self.domain_tree = None
         # XML serialization of the domain_tree
         self.domain_xml = None
-        # domain name with prefix
-        self.domain_name = "%s.%s" % ("mn", name)
-        # contains the lv domain snapshot, if we created one
+        if use_existing_vm:
+            self.domain_name = name
+        else:
+            # domain name with prefix
+            self.domain_name = "%s.%s" % ("mn", name)
+        # contains the libvirt domain snapshot, if we created one
         self.lv_domain_snapshot = None
         # keep track of our main ssh session
         self.ssh_session = paramiko.SSHClient()
         self.shell = None
-        self.maxCpus = 1
+        self.maxCpus = int(self.lv_conn.getCPUMap()[0])
 
         self.use_existing_vm = use_existing_vm
         # set resources to empty dict
         self.resources = {}
+
+        # libvirt will print error messages if we don't handle them
+        libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1235,9 +1241,14 @@ class LibvirtHost( Host ):
 
         if not self.use_existing_vm:
             if kwargs['domain_xml'] is not None:
-                self.domain_xml = kwargs['domain_xml']
+                # check if we got a path to a file instead of a whole xml representation
+                if os.path.isfile(kwargs['domain_xml']):
+                    with open(kwargs['domain_xml'], 'r') as xml_file:
+                        self.domain_xml = xml_file.read()
+                else:
+                    self.domain_xml = kwargs['domain_xml']
                 if not self.check_domain(**kwargs):
-                    warn("LibvirtHost.__init__: Provided domain XML has errors!\n")
+                    error("LibvirtHost.__init__: Provided domain XML has errors!\n")
             else:
                 self.build_domain(**kwargs)
 
@@ -1245,7 +1256,6 @@ class LibvirtHost( Host ):
             debug("image: %s\n" % str(self.lv_disk_image))
             debug("kwargs: %s\n" % str(kwargs))
         else:
-            self.domain_name = name
             try:
                 self.domain = self.lv_conn.lookupByName(self.domain_name)
                 self.domain_xml = self.getDomainXML()
@@ -1257,9 +1267,6 @@ class LibvirtHost( Host ):
             if not self.domain.isActive():
                 # launch but immediately pause the domain if it is not running yet
                 self.domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
-
-        # libvirt will print error messages if we don't handle them here
-        libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
 
         # instantiate the domain in libvirt
         if self.domain is None:
@@ -1324,17 +1331,6 @@ class LibvirtHost( Host ):
 
     def build_domain(self, **params):
         # create a host config from params
-        # TODO check all params
-
-        caps_xml = minidom.parseString(self.lv_conn.getDomainCapabilities(params['emulator'],
-                                           params['os']['type']['arch'],
-                                           params['os']['type']['machine'],
-                                           params['type']))
-        for item in caps_xml.getElementsByTagName('vcpu'):
-            if item.getAttribute('max') is not None:
-                self.maxCpus = int(item.getAttribute('max'))
-
-        # todo check capabilities for ACPI ! else disable hotplugging of interfaces
         domain = DOMAIN_XML.format(
             type=params['type'],
             name=self.domain_name,
@@ -1370,9 +1366,14 @@ class LibvirtHost( Host ):
         except libvirt.libvirtError:
             # domain does not yet exist. everything is fine
             pass
-        debug("LibvirtHost.check_domain: XML Representation of domain:\n%s\n" % self.domain_xml)
 
-        # todo check domain against capabilities of the host
+        # check if acpi is present, as we need it for interface attachment / vcpu management
+        dom = minidom.parseString(self.domain_xml)
+        if not dom.getElementsByTagName("acpi"):
+            error("LibvirtHost.check_domain: Domain '%s' does not have acpi enabled.\n" % self.domain_name)
+            return False
+
+        debug("LibvirtHost.check_domain: XML Representation of domain:\n%s\n" % self.domain_xml)
 
         return True
 
@@ -1559,7 +1560,7 @@ class LibvirtHost( Host ):
         self.waiting = True
 
     def getPid(self):
-        """Gets the pid of the libvirt process running the host."""
+        """Gets the pid of the libvirt process running the mininet host."""
 
         # iterate over all system processes and look for one containing the uuid of the domain in the commandline
         # I don't know if this is completely foolproof for all hypervisors that libvirt supports
@@ -1600,7 +1601,6 @@ class LibvirtHost( Host ):
     def pexec( self, *args, **kwargs ):
         """Execute a command using popen
            returns: out, err, exitcode"""
-        # TODO move this into new function
         chan = self.ssh_session.get_transport().open_session()
         chan.exec_command(list2cmdline(args))
         exitcode = chan.recv_exit_status()
@@ -1614,6 +1614,7 @@ class LibvirtHost( Host ):
         return out, err, exitcode
 
     def remove_snapshot(self):
+        """Removes the snapshot associated with the LibvirtHost."""
         # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
         if os.path.isfile(self.params['snapshot_disk_image_path']):
             os.remove(self.params['snapshot_disk_image_path'])
@@ -1621,6 +1622,7 @@ class LibvirtHost( Host ):
             os.remove("%s.mem" % self.params['snapshot_disk_image_path'])
 
     def attach_management_network(self, **kwargs):
+        """Attaches an interfaces to the LibvirtHost. This interfaces is used to SSH into the machine."""
         info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
         interface_xml = INTERFACE_XML_MGMT.format(
             mgmt_mac=kwargs['mgmt_mac'],
@@ -1635,6 +1637,7 @@ class LibvirtHost( Host ):
             raise Exception("Error while attaching the management interface.")
 
     def detach_management_network(self):
+        """Detaches the previously attached management interface."""
         info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
              self.domain_name)
         interface_xml = INTERFACE_XML_MGMT.format(
@@ -1686,14 +1689,17 @@ class LibvirtHost( Host ):
     def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None, **kwargs):
         """
         Update CPU resource limitations.
-        This method allows to update resource limitations at runtime by bypassing the Docker API
-        and directly manipulating the cgroup options.
+        This method allows to update resource limitations at runtime in the same fashion as docker containers.
+        For more control use libvirt directly.
+        You can not disable the first core on a running VM!
         Args:
             cpu_quota: cfs quota us
             cpu_period: cfs period us
             cpu_shares: cpu shares
-            cores: specifies which cores should be accessible for the container e.g. "0-2,16" represents
-                Cores 0, 1, 2, and 16
+            cores: maps vcpus to physical cores, e.g. {0: "1", 1: "2-3"} maps vcpu 0 to cpu 1 and vcpu 1 to cpu 2 and 3.
+                    Offline cores will be brought online. Cores not specified will be set offline.
+                    if just a string is used, vcpu 0 will be pinned to the specified cores.
+
         """
         params = {}
         if cpu_quota != -1:
@@ -1706,24 +1712,39 @@ class LibvirtHost( Host ):
             if len(params) > 0:
                 self.domain.setSchedulerParameters(params)
             if cores is not None:
-                maxcpus = len(self.domain.emulatorPinInfo())
-                mapping = [0 for cpu in xrange(0, maxcpus)]
+                offlinecores = list(range(0, self.maxCpus))
+                if isinstance(cores, basestring):
+                    cores = {0: cores}
+                for vcpu_nr, vcpu_map in cores.items():
+                    mapping = [0] * self.maxCpus
+                    offlinecores.remove(vcpu_nr)
 
-                for inp in cores.split(","):
-                    if "-" in inp:
-                        start, end = inp.split("-")
-                        for cpu in xrange(int(start), int(end) + 1):
-                            mapping[cpu] = 1
-                    else:
-                        mapping[int(inp)] = 1
+                    for inp in vcpu_map.split(","):
+                        if "-" in inp:
+                            start, end = inp.split("-")
+                            for cpu in range(int(start), int(end) + 1):
+                                mapping[cpu] = 1
+                        else:
+                            mapping[int(inp)] = 1
 
-                debug("LibvirtHost.updateCpuLimit: Setting emulatorpinning to %s for node %s.\n" % (str(mapping),
-                                                                                                    self.name))
-                self.domain.pinEmulator(tuple(mapping))
+                    try:
+                        self.domain.setVcpu(str(vcpu_nr), libvirt.VIR_VCPU_RUNNING)
+                    except libvirt.libvirtError:
+                        pass
+
+                    self.domain.pinVcpu(vcpu_nr, tuple(mapping))
+                    debug("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (vcpu_nr, str(mapping)))
+
+                for vcpu in offlinecores:
+                    try:
+                        self.domain.setVcpu(str(vcpu), libvirt.VIR_VCPU_OFFLINE)
+                    except libvirt.libvirtError:
+                        pass
+
                 params['cores'] = cores
             self.resources.update(params)
         except libvirt.libvirtError as e:
-            error("LibvirtHost.updateCpuLimit: Error setting CPU limits for %s. Error: %s\n" % (self.name, e))
+            error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
 
     def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1, **kwargs):
         """
