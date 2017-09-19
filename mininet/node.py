@@ -1654,7 +1654,11 @@ class LibvirtHost( Host ):
     def terminate( self ):
         """ Stop libvirt host """
         if not self.use_existing_vm:
-            self.domain.destroy()
+            try:
+                self.domain.destroy()
+            except libvirt.libvirtError as e:
+                warn("LibvirtHost.terminate: Could not terminate the domain %s, maybe its already destroyed? %s" %
+                     (self.domain_name, e))
             if self.params['snapshot']:
                 self.remove_snapshot()
         else:
@@ -1668,8 +1672,12 @@ class LibvirtHost( Host ):
                     error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
                           (self.domain_name, e))
             else:
-                self.domain.shutdown()
-                info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
+                try:
+                    info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
+                    self.domain.shutdown()
+                except libvirt.libvirtError as e:
+                    warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe its already offline? %s" %
+                         (self.domain_name, e))
 
         self.cleanup()
 
