@@ -1613,7 +1613,7 @@ class LibvirtHost( Host ):
 
         return out, err, exitcode
 
-    def remove_snapshot(self):
+    def remove_snapshot_file(self):
         """Removes the snapshot associated with the LibvirtHost."""
         # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
         if os.path.isfile(self.params['snapshot_disk_image_path']):
@@ -1660,7 +1660,7 @@ class LibvirtHost( Host ):
                 warn("LibvirtHost.terminate: Could not terminate the domain %s, maybe its already destroyed? %s" %
                      (self.domain_name, e))
             if self.params['snapshot']:
-                self.remove_snapshot()
+                self.remove_snapshot_file()
         else:
             self.detach_management_network()
             if self.params['snapshot']:
