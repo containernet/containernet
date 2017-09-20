@@ -1720,9 +1720,32 @@ class LibvirtHost( Host ):
             if len(params) > 0:
                 self.domain.setSchedulerParameters(params)
             if cores is not None:
-                offlinecores = list(range(0, self.maxCpus))
+                # if someone is calling this method like the docker version, then just map the single vcpu to
+                # the specified cores, even though this will not lead to the same behaviour
                 if isinstance(cores, basestring):
+                    info("LibvirtHost.updateCpuLimit: "
+                         "This method does not behave the same way as with docker containers."
+                         "Even if you specify more than one core, the guest will not be able to use multiple cores.\n")
                     cores = {0: cores}
+
+                if 0 not in cores:
+                    warn("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
+                         "This will not work! Keeping it online.\n")
+                    cores[0] = "0-%d" % (int(self.maxCpus) - 1)
+
+                # check if set_vcpu method is avaiable
+                set_vcpu = getattr(self.domain, "setVcpu", None)
+                if not set_vcpu:
+                    warn("LibvirtHost.updateCpuLimit: You cannot bring up specific cores with this version of libvirt. "
+                         "Upgrade to a newer version if you need this feature. "
+                         "Setting number of Vcpus instead of managing specific cores.\n")
+                    info("LibvirtHost.updateCpuLimit: Setting number of Vcpus to %d\n" % len(cores))
+                    self.domain.setVcpus(len(cores))
+
+                # initialize a list with all cores marked as offline
+                offlinecores = list(range(0, self.maxCpus))
+
+                # calculate the mapping and if available bring up the vcpu
                 for vcpu_nr, vcpu_map in cores.items():
                     mapping = [0] * self.maxCpus
                     offlinecores.remove(vcpu_nr)
@@ -1735,21 +1758,31 @@ class LibvirtHost( Host ):
                         else:
                             mapping[int(inp)] = 1
 
-                    try:
-                        self.domain.setVcpu(str(vcpu_nr), libvirt.VIR_VCPU_RUNNING)
-                    except libvirt.libvirtError:
-                        pass
+                    if set_vcpu:
+                        try:
+                            info("LibvirtHost.updateCpuLimit: Setting core %d state to running.\n" % vcpu_nr)
+                            set_vcpu(str(vcpu_nr), libvirt.VIR_VCPU_RUNNING)
+                        except libvirt.libvirtError:
+                            pass
 
-                    self.domain.pinVcpu(vcpu_nr, tuple(mapping))
-                    debug("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (vcpu_nr, str(mapping)))
-
-                for vcpu in offlinecores:
                     try:
-                        self.domain.setVcpu(str(vcpu), libvirt.VIR_VCPU_OFFLINE)
+                        info("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (vcpu_nr, str(mapping)))
+                        self.domain.pinVcpu(vcpu_nr, tuple(mapping))
                     except libvirt.libvirtError:
-                        pass
+                        error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (vcpu_nr, str(mapping)))
+
+                # bring down the not mentioned cores, but only if set_vcpu is available
+                # if set_vcpu is unavailable this was already done by setVcpus
+                if set_vcpu:
+                    for vcpu_nr in offlinecores:
+                        try:
+                            debug("LibvirtHost.updateCpuLimit: Setting core %d state to offline.\n" % vcpu_nr)
+                            self.domain.setVcpu(str(vcpu_nr), libvirt.VIR_VCPU_OFFLINE)
+                        except libvirt.libvirtError:
+                            pass
 
                 params['cores'] = cores
+
             self.resources.update(params)
         except libvirt.libvirtError as e:
             error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
