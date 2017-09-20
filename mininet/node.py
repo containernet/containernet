@@ -1207,7 +1207,7 @@ class LibvirtHost( Host ):
         if self.lv_conn is None:
             error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
 
-        self.lv_disk_image = disk_image
+        self.disk_image = disk_image
 
         # domain object we get from libvirt
         self.domain = None
@@ -1253,7 +1253,7 @@ class LibvirtHost( Host ):
                 self.build_domain(**kwargs)
 
             debug("Created Domain object: %s\n" % self.domain_name)
-            debug("image: %s\n" % str(self.lv_disk_image))
+            debug("image: %s\n" % str(self.disk_image))
             debug("kwargs: %s\n" % str(kwargs))
         else:
             try:
@@ -1276,7 +1276,7 @@ class LibvirtHost( Host ):
             if kwargs['snapshot_disk_image_path'] is None:
                 # find a safe new path within the directory
                 incr = 1
-                dst_image_path = "%s.mininet.snap" % self.lv_disk_image
+                dst_image_path = "%s.mininet.snap" % self.disk_image
                 if os.path.isfile(dst_image_path):
                     while os.path.isfile("%s.%s" % (dst_image_path, incr)):
                         incr += 1
@@ -1289,8 +1289,8 @@ class LibvirtHost( Host ):
                 info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" %
                      (self.domain_name))
             else:
-                snapshot_xml = SNAPSHOT_XML.format(image=self.lv_disk_image,
-                                               path=kwargs['snapshot_disk_image_path'])
+                snapshot_xml = SNAPSHOT_XML.format(image=self.disk_image,
+                                                   path=kwargs['snapshot_disk_image_path'])
                 info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
                      (self.domain_name, kwargs['snapshot_disk_image_path']))
 
@@ -1345,7 +1345,7 @@ class LibvirtHost( Host ):
             machine=params['os']['type']['machine'],
             ostype=params['os']['_text'],
             emulator=params['emulator'],
-            disk_image=self.lv_disk_image,
+            disk_image=self.disk_image,
             disk_driver=params['disk']['driver']['name'],
             disk_type=params['disk']['driver']['type'],
             disk_target_dev=params['disk']['target']['dev']
