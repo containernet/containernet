@@ -1469,7 +1469,7 @@ class LibvirtHost( Host ):
            Creates a macvtap device on the host machine and then adds the interface to the node.
            """
 
-        # well "predictable" network interface names are not available on every possible domain
+        # predictable network interface names are not available on every possible domain
         # so we use a different strategy
         # enumerate all interfaces currently available on the node first
         interface_list_cmd = "ls --color=never /sys/class/net"
@@ -1500,16 +1500,8 @@ class LibvirtHost( Host ):
         # rename the interface
         self.cmd("ip link set %s name %s" % (str(new_intf), intf))
 
-        if port is None:
-            port = self.newPort()
-        self.intfs[port] = intf
-        self.ports[intf] = port
-        self.nameToIntf[intf.name] = intf
-        debug('added intf %s (%d) to node %s\n' % (
-            intf, port, self.name))
-        if self.inNamespace:
-            debug('moving', intf, 'into namespace for', self.name, '\n')
-            moveIntfFn(intf.name, self)
+        # let the hostobject do the bookkeeping
+        Node.addIntf(self, intf, port, moveIntfFn)
 
     def monitor( self, timeoutms=None, findPid=True ):
         """Monitor and return the output of a command.
@@ -1554,7 +1546,6 @@ class LibvirtHost( Host ):
             # print ^A{pid}\n so monitor() can set lastPid
             cmd += ' printf "\\001%d\\012" $! '
 
-        #cmd += ";printf \\\\177"
         debug("LibvirtHost.sendCmd: Sending command %s over ssh.\n" % cmd)
         self.write( cmd + '\n' )
         self.waiting = True
