@@ -928,14 +928,14 @@ class Docker ( Host ):
         """
         # filter by repository
         images = self.dcli.images(repo)
-
         imageName = "%s:%s" % (repo, tag)
 
         for image in images:
             if 'RepoTags' in image:
+                if image['RepoTags'] is None:
+                    return False
                 if imageName in image['RepoTags']:
                     return True
-
         return False
 
     def _pull_image(self, repository, tag):
