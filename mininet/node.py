@@ -1762,6 +1762,13 @@ class LibvirtHost( Host ):
                     except libvirt.libvirtError:
                         error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (vcpu_nr, str(mapping)))
 
+                    # pin the emulator to the same cores to make overhead visible
+                    try:
+                        debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(mapping))
+                        self.domain.pinEmulator(tuple(mapping), libvirt.VIR_VCPU_OFFLINE)
+                    except libvirt.libvirtError:
+                        pass
+
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus
                 if set_vcpu:
