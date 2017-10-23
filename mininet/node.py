@@ -1569,10 +1569,43 @@ class LibvirtHost( Host ):
                 return dirname
 
     def mountPrivateDirs( self ):
-        """ Mounting private dirs does not make sense in the VM context.
-            If you specify privateDirs then Containernet will copy the data out of the VM to the host filesystem.
+        """ Mounting private dirs will copy files from the host into the guest filesystem.
+            The privateDirs list is interpreted as follows:
+            tuple( vmpath, hostpath)
         """
-        pass
+        assert not isinstance( self.privateDirs, basestring )
+        # ignore everything here if no privateDirs are specified
+        if not len(self.privateDirs):
+            return
+
+        info("LibvirtHost.mountPrivateDirs: Copying data to guest %s filesystem.\n" % self.name)
+        # try to open SFTP
+        try:
+            sftp = self.ssh_session.open_sftp()
+        except:
+            error("LibvirtHost.mountPrivateDirs: Could not open SFTP connection for Host %s.\n" % self.name)
+            return
+
+        for directory in self.privateDirs:
+            if isinstance( directory, tuple ):
+                # mount given private directory
+                host_dir = directory[ 1 ] % self.__dict__
+                vm_dir = directory[ 0 ]
+
+                if not os.path.exists(host_dir):
+                    os.mkdir( host_dir )
+
+                # create the directory on the remote machine
+                self.cmd("mkdir -p %s" % vm_dir)
+
+                for local_file in os.listdir(host_dir):
+                    try:
+                        sftp.put("%s/%s" % (host_dir, local_file), "%s/%s" % (vm_dir, local_file))
+                    except IOError, OSError:
+                        error("LibvirtHost.mountPrivateDirs: Failed to transfer file %s to node directory %s.\n" %
+                              (local_file, host_dir))
+            else:
+                warn("LibvirtHost.mountPrivateDirs: Only tuples are supported in VM context.\n")
 
     def unmountPrivateDirs( self ):
         """ Unmounting should copy the data out of the VM to the host filesystem.
@@ -1584,12 +1617,12 @@ class LibvirtHost( Host ):
         if not len(self.privateDirs):
             return
 
-        info("LibvirtHost.unmountPrivatedirs: Copying data from Host %s to local filesystem.\n" % self.name)
+        info("LibvirtHost.unmountPrivateDirs: Copying data from Host %s to local filesystem.\n" % self.name)
         # try to open SFTP
         try:
             sftp = self.ssh_session.open_sftp()
         except:
-            error("LibvirtHost.unmountPrivatedirs: Could not open SFTP connection for Host %s.\n" % self.name)
+            error("LibvirtHost.unmountPrivateDirs: Could not open SFTP connection for Host %s.\n" % self.name)
             return
 
         for directory in self.privateDirs:
@@ -1607,15 +1640,14 @@ class LibvirtHost( Host ):
                           (host_dir, host_dir))
                     continue
 
-
                 for remote_file in sftp.listdir(vm_dir):
                     try:
                         sftp.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
-                    except IOError:
+                    except IOError, OSError:
                         error("LibvirtHost.unmountPrivateDirs: Failed to transfer file %s to host directory %s.\n" %
                               (remote_file, host_dir))
             else:
-                warn("LibvirtHost.unmountPrivatedirs: Only tuples are supported in VM context.\n")
+                warn("LibvirtHost.unmountPrivateDirs: Only tuples are supported in VM context.\n")
 
     def cmd( self, *args, **kwargs ):
         """Send a command, wait for output, and return it.
