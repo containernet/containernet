@@ -1568,6 +1568,55 @@ class LibvirtHost( Host ):
             if str(self.domain.UUIDString()) in content:
                 return dirname
 
+    def mountPrivateDirs( self ):
+        """ Mounting private dirs does not make sense in the VM context.
+            If you specify privateDirs then Containernet will copy the data out of the VM to the host filesystem.
+        """
+        pass
+
+    def unmountPrivateDirs( self ):
+        """ Unmounting should copy the data out of the VM to the host filesystem.
+            The privateDirs list is interpreted as follows:
+                tuple( vmpath, hostpath)
+        """
+        assert not isinstance( self.privateDirs, basestring )
+        # ignore everything here if no privateDirs are specified
+        if not len(self.privateDirs):
+            return
+
+        info("LibvirtHost.unmountPrivatedirs: Copying data from Host %s to local filesystem.\n" % self.name)
+        # try to open SFTP
+        try:
+            sftp = self.ssh_session.open_sftp()
+        except:
+            error("LibvirtHost.unmountPrivatedirs: Could not open SFTP connection for Host %s.\n" % self.name)
+            return
+
+        for directory in self.privateDirs:
+            if isinstance( directory, tuple ):
+                # mount given private directory
+                host_dir = directory[ 1 ] % self.__dict__
+                vm_dir = directory[ 0 ]
+
+                if not os.path.exists(host_dir):
+                    os.mkdir( host_dir )
+
+                if not os.path.isdir(host_dir):
+                    error("LibvirtHost.unmountPrivateDirs: Cannot transfer files to host directory %s. "
+                          "%s is not a directory.\n" %
+                          (host_dir, host_dir))
+                    continue
+
+
+                for remote_file in sftp.listdir(vm_dir):
+                    try:
+                        sftp.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
+                    except IOError:
+                        error("LibvirtHost.unmountPrivateDirs: Failed to transfer file %s to host directory %s.\n" %
+                              (remote_file, host_dir))
+            else:
+                warn("LibvirtHost.unmountPrivatedirs: Only tuples are supported in VM context.\n")
+
     def cmd( self, *args, **kwargs ):
         """Send a command, wait for output, and return it.
            cmd: string"""
@@ -1644,7 +1693,11 @@ class LibvirtHost( Host ):
 
     def terminate( self ):
         """ Stop libvirt host """
+        # write data from VM to host if private directories are "mounted"
+        self.unmountPrivateDirs()
+
         if not self.use_existing_vm:
+            # just delete temporary VMs and remove their snapshot
             try:
                 self.domain.destroy()
             except libvirt.libvirtError as e:
@@ -1653,9 +1706,12 @@ class LibvirtHost( Host ):
             if self.params['snapshot']:
                 self.remove_snapshot_file()
         else:
+            # remove the mgmt network so snapshot restore can work
             self.detach_management_network()
             if self.params['snapshot']:
                 try:
+                    # reverting to the snapshot will put the domain in the old state. so calling shutdown
+                    # here should not be needed
                     info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
                     self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
                     self.lv_domain_snapshot.delete()
@@ -1767,7 +1823,7 @@ class LibvirtHost( Host ):
                         debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(mapping))
                         self.domain.pinEmulator(tuple(mapping), libvirt.VIR_VCPU_OFFLINE)
                     except libvirt.libvirtError:
-                        pass
+                        error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(mapping))
 
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus
