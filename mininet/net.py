@@ -985,20 +985,6 @@ class Mininet( object ):
         cls.inited = True
 
 
-MANAGEMENT_NETWORK_XML = """
-    <network>
-        <name>{name}</name>
-        <mac address="{mac}"/>
-        <ip address="{ip}" netmask="{netmask}">
-            <dhcp/>
-        </ip>
-        <domain name="mininet.local" localOnly="yes"/>
-    </network>
-"""
-
-HOST_XML = """
-    <host ip="{ip}" mac="{mac}" name="{name}"/>
-"""
 class Containernet( Mininet ):
     """
     A Mininet with Docker and Libvirt related methods.
@@ -1006,6 +992,20 @@ class Containernet( Mininet ):
     """
 
     def __init__(self, **params):
+        self.MANAGEMENT_NETWORK_XML = """
+            <network>
+                <name>{name}</name>
+                <mac address="{mac}"/>
+                <ip address="{ip}" netmask="{netmask}">
+                    <dhcp/>
+                </ip>
+                <domain name="mininet.local" localOnly="yes"/>
+            </network>
+        """
+
+        self.HOST_XML = """
+            <host ip="{ip}" mac="{mac}" name="{name}"/>
+        """
         self.libvirtManagementNetwork = None
         self.cmd_endpoint = params.pop("cmd_endpoint", "qemu:///system")
         self.lv_conn = None
@@ -1072,7 +1072,7 @@ class Containernet( Mininet ):
         params.setdefault("mgmt_mac", macColonHex(host_ip_int))
         params.setdefault("mgmt_ip", ipStr(host_ip_int))
         try:
-            host_xml = HOST_XML.format(ip=ipStr(host_ip_int), mac=macColonHex(host_ip_int), name=name)
+            host_xml = self.HOST_XML.format(ip=ipStr(host_ip_int), mac=macColonHex(host_ip_int), name=name)
             info("Containernet.addLibvirthost: Adding DHCP entry for host %s.\n" % name)
             debug("network XML:\n %s\n" % host_xml)
             #COMMANDDICT = {"none": 0, "modify": 1, "delete": 2, "add-first": 4}
@@ -1177,7 +1177,7 @@ class Containernet( Mininet ):
 
     def createManagementNetwork(self):
         # build XML
-        network_xml = MANAGEMENT_NETWORK_XML.format(
+        network_xml = self.MANAGEMENT_NETWORK_XML.format(
             name=self.mgmt_dict['name'],
             mac=self.mgmt_dict['mac'],
             ip=self.mgmt_dict['ip'],

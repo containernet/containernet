@@ -1088,72 +1088,65 @@ class Docker ( Host ):
             return -1
 
 
-SNAPSHOT_XML = """
-                <domainsnapshot>
-                    <description>Mininet snapshot</description>
-                    <memory snapshot='external' file='{path}.mem'/>
-                    <disks>
-                        <disk name='{image}'>
-                            <source file='{path}'/>
-                        </disk>
-                    </disks>
-                </domainsnapshot>
-                """
-SNAPSHOT_XML_RUNNING = """
-                <domainsnapshot>
-                    <description>Mininet snapshot</description>
-                </domainsnapshot>
-                """
-INTERFACE_XML = """
-        <interface type='direct' trustGuestRxFilters='yes'>
-            <model type='virtio'/>
-            <source dev='{intfname}' mode='private'/>
-        </interface>
-        """
-# not used yet
-INTERFACE_XML_NON_QEMU = """
-        <interface type='direct'>
-            <source dev='{intfname}' mode='private'/>
-        </interface>
-        """
-INTERFACE_XML_MGMT = """
-        <interface type="network">
-            <mac address="{mgmt_mac}"/>
-            <source network="{mgmt_name}"/>
-            <address bus="0x00" domain="0x0000" function="0x0" slot="{mgmt_slot}" type="pci"/>
-        </interface>
-        """
-DOMAIN_XML = """
-<domain type="{type}">
-  <name>{name}</name>
-  <title>{title}</title>
-  <memory unit="{memunit}">{memory}</memory>
-  <currentMemory unit="{curmemunit}">{curmemory}</currentMemory>
-  <vcpu current="{curcpu}">{cpumax}</vcpu>
-  <os>
-    <type arch="{arch}" machine="{machine}">{ostype}</type>
-  </os>
-  <features>
-    <acpi/>
-  </features>
-  <devices>
-    <emulator>{emulator}</emulator>
-    <disk device="disk" type="file">
-      <source file="{disk_image}"/>
-      <target dev="{disk_target_dev}"/>
-      <driver name="{disk_driver}" type="{disk_type}"/>
-    </disk>
-    <console type="pty"/>
-  </devices>
-</domain>
-"""
-
-
 class LibvirtHost( Host ):
     """Base class for controlling a host that is managed by libvirt.
 
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
+        self.SNAPSHOT_XML = """
+                        <domainsnapshot>
+                            <description>Mininet snapshot</description>
+                            <memory snapshot='external' file='{path}.mem'/>
+                            <disks>
+                                <disk name='{image}'>
+                                    <source file='{path}'/>
+                                </disk>
+                            </disks>
+                        </domainsnapshot>
+                        """
+        self.SNAPSHOT_XML_RUNNING = """
+                        <domainsnapshot>
+                            <description>Mininet snapshot</description>
+                        </domainsnapshot>
+                        """
+        self.INTERFACE_XML = """
+                <interface type='direct' trustGuestRxFilters='yes'>
+                    <model type='virtio'/>
+                    <source dev='{intfname}' mode='private'/>
+                </interface>
+                """
+
+        self.INTERFACE_XML_MGMT = """
+                <interface type="network">
+                    <mac address="{mgmt_mac}"/>
+                    <source network="{mgmt_name}"/>
+                    <address bus="0x00" domain="0x0000" function="{mgmt_function}" slot="{mgmt_slot}" type="pci"/>
+                </interface>
+                """
+        self.DOMAIN_XML = """
+        <domain type="{type}">
+          <name>{name}</name>
+          <title>{title}</title>
+          <memory unit="{memunit}">{memory}</memory>
+          <currentMemory unit="{curmemunit}">{curmemory}</currentMemory>
+          <vcpu current="{curcpu}">{cpumax}</vcpu>
+          <os>
+            <type arch="{arch}" machine="{machine}">{ostype}</type>
+          </os>
+          <features>
+            <acpi/>
+          </features>
+          <devices>
+            <emulator>{emulator}</emulator>
+            <disk device="disk" type="file">
+              <source file="{disk_image}"/>
+              <target dev="{disk_target_dev}"/>
+              <driver name="{disk_driver}" type="{disk_type}"/>
+            </disk>
+            <console type="pty"/>
+          </devices>
+        </domain>
+        """
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
@@ -1202,6 +1195,7 @@ class LibvirtHost( Host ):
         })
 
         kwargs.setdefault('mgmt_pci_slot', '0x08')
+        kwargs.setdefault('mgmt_pci_function', '0x0')
 
         self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
         if self.lv_conn is None:
@@ -1209,6 +1203,7 @@ class LibvirtHost( Host ):
 
         self.disk_image = disk_image
 
+        self.mgmt_net_interface_xml = None
         # domain object we get from libvirt
         self.domain = None
         # etree we store for domain manipulation
@@ -1285,15 +1280,14 @@ class LibvirtHost( Host ):
                 kwargs['snapshot_disk_image_path'] = dst_image_path
 
             if self.use_existing_vm:
-                snapshot_xml = SNAPSHOT_XML_RUNNING
+                snapshot_xml = self.SNAPSHOT_XML_RUNNING
                 info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" %
                      (self.domain_name))
             else:
-                snapshot_xml = SNAPSHOT_XML.format(image=self.disk_image,
+                snapshot_xml = self.SNAPSHOT_XML.format(image=self.disk_image,
                                                    path=kwargs['snapshot_disk_image_path'])
                 info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
                      (self.domain_name, kwargs['snapshot_disk_image_path']))
-
 
             try:
                 self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml)
@@ -1331,7 +1325,7 @@ class LibvirtHost( Host ):
 
     def build_domain(self, **params):
         # create a host config from params
-        domain = DOMAIN_XML.format(
+        domain = self.DOMAIN_XML.format(
             type=params['type'],
             name=self.domain_name,
             title="com.containernet-%s" % self.domain_name,
@@ -1476,7 +1470,7 @@ class LibvirtHost( Host ):
         before_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
         debug("LibvirtHost.addIntf: Interfaces on node %s before attaching: %s\n" % (self.name,
                                                                                      ' '.join(before_interfaces)))
-        interface_xml = INTERFACE_XML.format(intfname=intf.name)
+        interface_xml = self.INTERFACE_XML.format(intfname=intf.name)
         try:
             debug("LibvirtHost.addIntf: Attaching device %s to node %s.\n" % (intf.name, self.name))
             debug(interface_xml + "\n")
@@ -1593,7 +1587,8 @@ class LibvirtHost( Host ):
                 vm_dir = directory[ 0 ]
 
                 if not os.path.exists(host_dir):
-                    os.mkdir( host_dir )
+                    # use exist_ok=True for python3
+                    os.makedirs( host_dir )
 
                 # create the directory on the remote machine
                 self.cmd("mkdir -p %s" % vm_dir)
@@ -1632,7 +1627,8 @@ class LibvirtHost( Host ):
                 vm_dir = directory[ 0 ]
 
                 if not os.path.exists(host_dir):
-                    os.mkdir( host_dir )
+                    # use exist_ok=True for python3
+                    os.makedirs( host_dir )
 
                 if not os.path.isdir(host_dir):
                     error("LibvirtHost.unmountPrivateDirs: Cannot transfer files to host directory %s. "
@@ -1696,13 +1692,17 @@ class LibvirtHost( Host ):
     def attach_management_network(self, **kwargs):
         """Attaches an interfaces to the LibvirtHost. This interfaces is used to SSH into the machine."""
         info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
-        interface_xml = INTERFACE_XML_MGMT.format(
+
+        slot = kwargs['mgmt_pci_slot']
+        function = kwargs['mgmt_pci_function']
+        self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(
             mgmt_mac=kwargs['mgmt_mac'],
             mgmt_name=kwargs['mgmt_network'],
-            mgmt_slot=kwargs['mgmt_pci_slot']
+            mgmt_slot=slot,
+            mgmt_function=function,
         )
         try:
-            self.domain.attachDevice(interface_xml)
+            self.domain.attachDevice(self.mgmt_net_interface_xml)
         except libvirt.libvirtError as e:
             error("Could not attach the management interface to node %s. Error: %s\n" %
                   (self.domain_name, e))
@@ -1712,13 +1712,8 @@ class LibvirtHost( Host ):
         """Detaches the previously attached management interface."""
         info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
              self.domain_name)
-        interface_xml = INTERFACE_XML_MGMT.format(
-            mgmt_mac=self.params['mgmt_mac'],
-            mgmt_name=self.params['mgmt_network'],
-            mgmt_slot=self.params['mgmt_pci_slot']
-        )
         try:
-            self.domain.detachDevice(interface_xml)
+            self.domain.detachDevice(self.mgmt_net_interface_xml)
         except libvirt.libvirtError as e:
             error("Could not detach the management interface from domain %s. Error: %s\n" %
                   (self.domain_name, e))
