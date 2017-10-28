@@ -1127,8 +1127,8 @@ class LibvirtHost( Host ):
         <domain type="{type}">
           <name>{name}</name>
           <title>{title}</title>
-          <memory unit="{memunit}">{memory}</memory>
-          <currentMemory unit="{curmemunit}">{curmemory}</currentMemory>
+          <memory unit="MiB">{memory}</memory>
+          <currentMemory unit="MiB">{curmemory}</currentMemory>
           <vcpu current="{curcpu}">{cpumax}</vcpu>
           <os>
             <type arch="{arch}" machine="{machine}">{ostype}</type>
@@ -1176,14 +1176,8 @@ class LibvirtHost( Host ):
             '_text': "hvm"
         })
         kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
-        kwargs.setdefault('memory', {
-            'unit': 'KiB',
-            'value': '1048576'
-        })
-        kwargs.setdefault('currentMemory', {
-            'unit': 'KiB',
-            'value': '1048576'
-        })
+        kwargs.setdefault('memory', '1024')
+        kwargs.setdefault('currentMemory', '1024')
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
@@ -1329,10 +1323,8 @@ class LibvirtHost( Host ):
             type=params['type'],
             name=self.domain_name,
             title="com.containernet-%s" % self.domain_name,
-            memunit=params['memory']['unit'],
-            memory=params['memory']['value'],
-            curmemunit=params['currentMemory']['unit'],
-            curmemory=params['currentMemory']['value'],
+            memory=params['memory'],
+            curmemory=params['currentMemory'],
             curcpu=params['vcpu'],
             cpumax=self.maxCpus,
             arch=params['os']['type']['arch'],
