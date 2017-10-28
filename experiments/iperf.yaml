@@ -1,0 +1,37 @@
+experiments:
+  - repetitions: 1
+    duration: 60
+    type: "local"
+    nodes:
+      vm1:
+        cpu_cores:
+          - 0.1
+          - 0.2
+          - 1
+          - 4
+        mem:
+          - 512
+        run_on: "fgcn-of-4"
+        type: "forking"
+        setup_cmd: [ "iperf3", "-D", "-s", "-i", "10", "-J" ]
+      node2:
+        outfile: "/tmp/results/iperf.json"
+        start_shell: true
+        start_cmd: [ "iperf3 -c 192.168.10.4 -i 10 -J -Z -t 30 > /tmp/results/iperf.json"]
+  - repetitions: 1
+    duration: 60
+    nodes:
+      vm1:
+        cpu_cores:
+          - 0.1
+          - 0.2
+          - 1
+          - 4
+        mem:
+          - 512
+        type: "forking"
+        setup_cmd: [ "iperf3", "-D", "-s", "-i", "10", "-J" ]
+      node2:
+        outfile: "/tmp/results/iperf-local.json"
+        start_shell: true
+        start_cmd: [ "iperf3 -c localhost -i 10 -J -Z -t 30 > /tmp/results/iperf-local.json"]

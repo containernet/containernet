@@ -1,0 +1,36 @@
+experiments:
+  - repetitions: 1
+    name: "apache2-ab"
+    duration: 60
+    target_ip: "192.168.10.4"
+    nodes:
+      vm1:
+        cpu_cores:
+          - 1
+          - 2
+        mem:
+          - 1024
+        maxinet:
+          type: "LibvirtHost"
+          disk_image: "/srv/images/ubuntu16.04.qcow2"
+          #use_existing_vm: True
+          ip: "192.168.10.4"
+        containernet:
+          type: "LibvirtHost"
+          disk_image: "/srv/images/ubuntu16.04.qcow2"
+          #use_existing_vm: True
+          ip: "192.168.10.4"
+        local:
+          run_on: "fgcn-of-4"
+          systemd_type: "forking"
+          setup_cmd: [ "apache2ctl", "start" ]
+      vm2:
+        ip: "192.168.10.3"
+        start_shell: True
+        #start_cmd: [ "/usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/" ]
+        start_cmd: [ "ping -c 10 {target_ip}" ]
+    links:
+      - from: "vm1"
+        to: "vm2"
+        params:
+          delay: "10ms"
