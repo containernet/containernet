@@ -1177,12 +1177,12 @@ class LibvirtHost( Host ):
         })
         kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
         kwargs.setdefault('memory', {
-            'unit': 'MiB',
-            'value': '1024'
+            'unit': 'KiB',
+            'value': '1048576'
         })
         kwargs.setdefault('currentMemory', {
-            'unit': 'MiB',
-            'value': '1024'
+            'unit': 'KiB',
+            'value': '1048576'
         })
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
@@ -1371,31 +1371,30 @@ class LibvirtHost( Host ):
 
         return True
 
-    def startShell(self, mnopts=None):
-        """ Starts a domain and tries to connect via SSH.
-
-        Raises: libvirt.libvirtError if the domain can not be started."""
-        debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
-              self.domain_name)
+    def _get_new_ssh_session(self):
+        session = paramiko.SSHClient()
         while True:
             try:
                 if "timeout" not in self.params['login']['credentials']:
                     self.params['login']['credentials']['timeout'] = 60
 
-                self.ssh_session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-                self.ssh_session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
-                debug("LibvirtHost.startShell: Logged in to domain %s using ssh.\n" % self.domain_name)
+                if "banner_timeout" not in self.params['login']['credentials']:
+                    self.params['login']['credentials']['banner_timeout'] = 60
+
+                session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
+                debug("LibvirtHost._get_new_ssh_session: Logged in to domain %s using ssh.\n" % self.domain_name)
                 break
             except paramiko.BadHostKeyException as e:
-                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but has HostKey problems. Error: %s\n" %
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but has HostKey problems. Error: %s\n" %
                       (self.name, e))
                 return False
             except paramiko.AuthenticationException as e:
-                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but SSH threw an authentication"
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but SSH threw an authentication"
                       "Error: %s\n" % (self.name, e))
                 return False
             except paramiko.SSHException as e:
-                error("LibvirtHost.startShell: Domain '%s' has login method ssh, but could not connect to the VM. "
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but could not connect to the VM. "
                       "Did you set up the management network correctly?."
                       "Error: %s\n" % (self.name, e))
                 return False
@@ -1403,6 +1402,21 @@ class LibvirtHost( Host ):
                 # if the domain is still starting up, allow connections to it to fail
                 pass
 
+        return session
+
+    def startShell(self, mnopts=None):
+        """ Starts a domain and tries to connect via SSH.
+
+        Raises: libvirt.libvirtError if the domain can not be started."""
+        debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
+              self.domain_name)
+        sess = self._get_new_ssh_session()
+        if sess:
+            self.ssh_session = sess
+        else:
+            error("LibvirtHost.startShell: Could not start the shell for domain %s.\n" %
+              self.domain_name)
+            return
         self.domain_xml = self.getDomainXML()
         self.pid = self.getPid()
         self.pollOut = select.poll()
@@ -1495,7 +1509,7 @@ class LibvirtHost( Host ):
         self.cmd("ip link set %s name %s" % (str(new_intf), intf))
 
         # let the hostobject do the bookkeeping
-        Node.addIntf(self, intf, port, moveIntfFn)
+        Node.addIntf(self, intf, port)
 
     def monitor( self, timeoutms=None, findPid=True ):
         """Monitor and return the output of a command.
@@ -1518,8 +1532,7 @@ class LibvirtHost( Host ):
         return data
 
     def sendCmd( self, *args, **kwargs ):
-        """Send a command using exec_command. This will issue the command directly.
-           self.shell will now contain the channel object associated with the command.
+        """ Send a string as command to the LibvirtHost
            args: command and arguments, or string"""
         assert self.ssh_session
         # Allow sendCmd( [ list ] )
@@ -1563,9 +1576,7 @@ class LibvirtHost( Host ):
                 return dirname
 
     def mountPrivateDirs( self ):
-        """ Mounting private dirs will copy files from the host into the guest filesystem.
-            The privateDirs list is interpreted as follows:
-            tuple( vmpath, hostpath)
+        """ Mounting private dirs of a vm does not make sense in this context
         """
         assert not isinstance( self.privateDirs, basestring )
         # ignore everything here if no privateDirs are specified
@@ -1612,13 +1623,13 @@ class LibvirtHost( Host ):
         if not len(self.privateDirs):
             return
 
-        info("LibvirtHost.unmountPrivateDirs: Copying data from Host %s to local filesystem.\n" % self.name)
-        # try to open SFTP
         try:
-            sftp = self.ssh_session.open_sftp()
-        except:
-            error("LibvirtHost.unmountPrivateDirs: Could not open SFTP connection for Host %s.\n" % self.name)
+            self.sftp_session = self.ssh_session.open_sftp()
+        except Exception as e:
+            error(e)
             return
+
+        info("LibvirtHost.unmountPrivateDirs: Copying data from Host %s to local filesystem.\n" % self.name)
 
         for directory in self.privateDirs:
             if isinstance( directory, tuple ):
@@ -1636,9 +1647,9 @@ class LibvirtHost( Host ):
                           (host_dir, host_dir))
                     continue
 
-                for remote_file in sftp.listdir(vm_dir):
+                for remote_file in self.sftp_session.listdir(vm_dir):
                     try:
-                        sftp.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
+                        self.sftp_session.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
                     except IOError, OSError:
                         error("LibvirtHost.unmountPrivateDirs: Failed to transfer file %s to host directory %s.\n" %
                               (remote_file, host_dir))
@@ -1660,14 +1671,25 @@ class LibvirtHost( Host ):
             self.startShell()
 
     def popen( self, *args, **kwargs ):
-        """Return a Popen() object in our namespace
+        """Return a Popen() object
            args: Popen() args, single list, or string
            kwargs: Popen() keyword args"""
         # TODO: Implement wrapper around exec_command
-        return
+        popen_session = self._get_new_ssh_session()
+        while True:
+            try:
+                popen_session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                popen_session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
+                break
+            except Exception as e:
+                error("LibvirtHost.popen: Failed to launch a new ssh connection to the domain %s." % self.domain_name)
+                return
+
+        shell = popen_session.invoke_shell()
+        return shell.exec_command(list2cmdline(args))
 
     def pexec( self, *args, **kwargs ):
-        """Execute a command using popen
+        """Execute a command using exec_command
            returns: out, err, exitcode"""
         chan = self.ssh_session.get_transport().open_session()
         chan.exec_command(list2cmdline(args))
@@ -1797,24 +1819,30 @@ class LibvirtHost( Host ):
                 # if someone is calling this method like the docker version, then just map the single vcpu to
                 # the specified cores, even though this will not lead to the same behaviour
                 if isinstance(cores, basestring):
-                    info("LibvirtHost.updateCpuLimit: "
-                         "This method does not behave the same way as with docker containers."
-                         "Even if you specify more than one core, the guest will not be able to use multiple cores.\n")
-                    cores = {0: cores}
+                    warn("LibvirtHost.updateCpuLimit: "
+                         "This method does not behave the same way as with docker containers.\n")
+                    cores_dict = {}
+                    if "-" in cores:
+                        start, end = cores.split("-")
+                        for cpu in range(int(start), int(end) + 1):
+                            cores_dict[cpu] = str(cpu)
+                    else:
+                        cores_dict = {cores: str(cores)}
+                    cores = cores_dict
 
                 if 0 not in cores:
-                    warn("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
+                    info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
                          "This will not work! Keeping it online.\n")
                     cores[0] = "0-%d" % (int(self.maxCpus) - 1)
 
                 # check if set_vcpu method is avaiable
                 set_vcpu = getattr(self.domain, "setVcpu", None)
                 if not set_vcpu:
-                    warn("LibvirtHost.updateCpuLimit: You cannot bring up specific cores with this version of libvirt. "
+                    info("LibvirtHost.updateCpuLimit: You cannot bring up specific cores with this version of libvirt. "
                          "Upgrade to a newer version if you need this feature. "
                          "Setting number of Vcpus instead of managing specific cores.\n")
                     info("LibvirtHost.updateCpuLimit: Setting number of Vcpus to %d\n" % len(cores))
-                    self.domain.setVcpus(len(cores))
+                    self.domain.setVcpusFlags(len(cores), libvirt.VIR_DOMAIN_AFFECT_LIVE)
 
                 # initialize a list with all cores marked as offline
                 offlinecores = list(range(0, self.maxCpus))
@@ -1840,17 +1868,20 @@ class LibvirtHost( Host ):
                             pass
 
                     try:
-                        info("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (vcpu_nr, str(mapping)))
+                        info("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (int(vcpu_nr),
+                                                                                               str(mapping)))
                         self.domain.pinVcpu(vcpu_nr, tuple(mapping))
                     except libvirt.libvirtError:
-                        error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (vcpu_nr, str(mapping)))
+                        error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (int(vcpu_nr),
+                                                                                              str(mapping)))
 
-                    # pin the emulator to the same cores to make overhead visible
-                    try:
-                        debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(mapping))
-                        self.domain.pinEmulator(tuple(mapping), libvirt.VIR_VCPU_OFFLINE)
-                    except libvirt.libvirtError:
-                        error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(mapping))
+                emu_mapping = [ 1 if x not in offlinecores else 0 for x in list(range(0, self.maxCpus))]
+                # pin the emulator to the same cores to make overhead visible
+                try:
+                    debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(emu_mapping))
+                    self.domain.pinEmulator(tuple(emu_mapping))
+                except libvirt.libvirtError:
+                    error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(emu_mapping))
 
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus
@@ -1874,15 +1905,22 @@ class LibvirtHost( Host ):
         This method allows to update resource limitations at runtime
 
         Args:
-            mem_limit: memory limit depending on the unit chosen in domain_xml !
+            mem_limit: memory limit in MiB
             memswap_limit: swap limit in megabytes
+            force: force mem_limits less than 512MiB
 
         """
         try:
             if mem_limit != -1:
+                if mem_limit < 512 and 'force' not in kwargs:
+                    error("Refusing to set memory_limit to less than 512MiB. Use force=True if you desire to do so.\n")
+                    return
+
+                # libvirt seems to default to KiB
+                mem_limit = mem_limit * 1024
                 self.domain.setMemoryFlags(mem_limit, libvirt.VIR_DOMAIN_AFFECT_LIVE)
                 self.resources['mem_limit'] = mem_limit
-                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d.\n" % (self.name, mem_limit))
+                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d KiB.\n" % (self.name, mem_limit))
 
             if memswap_limit != -1:
                 error("LibvirtHost.updateMemoryLimit: Setting swap is not yet implemented.\n")

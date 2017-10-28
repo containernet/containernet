@@ -25,7 +25,8 @@ Link: basic link class for creating veth pairs
 """
 
 from mininet.log import info, error, debug, warn
-from mininet.util import makeIntfPair
+from mininet.util import makeIntfPair, quietRun
+import time
 import mininet.node
 import re
 
@@ -347,7 +348,12 @@ class TCIntf( Intf ):
         "Execute tc command for our interface"
         c = cmd % (tc, self)  # Add in tc command and our name
         debug(" *** executing command: %s\n" % c)
-        return self.cmd( c )
+
+        # do not configure the link in the vm, but outside instead
+        if isinstance(self.node, mininet.node.LibvirtHost):
+            return quietRun(c, shell=True)
+        else:
+            return self.cmd( c )
 
     def config( self, bw=None, delay=None, jitter=None, loss=None,
                 gro=False, txo=True, rxo=True,
@@ -381,10 +387,11 @@ class TCIntf( Intf ):
             return 'on' if isOn else 'off'
 
         # Set offload parameters with ethool
-        self.cmd( 'ethtool -K', self,
-                  'gro', on( gro ),
-                  'tx', on( txo ),
-                  'rx', on( rxo ) )
+        cmd = 'ethtool -K', str(self), 'gro', on( gro ), 'tx', on( txo ), 'rx', on( rxo )
+        if isinstance(self.node, mininet.node.LibvirtHost):
+            quietRun(" ".join(cmd))
+        else:
+            self.cmd(" ".join(cmd))
 
         # Optimization: return if nothing else to configure
         # Question: what happens if we want to reset things?
