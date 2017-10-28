@@ -27,8 +27,7 @@ experiments:
       vm2:
         ip: "192.168.10.3"
         start_shell: True
-        #start_cmd: [ "/usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/" ]
-        start_cmd: [ "ping -c 10 {target_ip}" ]
+        start_cmd: [ "/usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/" ]
     links:
       - from: "vm1"
         to: "vm2"

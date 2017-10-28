@@ -90,7 +90,7 @@ class Profiler:
             return self.maxinet_experiment.get_node(nodename)
 
     def apply_configuration(self, node, index):
-        if not node.get('configuration'):
+        if "configuration" not in node:
             return
         if len(node['configuration']) <= index or len(node['configuration']) == 1:
             conf = node['configuration'][0]
@@ -113,7 +113,7 @@ class Profiler:
         else:
             n = self.get_node(node['name'])
             # normal hosts are not profiled so only apply limits to nodes within profiles
-            if self.profile_type in node and not isinstance(n, Host):
+            if self.profile_type in node and not type(n) == Host:
                 for c, value in conf.items():
                     if c == "cpu_cores":
                         core_map = {}
