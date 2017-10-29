@@ -215,7 +215,7 @@ class Profiler:
         if self.profile_type == 'maxinet':
             print("Starting MaxiNet")
             self.cluster = maxinet.Cluster()
-            self.maxinet_experiment(self.cluster, self.topo, switch=OVSSwitch)
+            self.maxinet_experiment = maxinet.Experiment(self.cluster, self.topo, switch=OVSSwitch)
             self.maxinet_experiment.setup()
 
         if self.profile_type == 'containernet':
