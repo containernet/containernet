@@ -20,6 +20,7 @@ from MaxiNet.Frontend import maxinet
 from MaxiNet.Frontend.container import Docker as MaxiDocker
 from MaxiNet.Frontend.libvirt import LibvirtHost as MaxiVm
 
+
 class Profiler:
     def __init__(self, experiment, output_folder, profile_type):
         self.data = experiment
@@ -103,7 +104,7 @@ class Profiler:
             cmd = copy.copy(command)
             for c, value in conf.items():
                 if c == "cpu_cores":
-                    cmd.append("CPUQuota={}%".format(int(float(value)*100)))
+                    cmd.append("CPUQuota={}%".format(int(float(value) * 100)))
                 if c == "mem":
                     cmd.append("MemoryLimit={}M".format(int(value)))
 
@@ -129,7 +130,14 @@ class Profiler:
 
                 print("Updated node %s configuration to: %s" % (node['name'], conf))
         return True
+
     def run_command(self, cmd, node, **kwargs):
+        if node is None:
+            if 'popen' in kwargs:
+                del kwargs['popen']
+                return subprocess.Popen(cmd, **kwargs)
+            else:
+                return subprocess.call(cmd, **kwargs)
         cmd = self.format_command(cmd, node)
         print("Running cmd {cmd} on {node}. kwargs={kwargs}".format(cmd=cmd,
                                                                     node=node['name'],
@@ -229,7 +237,11 @@ class Profiler:
         if self.profile_type == 'maxinet':
             print("Starting MaxiNet")
             self.cluster = maxinet.Cluster()
-            self.maxinet_experiment = maxinet.Experiment(self.cluster, self.topo, switch=OVSSwitch)
+            self.cluster.logger.setLevel("DEBUG")
+            self.maxinet_experiment = maxinet.Experiment(self.cluster,
+                                                         self.topo,
+                                                         switch=OVSSwitch,
+                                                         **self.data.get('maxinet', {}))
             self.maxinet_experiment.setup()
             # wait for the controller to be set up
             time.sleep(5)
@@ -259,7 +271,8 @@ class Profiler:
                 failed = False
                 for node in self.nodes:
                     if not self.apply_configuration(node, index):
-                        print("Failed to configure node %s with conf %d, skipping configuration." % (node['name'], index))
+                        print(
+                        "Failed to configure node %s with conf %d, skipping configuration." % (node['name'], index))
                         failed = True
 
                 if failed:
@@ -282,7 +295,7 @@ class Profiler:
 
     def stop_experiment(self):
         # tear down everything
-        if self.profile_type =='local':
+        if self.profile_type == 'local':
             for node in self.nodes:
                 cmd = ["systemctl", "stop", "perf-%s.slice" % node['name']]
                 try:
@@ -291,15 +304,22 @@ class Profiler:
                     pass
                 try:
                     if "run_on" in node:
-                        self.run_command(["rsync", "-avz", "%s:/tmp/results/" % node['run_on'], "/root/results/"])
-                    else:
-                        self.run_command(["rsync", "-avz", "/tmp/results/", "/root/results/"])
+                        self.run_command(["rsync", "-avz", "%s:%s" % (node['run_on'],
+                                                                      self.output_folder),
+                                          self.output_folder
+                                          ],
+                                         None)
                 except:
                     pass
         elif self.profile_type == "maxinet":
             if self.maxinet_experiment:
-               self.maxinet_experiment.stop()
-               self.maxinet_experiment = None
+                self.maxinet_experiment.stop()
+                self.maxinet_experiment = None
+            # aggregate all outfiles from all hosts in the mapping, only works for static mappings
+            # and of course rsync has to be passwordless
+            if "hostnamemapping" in self.data.get("maxinet"):
+                for host in self.data['maxinet']['hostnamemapping'].keys():
+                    self.run_command(["rsync", "-avz", "%s:%s/" % (host, self.output_folder), self.output_folder], None)
         elif self.profile_type == "containernet":
             if self.containernet:
                 self.containernet.stop()
@@ -320,7 +340,7 @@ class Profiler:
         if self.profile_type == "containernet":
             cleanup()
 
-        # maxinet should not be cleaned up automatically
+            # maxinet should not be cleaned up automatically
 
     def run_experiment(self):
         try:
