@@ -8,28 +8,31 @@ experiments:
         cpu_cores:
           - 1
           - 2
+          - 1
+          - 3
         mem:
           - 1024
         maxinet:
           type: "LibvirtHost"
           disk_image: "/srv/images/ubuntu16.04.qcow2"
           #use_existing_vm: True
-          ip: "192.168.10.4"
+          ip: "192.168.10.4/24"
         containernet:
           type: "LibvirtHost"
           disk_image: "/srv/images/ubuntu16.04.qcow2"
           #use_existing_vm: True
-          ip: "192.168.10.4"
+          ip: "192.168.10.4/24"
         local:
           run_on: "fgcn-of-4"
           systemd_type: "forking"
           setup_cmd: [ "apache2ctl", "start" ]
       vm2:
-        ip: "192.168.10.3"
+        ip: "192.168.10.3/24"
         start_shell: True
         start_cmd: [ "/usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/" ]
     links:
       - from: "vm1"
         to: "vm2"
         params:
-          delay: "10ms"
+          delay: "1ms"
+          jitter: "2ms"

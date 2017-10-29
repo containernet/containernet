@@ -243,7 +243,7 @@ class Profiler:
                 failed = False
                 for node in self.nodes:
                     if not self.apply_configuration(node, index):
-                        print("Failed to configure node %s with conf %d, skipping configuration." % (node, index))
+                        print("Failed to configure node %s with conf %d, skipping configuration." % (node['name'], index))
                         failed = True
 
                 if failed:

@@ -1865,7 +1865,8 @@ class LibvirtHost( Host ):
                             info("LibvirtHost.updateCpuLimit: Setting core %d state to running.\n" % vcpu_nr)
                             set_vcpu(str(vcpu_nr), libvirt.VIR_VCPU_RUNNING)
                         except libvirt.libvirtError:
-                            pass
+                            error("LibvirtHost.updateCpuLimit: Could not change state of vcpu %d.\n" % (int(vcpu_nr)))
+                            return False
 
                     try:
                         info("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (int(vcpu_nr),
@@ -1874,6 +1875,7 @@ class LibvirtHost( Host ):
                     except libvirt.libvirtError:
                         error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (int(vcpu_nr),
                                                                                               str(mapping)))
+                        return False
 
                 emu_mapping = [ 1 if x not in offlinecores else 0 for x in list(range(0, self.maxCpus))]
                 # pin the emulator to the same cores to make overhead visible
@@ -1882,6 +1884,7 @@ class LibvirtHost( Host ):
                     self.domain.pinEmulator(tuple(emu_mapping))
                 except libvirt.libvirtError:
                     error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(emu_mapping))
+                    return False
 
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus
@@ -1891,7 +1894,9 @@ class LibvirtHost( Host ):
                             debug("LibvirtHost.updateCpuLimit: Setting core %d state to offline.\n" % vcpu_nr)
                             self.domain.setVcpu(str(vcpu_nr), libvirt.VIR_VCPU_OFFLINE)
                         except libvirt.libvirtError:
-                            pass
+                            error("LibvirtHost.updateCpuLimit: Could not change state of vcpu %d to offline.\n" %
+                                  (int(vcpu_nr)))
+                            return False
 
                 params['cores'] = cores
 
