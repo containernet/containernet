@@ -173,7 +173,10 @@ class Profiler:
         for n in self.nodes:
             node = copy.deepcopy(n)
             privateDirs = [(self.output_folder, self.output_folder)]
+            mac = maxinet.Tools.makeMAC(self.nodes.index(n))
             if self.profile_type in node:
+                if 'mac' not in node[self.profile_type]:
+                    node[self.profile_type]['mac'] = mac
                 # default to host
                 if "type" not in node[self.profile_type]:
                     node[self.profile_type]['type'] = "Host"
@@ -184,7 +187,10 @@ class Profiler:
                     if node[self.profile_type]['type'] == "Docker":
                         cls = Docker
                     del node[self.profile_type]['type']
-                    self.topo.addHost(node['name'], cls=cls, privateDirs=privateDirs, **node.get('containernet', {}))
+                    self.topo.addHost(node['name'],
+                                      cls=cls,
+                                      privateDirs=privateDirs,
+                                      **node.get('containernet', {}))
 
                 if self.profile_type == 'maxinet':
                     if node[self.profile_type]['type'] == "LibvirtHost":
@@ -192,12 +198,20 @@ class Profiler:
                     if node[self.profile_type]['type'] == "Docker":
                         cls = MaxiDocker
                     del node[self.profile_type]['type']
-                    self.topo.addHost(node['name'], cls=cls, privateDirs=privateDirs, **node.get('maxinet', {}))
+                    self.topo.addHost(node['name'],
+                                      cls=cls,
+                                      privateDirs=privateDirs,
+                                      **node.get('maxinet', {}))
 
             else:
                 # add the node as a basic mininet host to the topology
                 if self.profile_type == 'containernet' or self.profile_type == "maxinet":
-                    self.topo.addHost(node['name'], privateDirs=privateDirs, ip=node['ip'])
+                    if 'mac' not in node:
+                        node['mac'] = mac
+                    self.topo.addHost(node['name'],
+                                      privateDirs=privateDirs,
+                                      ip=node['ip'],
+                                      mac=node['mac'])
 
         # TODO: netem calls for local profiling
         print("Setting up links")
@@ -217,6 +231,8 @@ class Profiler:
             self.cluster = maxinet.Cluster()
             self.maxinet_experiment = maxinet.Experiment(self.cluster, self.topo, switch=OVSSwitch)
             self.maxinet_experiment.setup()
+            # wait for the controller to be set up
+            time.sleep(5)
 
         if self.profile_type == 'containernet':
             print("Starting Containernet")

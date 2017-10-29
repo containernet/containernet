@@ -32,7 +32,14 @@ experiments:
         start_cmd: [ "/usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/" ]
     links:
       - from: "vm1"
-        to: "vm2"
+        to: "s1"
         params:
           delay: "1ms"
           jitter: "2ms"
+      - from: "vm2"
+        to: "s1"
+        params:
+          delay: "1ms"
+          jitter: "2ms"
+    switches:
+      - "s1"
