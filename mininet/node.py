@@ -1214,10 +1214,12 @@ class LibvirtHost( Host ):
         # keep track of our main ssh session
         self.ssh_session = paramiko.SSHClient()
         self.shell = None
+
+        # get the maximum amount of physical cpus on the host system
         self.maxCpus = int(self.lv_conn.getCPUMap()[0])
 
         self.use_existing_vm = use_existing_vm
-        # set resources to empty dict
+        # set resources to empty dict, will update them later
         self.resources = {}
 
         # libvirt will print error messages if we don't handle them
@@ -1616,7 +1618,7 @@ class LibvirtHost( Host ):
             return
 
         try:
-            self.sftp_session = self.ssh_session.open_sftp()
+            sftp = self.ssh_session.open_sftp()
         except Exception as e:
             error(e)
             return
@@ -1626,8 +1628,8 @@ class LibvirtHost( Host ):
         for directory in self.privateDirs:
             if isinstance( directory, tuple ):
                 # mount given private directory
-                host_dir = directory[ 1 ] % self.__dict__
-                vm_dir = directory[ 0 ]
+                host_dir = directory[1] % self.__dict__
+                vm_dir = directory[0]
 
                 if not os.path.exists(host_dir):
                     # use exist_ok=True for python3
@@ -1639,9 +1641,9 @@ class LibvirtHost( Host ):
                           (host_dir, host_dir))
                     continue
 
-                for remote_file in self.sftp_session.listdir(vm_dir):
+                for remote_file in sftp.listdir(vm_dir):
                     try:
-                        self.sftp_session.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
+                        sftp.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
                     except IOError, OSError:
                         error("LibvirtHost.unmountPrivateDirs: Failed to transfer file %s to host directory %s.\n" %
                               (remote_file, host_dir))
@@ -1834,7 +1836,13 @@ class LibvirtHost( Host ):
                          "Upgrade to a newer version if you need this feature. "
                          "Setting number of Vcpus instead of managing specific cores.\n")
                     info("LibvirtHost.updateCpuLimit: Setting number of Vcpus to %d\n" % len(cores))
-                    self.domain.setVcpusFlags(len(cores), libvirt.VIR_DOMAIN_AFFECT_LIVE)
+                    try:
+                        self.domain.setVcpusFlags(len(cores), libvirt.VIR_DOMAIN_AFFECT_LIVE)
+                    except:
+                        warn("Could not change the amount of vcpus. Maybe this version of Qemu / libvirt does not "
+                             "allow reducing vcpus.\n")
+                        return False
+
 
                 # initialize a list with all cores marked as offline
                 offlinecores = list(range(0, self.maxCpus))
@@ -1888,8 +1896,10 @@ class LibvirtHost( Host ):
                 params['cores'] = cores
 
             self.resources.update(params)
+            return True
         except libvirt.libvirtError as e:
             error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
+            return False
 
     def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1, **kwargs):
         """
@@ -1916,8 +1926,10 @@ class LibvirtHost( Host ):
 
             if memswap_limit != -1:
                 error("LibvirtHost.updateMemoryLimit: Setting swap is not yet implemented.\n")
+            return True
         except libvirt.libvirtError as e:
             error("LibvirtHost.updateMemoryLimit: Error setting memory limits. Error: %s\n" % e)
+            return False
 
 
 class CPULimitedHost( Host ):

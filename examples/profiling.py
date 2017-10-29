@@ -91,7 +91,7 @@ class Profiler:
 
     def apply_configuration(self, node, index):
         if "configuration" not in node:
-            return
+            return True
         if len(node['configuration']) <= index or len(node['configuration']) == 1:
             conf = node['configuration'][0]
         else:
@@ -115,15 +115,20 @@ class Profiler:
             # normal hosts are not profiled so only apply limits to nodes within profiles
             if self.profile_type in node and not type(n) == Host:
                 for c, value in conf.items():
+                    ret = True
                     if c == "cpu_cores":
                         core_map = {}
                         for i in range(0, int(value)):
                             core_map[i] = str(i)
-                        n.updateCpuLimit(cores=core_map)
+                        ret = n.updateCpuLimit(cores=core_map)
                     if c == "mem":
-                        n.updateMemoryLimit(mem_limit=value)
-                print("Updated node %s configuration to: %s" % (node['name'], conf))
+                        ret = n.updateMemoryLimit(mem_limit=value)
 
+                    if not ret:
+                        return False
+
+                print("Updated node %s configuration to: %s" % (node['name'], conf))
+        return True
     def run_command(self, cmd, node, **kwargs):
         cmd = self.format_command(cmd, node)
         print("Running cmd {cmd} on {node}. kwargs={kwargs}".format(cmd=cmd,
@@ -235,9 +240,14 @@ class Profiler:
         try:
             for index in range(0, self.configurations):
                 print("\n\nRun Nr: %d of Exp: %s. Configuration: %d\n\n" % (self.run_nr, self.data['name'], index))
+                failed = False
                 for node in self.nodes:
-                    self.apply_configuration(node, index)
+                    if not self.apply_configuration(node, index):
+                        print("Failed to configure node %s with conf %d, skipping configuration." % (node, index))
+                        failed = True
 
+                if failed:
+                    continue
                 print("Running start commands")
                 for node in self.nodes:
                     if "start_cmd" in node:
