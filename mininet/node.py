@@ -1093,60 +1093,69 @@ class LibvirtHost( Host ):
 
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
-        self.SNAPSHOT_XML = """
-                        <domainsnapshot>
-                            <description>Mininet snapshot</description>
-                            <memory snapshot='external' file='{path}.mem'/>
-                            <disks>
-                                <disk name='{image}'>
-                                    <source file='{path}'/>
-                                </disk>
-                            </disks>
-                        </domainsnapshot>
-                        """
-        self.SNAPSHOT_XML_RUNNING = """
-                        <domainsnapshot>
-                            <description>Mininet snapshot</description>
-                        </domainsnapshot>
-                        """
-        self.INTERFACE_XML = """
-                <interface type='direct' trustGuestRxFilters='yes'>
-                    <model type='virtio'/>
-                    <source dev='{intfname}' mode='private'/>
-                </interface>
-                """
+        # only define these if a possible superclass has not overwritten them!
+        if not hasattr(self, "SNAPSHOT_XML"):
+            self.SNAPSHOT_XML = """
+                            <domainsnapshot>
+                                <description>Mininet snapshot</description>
+                                <memory snapshot='external' file='{path}.mem'/>
+                                <disks>
+                                    <disk name='{image}'>
+                                        <source file='{path}'/>
+                                    </disk>
+                                </disks>
+                            </domainsnapshot>
+                            """
 
-        self.INTERFACE_XML_MGMT = """
-                <interface type="network">
-                    <mac address="{mgmt_mac}"/>
-                    <source network="{mgmt_name}"/>
-                    <address bus="0x00" domain="0x0000" function="{mgmt_function}" slot="{mgmt_slot}" type="pci"/>
-                </interface>
-                """
-        self.DOMAIN_XML = """
-        <domain type="{type}">
-          <name>{name}</name>
-          <title>{title}</title>
-          <memory unit="MiB">{memory}</memory>
-          <currentMemory unit="MiB">{curmemory}</currentMemory>
-          <vcpu current="{curcpu}">{cpumax}</vcpu>
-          <os>
-            <type arch="{arch}" machine="{machine}">{ostype}</type>
-          </os>
-          <features>
-            <acpi/>
-          </features>
-          <devices>
-            <emulator>{emulator}</emulator>
-            <disk device="disk" type="file">
-              <source file="{disk_image}"/>
-              <target dev="{disk_target_dev}"/>
-              <driver name="{disk_driver}" type="{disk_type}"/>
-            </disk>
-            <console type="pty"/>
-          </devices>
-        </domain>
-        """
+        if not hasattr(self, "SNAPSHOT_XML_RUNNING"):
+            self.SNAPSHOT_XML_RUNNING = """
+                            <domainsnapshot>
+                                <description>Mininet snapshot</description>
+                            </domainsnapshot>
+                            """
+        if not hasattr(self, "INTERFACE_XML"):
+            self.INTERFACE_XML = """
+                    <interface type='direct' trustGuestRxFilters='yes'>
+                        <model type='virtio'/>
+                        <source dev='{intfname}' mode='private'/>
+                    </interface>
+                    """
+
+        if not hasattr(self, "INTERFACE_XML_MGMT"):
+            self.INTERFACE_XML_MGMT = """
+                    <interface type="network">
+                        <mac address="{mgmt_mac}"/>
+                        <source network="{mgmt_network}"/>
+                        <address bus="0x00" domain="0x0000" function="{mgmt_pci_function}" slot="{mgmt_pci_slot}" type="pci"/>
+                    </interface>
+                    """
+        if not hasattr(self, "DOMAIN_XML"):
+            self.DOMAIN_XML = """
+            <domain type="{type}">
+              <name>{name}</name>
+              <title>{title}</title>
+              <memory unit="MiB">{memory}</memory>
+              <currentMemory unit="MiB">{currentMemory}</currentMemory>
+              <vcpu current="{vcpu}">{cpumax}</vcpu>
+              <os>
+                <type arch="{os_arch}" machine="{os_machine}">{os_type}</type>
+              </os>
+              <features>
+                <acpi/>
+                {features}
+              </features>
+              <devices>
+                <emulator>{emulator}</emulator>
+                <disk device="disk" type="file">
+                  <source file="{disk_image}"/>
+                  <target dev="{disk_target_dev}"/>
+                  <driver name="{disk_target_driver_name}" type="{disk_target_driver_type}"/>
+                </disk>
+                {mgmt_interface}
+                <console type="pty"/>
+              </devices>
+            </domain>
+            """
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
@@ -1159,28 +1168,21 @@ class LibvirtHost( Host ):
                                     })
         kwargs.setdefault('cmd_endpoint', 'qemu:///system')
         kwargs.setdefault('domain_xml', None)
-        kwargs.setdefault('disk', {
-            'target': {
-                'dev': 'sda'
-            },
-            'driver': {
-                'name': 'qemu',
-                'type': 'qcow2'
-            }
-        })
-        kwargs.setdefault('os', {
-            'type': {
-                'arch': "x86_64",
-                'machine': "pc"
-            },
-            '_text': "hvm"
-        })
+        kwargs.setdefault('disk_target_dev', 'sda')
+        kwargs.setdefault('disk_target_driver_name', 'qemu')
+        kwargs.setdefault('disk_target_driver_type', 'qcow2')
+        kwargs.setdefault('os_arch', 'x86_64')
+        kwargs.setdefault('os_machine', 'pc')
+        kwargs.setdefault('os_type', 'hvm')
         kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
         kwargs.setdefault('memory', '1024')
+        kwargs.setdefault('features', '')
         kwargs.setdefault('currentMemory', '1024')
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
+        kwargs.setdefault('use_sudo', False)
+        kwargs.setdefault('mgmt_net_at_start', False)
 
         kwargs.setdefault('resources', {
             'cpu_quota': -1,
@@ -1197,13 +1199,18 @@ class LibvirtHost( Host ):
 
         self.disk_image = disk_image
 
-        self.mgmt_net_interface_xml = None
+        self.mgmt_net_interface_xml = ""
         # domain object we get from libvirt
         self.domain = None
         # etree we store for domain manipulation
         self.domain_tree = None
         # XML serialization of the domain_tree
         self.domain_xml = None
+
+        if disk_image == "":
+            info("No disk image given. Trying to use an existing domain with name %s.\n" % name)
+            use_existing_vm = True
+
         if use_existing_vm:
             self.domain_name = name
         else:
@@ -1217,7 +1224,6 @@ class LibvirtHost( Host ):
 
         # get the maximum amount of physical cpus on the host system
         self.maxCpus = int(self.lv_conn.getCPUMap()[0])
-
         self.use_existing_vm = use_existing_vm
         # set resources to empty dict, will update them later
         self.resources = {}
@@ -1292,7 +1298,8 @@ class LibvirtHost( Host ):
                       % self.domain_name)
                 raise e
 
-        self.attach_management_network(**kwargs)
+        if self.mgmt_net_interface_xml is "":
+            self.attach_management_network(**kwargs)
 
         if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
             self.domain.resume()
@@ -1321,22 +1328,16 @@ class LibvirtHost( Host ):
 
     def build_domain(self, **params):
         # create a host config from params
+        if "mgmt_net_at_start" in params:
+            self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**params)
+
         domain = self.DOMAIN_XML.format(
-            type=params['type'],
             name=self.domain_name,
             title="com.containernet-%s" % self.domain_name,
-            memory=params['memory'],
-            curmemory=params['currentMemory'],
-            curcpu=params['vcpu'],
             cpumax=self.maxCpus,
-            arch=params['os']['type']['arch'],
-            machine=params['os']['type']['machine'],
-            ostype=params['os']['_text'],
-            emulator=params['emulator'],
             disk_image=self.disk_image,
-            disk_driver=params['disk']['driver']['name'],
-            disk_type=params['disk']['driver']['type'],
-            disk_target_dev=params['disk']['target']['dev']
+            mgmt_interface=self.mgmt_net_interface_xml,
+            **params
         )
 
         # store the domain_xml until we have the real one from libvirt
@@ -1436,6 +1437,9 @@ class LibvirtHost( Host ):
         # set the hostname
         self.cmd('hostname %s' % self.name)
         self.cmd('unset HISTFILE; stty -echo; set +m')
+
+        if self.params['use_sudo']:
+            self.cmd("sudo su -")
 
     def read( self, maxbytes=1024 ):
         """Buffered read from node, potentially blocking.
@@ -1709,14 +1713,7 @@ class LibvirtHost( Host ):
         """Attaches an interfaces to the LibvirtHost. This interfaces is used to SSH into the machine."""
         info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
 
-        slot = kwargs['mgmt_pci_slot']
-        function = kwargs['mgmt_pci_function']
-        self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(
-            mgmt_mac=kwargs['mgmt_mac'],
-            mgmt_name=kwargs['mgmt_network'],
-            mgmt_slot=slot,
-            mgmt_function=function,
-        )
+        self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**kwargs)
         try:
             self.domain.attachDevice(self.mgmt_net_interface_xml)
         except libvirt.libvirtError as e:
