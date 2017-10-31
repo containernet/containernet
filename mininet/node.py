@@ -1091,17 +1091,50 @@ class Docker ( Host ):
 class LibvirtHost( Host ):
     """Base class for controlling a host that is managed by libvirt.
 
+    Args:
+        name: name of the node
+        disk_image: file that holds a disk image, if empty string is passed
+                    an existing domain with name = name will be used
+        use_existing_vm: force the usage of an existing VM. Default: False
+        type: the type of domain to instantiate, default: 'kvm'
+        login: the dictionary to pass to the management network paramiko ssh session.
+                default: {'credentials': { 'username': 'root', 'password': 'containernet'},})
+        cmd_endpoint: which endpoint to use. default 'qemu:///system'
+        domain_xml: If defined this XML string will be used to instantiate the domain.
+                If a path is specified the file will be read instead. default: None
+        disk_target_dev: String. disk device string for domain_xml. Default: 'sda'
+        disk_target_driver_name: String. disk device driver string for domain_xml. Default: 'qemu'
+        disk_target_driver_type: String. disk device type string for domain_xml. Default: 'qcow2'
+        os_arch: String. type of os string for domain_xml. Default: 'x86_64'
+        os_machine: String. default 'pc'
+        os_type: String. OS type for libvirt. Default: 'hvm'
+        emulator: String. Path to the emulator. Default: '/usr/bin/qemu-system-x86_64'
+        memory: String. Amount of memory in MB. Defines max memory. Default: '1024'
+        currentMemory: String. Amount of memory currently assigned to the domain. Default: '1024'
+        features: String containing XML for possible features that need to be added. Default: ""
+        vcpu: String contining the amount of VCPUs allocated to this domain. Default: '1'
+        snapshot: Boolean. if the domain should create a snapshot before being added to the emulated network.
+                Default: True
+        snapshot_disk_image_path: String. Specify a fixed path for the snapshot. Default: None
+        use_sudo: Boolean. Set this to true to let Containernet call sudo su - after logging in.
+                Passwordless sudo required. Default False
+        mgmt_net_at_start: Boolean. Set this to true for generated domains where the guest does not
+                understand hotplugging. Has no effect for predefined domains. Default False
+        mgmt_pci_slot: String. Set a custom pci slot for the management network. Default "0x08"
+        mgmt_pci_function: String. Set a custom pci function for the mangement network. Default "0x0"
+
+
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
-        # only define these if a possible superclass has not overwritten them!
+        # only define these if they are not defined yet to make inheritance viable
         if not hasattr(self, "SNAPSHOT_XML"):
             self.SNAPSHOT_XML = """
                             <domainsnapshot>
                                 <description>Mininet snapshot</description>
-                                <memory snapshot='external' file='{path}.mem'/>
+                                <memory snapshot='external' file='{snapshot_disk_image_path}.mem'/>
                                 <disks>
                                     <disk name='{image}'>
-                                        <source file='{path}'/>
+                                        <source file='{snapshot_disk_image_path}'/>
                                     </disk>
                                 </disks>
                             </domainsnapshot>
@@ -1159,7 +1192,6 @@ class LibvirtHost( Host ):
         # "private" dict for capabilities property
         self._capabilities = None
         # a lot of defaults
-        kwargs.setdefault('environment', dict())
         kwargs.setdefault('type', 'kvm')
         kwargs.setdefault('login', {'credentials': {
                                         'username': 'root',
@@ -1176,8 +1208,8 @@ class LibvirtHost( Host ):
         kwargs.setdefault('os_type', 'hvm')
         kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
         kwargs.setdefault('memory', '1024')
-        kwargs.setdefault('features', '')
         kwargs.setdefault('currentMemory', '1024')
+        kwargs.setdefault('features', '')
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
@@ -1242,8 +1274,10 @@ class LibvirtHost( Host ):
                 if os.path.isfile(kwargs['domain_xml']):
                     with open(kwargs['domain_xml'], 'r') as xml_file:
                         self.domain_xml = xml_file.read()
+                        info("LibvirtHost.__init__: Using provided domain XML file for domain %s.\n" % self.domain_name)
                 else:
                     self.domain_xml = kwargs['domain_xml']
+                    info("LibvirtHost.__init__: Using provided domain XML for domain %s.\n" % self.domain_name)
                 if not self.check_domain(**kwargs):
                     error("LibvirtHost.__init__: Provided domain XML has errors!\n")
             else:
@@ -1283,11 +1317,9 @@ class LibvirtHost( Host ):
 
             if self.use_existing_vm:
                 snapshot_xml = self.SNAPSHOT_XML_RUNNING
-                info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" %
-                     (self.domain_name))
+                info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" % self.domain_name)
             else:
-                snapshot_xml = self.SNAPSHOT_XML.format(image=self.disk_image,
-                                                   path=kwargs['snapshot_disk_image_path'])
+                snapshot_xml = self.SNAPSHOT_XML.format(image=self.disk_image, **kwargs)
                 info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
                      (self.domain_name, kwargs['snapshot_disk_image_path']))
 
@@ -1329,6 +1361,8 @@ class LibvirtHost( Host ):
     def build_domain(self, **params):
         # create a host config from params
         if "mgmt_net_at_start" in params:
+            debug("LibvirtHost.buildDomain: Adding management network before starting the domain '%s'\n" %
+                  self.domain_name)
             self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**params)
 
         domain = self.DOMAIN_XML.format(
@@ -1381,15 +1415,18 @@ class LibvirtHost( Host ):
                 debug("LibvirtHost._get_new_ssh_session: Logged in to domain %s using ssh.\n" % self.domain_name)
                 break
             except paramiko.BadHostKeyException as e:
-                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but has HostKey problems. Error: %s\n" %
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but has HostKey problems. Error: %s\n" %
                       (self.name, e))
                 return False
             except paramiko.AuthenticationException as e:
-                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but SSH threw an authentication"
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but SSH threw an authentication"
                       "Error: %s\n" % (self.name, e))
                 return False
             except paramiko.SSHException as e:
-                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, but could not connect to the VM. "
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but could not connect to the VM. "
                       "Did you set up the management network correctly?."
                       "Error: %s\n" % (self.name, e))
                 return False
@@ -1400,17 +1437,14 @@ class LibvirtHost( Host ):
         return session
 
     def startShell(self, mnopts=None):
-        """ Starts a domain and tries to connect via SSH.
-
-        Raises: libvirt.libvirtError if the domain can not be started."""
+        """ Tries to connect to a domain via SSH and exposes a shell that behaves like a normal mininet shell."""
         debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
               self.domain_name)
         sess = self._get_new_ssh_session()
         if sess:
             self.ssh_session = sess
         else:
-            error("LibvirtHost.startShell: Could not start the shell for domain %s.\n" %
-              self.domain_name)
+            error("LibvirtHost.startShell: Could not start the shell for domain %s.\n" % self.domain_name)
             return
         self.domain_xml = self.getDomainXML()
         self.pid = self.getPid()
@@ -1438,6 +1472,7 @@ class LibvirtHost( Host ):
         self.cmd('hostname %s' % self.name)
         self.cmd('unset HISTFILE; stty -echo; set +m')
 
+        # call sudo, has to be passwordless
         if self.params['use_sudo']:
             self.cmd("sudo su -")
 
@@ -1556,7 +1591,9 @@ class LibvirtHost( Host ):
         self.waiting = True
 
     def getPid(self):
-        """Gets the pid of the libvirt process running the mininet host."""
+        """Gets the pid of the libvirt process running the mininet host.
+           This is only to keep the behaviour of existing mininet hosts.
+        """
 
         # iterate over all system processes and look for one containing the uuid of the domain in the commandline
         # I don't know if this is completely foolproof for all hypervisors that libvirt supports
@@ -1573,8 +1610,10 @@ class LibvirtHost( Host ):
             if str(self.domain.UUIDString()) in content:
                 return dirname
 
-    def mountPrivateDirs( self ):
-        """ Mounting private dirs of a vm does not make sense in this context
+    def mountPrivateDirs(self):
+        """ Mounting private dirs of a vm means copying data from the host to the guest at startup.
+            The privateDirs list is interpreted as follows:
+                tuple( vmpath, hostpath)
         """
         assert not isinstance( self.privateDirs, basestring )
         # ignore everything here if no privateDirs are specified
@@ -1611,7 +1650,7 @@ class LibvirtHost( Host ):
             else:
                 warn("LibvirtHost.mountPrivateDirs: Only tuples are supported in VM context.\n")
 
-    def unmountPrivateDirs( self ):
+    def unmountPrivateDirs(self):
         """ Unmounting should copy the data out of the VM to the host filesystem.
             The privateDirs list is interpreted as follows:
                 tuple( vmpath, hostpath)
@@ -1874,7 +1913,7 @@ class LibvirtHost( Host ):
                                                                                               str(mapping)))
                         return False
 
-                emu_mapping = [ 1 if x not in offlinecores else 0 for x in list(range(0, self.maxCpus))]
+                emu_mapping = [1 if x not in offlinecores else 0 for x in list(range(0, self.maxCpus))]
                 # pin the emulator to the same cores to make overhead visible
                 try:
                     debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(emu_mapping))
