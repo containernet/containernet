@@ -1122,6 +1122,7 @@ class LibvirtHost( Host ):
                 understand hotplugging. Has no effect for predefined domains. Default False
         mgmt_pci_slot: String. Set a custom pci slot for the management network. Default "0x08"
         mgmt_pci_function: String. Set a custom pci function for the mangement network. Default "0x0"
+        no_check: Boolean. Overrides the check_domain. Use this for non standard domains. Default False
 
 
     """
@@ -1214,16 +1215,16 @@ class LibvirtHost( Host ):
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
         kwargs.setdefault('use_sudo', False)
-        kwargs.setdefault('mgmt_net_at_start', False)
+        kwargs.setdefault('mgmt_net_at_start', True)
+        kwargs.setdefault('no_check', False)
+        kwargs.setdefault('mgmt_pci_slot', '0x08')
+        kwargs.setdefault('mgmt_pci_function', '0x0')
 
         kwargs.setdefault('resources', {
             'cpu_quota': -1,
             'cpu_period': -1,
             'cpu_shares': -1,
         })
-
-        kwargs.setdefault('mgmt_pci_slot', '0x08')
-        kwargs.setdefault('mgmt_pci_function', '0x0')
 
         self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
         if self.lv_conn is None:
@@ -1239,7 +1240,7 @@ class LibvirtHost( Host ):
         # XML serialization of the domain_tree
         self.domain_xml = None
 
-        if disk_image == "":
+        if disk_image == "" and kwargs['domain_xml'] is None:
             info("No disk image given. Trying to use an existing domain with name %s.\n" % name)
             use_existing_vm = True
 
@@ -1259,9 +1260,6 @@ class LibvirtHost( Host ):
         self.use_existing_vm = use_existing_vm
         # set resources to empty dict, will update them later
         self.resources = {}
-
-        # libvirt will print error messages if we don't handle them
-        libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
 
         self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
         if not self.mgmt_net:
@@ -1295,13 +1293,10 @@ class LibvirtHost( Host ):
                       % self.domain_name)
                 return
             debug("Using preexisting domain %s.\n" % self.domain_name)
-            if not self.domain.isActive():
-                # launch but immediately pause the domain if it is not running yet
-                self.domain.createWithFlags(libvirt.VIR_DOMAIN_START_PAUSED)
 
         # instantiate the domain in libvirt
         if self.domain is None:
-            self.domain = self.lv_conn.createXML(self.domain_xml, libvirt.VIR_DOMAIN_START_PAUSED)
+            self.domain = self.lv_conn.createXML(self.domain_xml)
 
         if kwargs['snapshot']:
             if kwargs['snapshot_disk_image_path'] is None:
@@ -1330,11 +1325,20 @@ class LibvirtHost( Host ):
                       % self.domain_name)
                 raise e
 
+        # pre-existing domains might still be shut down. so start them
+        if not self.domain.isActive():
+            # launch
+            self.domain.create()
+
+        # if a domain is paused resume it
+        if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
+            self.domain.resume()
+
+        # if the management network is not added before starting the domain add it now
         if self.mgmt_net_interface_xml is "":
             self.attach_management_network(**kwargs)
 
-        if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
-            self.domain.resume()
+        # finally update the resource dict to reflect our current configuration
         self.update_resources(**kwargs['resources'])
 
         # call original Node.__init__
@@ -1382,6 +1386,8 @@ class LibvirtHost( Host ):
             return False
 
     def check_domain(self, **kwargs):
+        if kwargs.get('no_check'):
+            return True
         try:
             if self.lv_conn.lookupByName(self.domain_name):
                 error("LibvirtHost.check_domain: Domain '%s' does already exist.\n" % self.domain_name)
@@ -1789,8 +1795,7 @@ class LibvirtHost( Host ):
             self.detach_management_network()
             if self.params['snapshot']:
                 try:
-                    # reverting to the snapshot will put the domain in the old state. so calling shutdown
-                    # here should not be needed
+                    # reverting to the snapshot, contains the previous state
                     info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
                     self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
                     self.lv_domain_snapshot.delete()
