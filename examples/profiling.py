@@ -34,7 +34,7 @@ class Profiler:
         self.configurations = 0
         self.active_configuration = 0
         self.run_nr = 0
-        self.outfile_template = "{base}/{ename}-{node}-{conf}-{run}.exp"
+        self.outfile_template = "{base}/{ename}-{profile}-{node}-{conf}-{run}.exp"
 
         self.remove_args = ['systemd_type', 'waitpid']
 
@@ -57,7 +57,7 @@ class Profiler:
         # maxinet related stuff
         self.topo = Topo()
         if self.profile_type == 'maxinet':
-            self.cluster = None
+            self.cluster = maxinet.Cluster()
             self.maxinet_experiment = None
 
         # containernet
@@ -75,6 +75,7 @@ class Profiler:
             ename=self.data['name'],
             node=node['name'],
             conf=self.active_configuration,
+            profile=self.profile_type,
             run=self.run_nr
         )
 
@@ -159,6 +160,7 @@ class Profiler:
             cmd['shell'] = True
 
         debug(str(cmd) + "\n")
+        # run on host if node is not set
         if node is None:
             return subprocess.check_output(**cmd)
 
@@ -253,15 +255,10 @@ class Profiler:
 
         if self.profile_type == 'maxinet':
             output("Starting MaxiNet\n")
-            self.cluster = maxinet.Cluster()
-            self.cluster.logger.setLevel("DEBUG")
             self.maxinet_experiment = maxinet.Experiment(self.cluster,
                                                          self.topo,
-                                                         switch=OVSSwitch,
                                                          **self.data.get('maxinet', {}))
             self.maxinet_experiment.setup()
-            # wait for the controller to be set up
-            time.sleep(5)
 
         if self.profile_type == 'containernet':
             output("Starting Containernet\n")
@@ -324,7 +321,7 @@ class Profiler:
                     while start_time + int(self.data.get('duration')) > time.time():
                         time.sleep(0.5)
 
-                info("Waiting for startprocesses to finish")
+                info("Waiting for startprocesses to finish\n")
                 # super hack continued
                 # call ls on the pid in /proc to see if the process actually terminated
                 for p in pids:
