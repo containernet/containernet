@@ -186,7 +186,7 @@ class Profiler:
               )
         if self.profile_type == 'local':
             # local variant has to create the directories
-            subprocess.call(create_dir, shell=True)
+            subprocess.check_output(create_dir, shell=True)
             return subprocess.check_output(**cmd)
         else:
             n = self.get_node(node['name'])
@@ -318,7 +318,8 @@ class Profiler:
                         try:
                             p = self.run_command(start, node)
                         except subprocess.CalledProcessError as e:
-                            error(e + "\n")
+                            error(e)
+                            error("\n")
                         else:
                             pid = re.search("pid=(\d+)", p)
                             if pid and int(pid.group(1)) > 0 and start.get('waitpid'):
@@ -332,7 +333,8 @@ class Profiler:
                     while start_time + int(self.data.get('duration')) > time.time():
                         time.sleep(0.5)
 
-                info("Waiting for startprocesses to finish\n")
+                if pids:
+                    info("Waiting for startprocesses to finish\n")
                 # super hack continued
                 # call ls on the pid in /proc to see if the process actually terminated
                 for p in pids:
@@ -345,7 +347,7 @@ class Profiler:
                         else:
                             if "cannot" in output:
                                 running = False
-                        time.sleep(0.5)
+                        time.sleep(5)
 
                 for node in self.nodes:
                     stop = self.get_node_command("stop", node)
@@ -462,7 +464,7 @@ if __name__ == "__main__":
     args.output = os.path.abspath(args.output)
 
     experiments = yaml.load(open(args.yaml_file))['experiments']
-    setLogLevel('info')
+    setLogLevel('debug')
 
     types = ['local', 'containernet', 'maxinet']
 

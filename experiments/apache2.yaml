@@ -31,14 +31,14 @@ experiments:
           ip: "192.168.10.4/24"
         local:
           run_on: "fgcn-of-4"
-          systemd_type: "forking"
           setup:
+            systemd_type: "forking"
             args: "/usr/sbin/apache2ctl start"
       vm2:
         run_on: "fgcn-of-3"
         ip: "192.168.10.8/24"
         start:
-          args: "/usr/bin/nohup /usr/bin/ab -s 1 -n 1000 -e {outfile} {target_ip}/ > /dev/null &"
+          args: "/usr/bin/nohup /usr/bin/ab -s 1 -n 100000 -e {outfile} {target_ip}/ > /dev/null &"
           waitpid: True
     links:
       - from: vm1
