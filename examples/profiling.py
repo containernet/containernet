@@ -260,11 +260,7 @@ class Profiler:
                     if p in link.get('params', {}):
                         link['params'][p] = float(link['params'][p])
 
-                # for some reason maxinet does not work if we explicitly set the Link class here, but containernet needs it
-                if self.profile_type == "maxinet":
-                    self.topo.addLink(link['from'], link['to'], **link.get('params', {}))
-                if self.profile_type == "containernet":
-                    self.topo.addLink(link['from'], link['to'], cls=TCLink, **link.get('params', {}))
+                self.topo.addLink(link['from'], link['to'], **link.get('params', {}))
 
         if self.profile_type == 'maxinet':
             output("Starting MaxiNet\n")
@@ -276,7 +272,8 @@ class Profiler:
 
         if self.profile_type == 'containernet':
             output("Starting Containernet\n")
-            self.containernet = Containernet(topo=self.topo, switch=OVSSwitch)
+            # MaxiNet defaults to TCLink while Containernet defaults to Link so set it here
+            self.containernet = Containernet(topo=self.topo, switch=OVSSwitch, link=TCLink)
             self.containernet.start()
 
         for node in self.nodes:
