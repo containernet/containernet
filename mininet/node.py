@@ -1362,6 +1362,10 @@ class LibvirtHost( Host ):
     def isKvm(self):
         return "kvm" in self.params['type']
 
+    @property
+    def isLXC(self):
+        return "lxc" in self.params['cmd_endpoint']
+
     def build_domain(self, **params):
         # create a host config from params
         if "mgmt_net_at_start" in params:

@@ -1014,8 +1014,8 @@ class Containernet( Mininet ):
         self.mgmt_dict.setdefault("ip", "192.168.134.1")
         self.mgmt_dict.setdefault("netmask", "255.255.255.0")
         self.mgmt_dict.setdefault("mac", macColonHex(ipParse(self.mgmt_dict['ip'])))
-        # keep track of how many hosts we added to the mgmt net
-        self.allocated_dhcp_ips = 1
+        # keep track of hosts we added to the mgmt net
+        self.leases = {}
         self.libvirt = LIBVIRT_AVAILABLE
         if LIBVIRT_AVAILABLE:
             libvirt.registerErrorHandler(f=libvirtErrorHandler, ctx=None)
@@ -1067,12 +1067,18 @@ class Containernet( Mininet ):
         # we use setdefault so we don't overwrite existing values in here
         params.setdefault("mgmt_network", self.mgmt_dict['name'])
 
-        # add host to the DHCP table of management network
-        host_ip_int = ipParse(self.mgmt_dict['ip']) + self.allocated_dhcp_ips
+        # add host to the DHCP table of the management network
+        host_ip_int = ipParse(self.mgmt_dict['ip']) + 1
+        while ipStr(host_ip_int) in self.leases:
+            host_ip_int += 1
         params.setdefault("mgmt_mac", macColonHex(host_ip_int))
         params.setdefault("mgmt_ip", ipStr(host_ip_int))
+        if params['mgmt_ip'] in self.leases:
+            error("Containernet.addLibvirthost: There is already a DHCP lease for IP %s. Adding host %s failed.\n" %
+                  (params['mgmt_ip'], name))
+            return False
         try:
-            host_xml = self.HOST_XML.format(ip=ipStr(host_ip_int), mac=macColonHex(host_ip_int), name=name)
+            host_xml = self.HOST_XML.format(ip=params['mgmt_ip'], mac=params['mgmt_mac'], name=name)
             info("Containernet.addLibvirthost: Adding DHCP entry for host %s.\n" % name)
             debug("network XML:\n %s\n" % host_xml)
             #COMMANDDICT = {"none": 0, "modify": 1, "delete": 2, "add-first": 4}
@@ -1083,7 +1089,7 @@ class Containernet( Mininet ):
             #FLAGSDICT = {"current": 0, "live": 1, "config": 2}
             # command, section, flags
             self.libvirtManagementNetwork.update(4, 4, 0, host_xml)
-            self.allocated_dhcp_ips += 1
+            self.leases[params['mgmt_ip']] = name
         except libvirt.libvirtError as e:
             error("Containernet.addLibvirthost: Could not update the management network. Adding host %s failed."
                   " Error: %s\n" % (name, e))
@@ -1094,8 +1100,12 @@ class Containernet( Mininet ):
 
     def removeLibvirthost( self, name, **params):
         """
-        Wrapper for removeHost. Just to be complete.
+        Wrapper for removeHost.
         """
+        for ip, n in self.leases.items():
+            if name == n:
+                del self.leases[ip]
+                break
         return self.removeHost(name, **params)
 
 
@@ -1188,7 +1198,6 @@ class Containernet( Mininet ):
               network_xml)
         self.libvirtManagementNetwork = self.lv_conn.networkCreateXML(network_xml)
 
-
     def destroyManagementNetwork(self):
         if self.libvirtManagementNetwork is not None:
             debug('*** Removing the libvirt management network ***\n')
@@ -1196,7 +1205,7 @@ class Containernet( Mininet ):
             self.libvirtManagementNetwork = None
             self.lv_conn = None
             self.allocated_dhcp_ips = 1
-
+            self.leases = []
 
     def stop(self):
         super(Containernet, self).stop()
@@ -1206,7 +1215,6 @@ class Containernet( Mininet ):
             self.removeSAPNAT(self.SAPswitches[SAPswitch])
         info("\n")
         self.destroyManagementNetwork()
-
 
 
 class MininetWithControlNet( Mininet ):
