@@ -1120,11 +1120,11 @@ class LibvirtHost( Host ):
                 Passwordless sudo required. Default False
         mgmt_net_at_start: Boolean. Set this to true for generated domains where the guest does not
                 understand hotplugging. Has no effect for predefined domains. Default False
-        mgmt_pci_slot: String. Set a custom pci slot for the management network. Default "0x08"
-        mgmt_pci_function: String. Set a custom pci function for the mangement network. Default "0x0"
-        no_check: Boolean. Overrides the check_domain. Use this for non standard domains. Default False
-
-
+        mgmt_network: String. Contains the libvirt name of the management network. Default: mn.libvirt.mgmt
+        mgmt_ip: String. Custom IP of the host for the management network. Default: None
+        mgmt_mac: String. Custom MAC for the host in the management network. Default: None
+        mgmt_pci_slot: String. Set a custom pci slot for the management network. Max: "0xF1". Default: "0x08"
+        no_check: Boolean. Overrides the check_domain. Use this for non standard domains. Default: False
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
         # only define these if they are not defined yet to make inheritance viable
@@ -1160,7 +1160,7 @@ class LibvirtHost( Host ):
                     <interface type="network">
                         <mac address="{mgmt_mac}"/>
                         <source network="{mgmt_network}"/>
-                        <address bus="0x00" domain="0x0000" function="{mgmt_pci_function}" slot="{mgmt_pci_slot}" type="pci"/>
+                        <address bus="0x00" domain="0x0000" slot="{mgmt_pci_slot}" type="pci"/>
                     </interface>
                     """
         if not hasattr(self, "DOMAIN_XML"):
@@ -1443,6 +1443,9 @@ class LibvirtHost( Host ):
             except socket.error as e:
                 # if the domain is still starting up, allow connections to it to fail
                 pass
+            except KeyboardInterrupt:
+                error("LibvirtHost._get_new_ssh_session: Keyboard Interrupt.\n")
+                return False
 
         return session
 

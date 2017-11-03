@@ -17,6 +17,7 @@ from mininet.log import setLogLevel, info, debug, warn, error, output
 from mininet.link import TCLink, Link
 from mininet.topo import Topo
 
+import MaxiNet
 from MaxiNet.Frontend import maxinet
 from MaxiNet.Frontend.container import Docker as MaxiDocker
 from MaxiNet.Frontend.libvirt import LibvirtHost as MaxiVm
@@ -52,15 +53,20 @@ class Profiler:
 
             self.nodes.append(node)
 
+        print("Experiment contains %d different configurations." % self.configurations)
+
         self.profile_type = profile_type
 
         # maxinet related stuff
-        self.topo = Topo()
+
         if self.profile_type == 'maxinet':
+            self.topo = Topo()
             self.cluster = maxinet.Cluster()
             self.maxinet_experiment = None
 
         # containernet
+        if self.profile_type == 'containernet':
+            self.topo = Topo()
         self.containernet = None
 
     @staticmethod
@@ -191,9 +197,11 @@ class Profiler:
     def setup_experiment(self):
         # local profiling will always use hardware, so no need to setup switches
         if self.profile_type != 'local':
+            dpid = 2000
             output("Setting up switches\n")
             for switch in self.data.get('switches', []):
-                self.topo.addSwitch(switch)
+                self.topo.addSwitch(switch, dpid=maxinet.Tools.makeMAC(dpid))
+                dpid += 1
 
         output("Setting up nodes\n")
         # wrap the nodes correctly and put them in the topology
@@ -251,12 +259,18 @@ class Profiler:
                 for p in ['bw', 'loss']:
                     if p in link.get('params', {}):
                         link['params'][p] = float(link['params'][p])
-                self.topo.addLink(link['from'], link['to'], cls=TCLink, **link.get('params', {}))
+
+                # for some reason maxinet does not work if we explicitly set the Link class here, but containernet needs it
+                if self.profile_type == "maxinet":
+                    self.topo.addLink(link['from'], link['to'], **link.get('params', {}))
+                if self.profile_type == "containernet":
+                    self.topo.addLink(link['from'], link['to'], cls=TCLink, **link.get('params', {}))
 
         if self.profile_type == 'maxinet':
             output("Starting MaxiNet\n")
             self.maxinet_experiment = maxinet.Experiment(self.cluster,
                                                          self.topo,
+                                                         switch=OVSSwitch,
                                                          **self.data.get('maxinet', {}))
             self.maxinet_experiment.setup()
 
@@ -369,9 +383,9 @@ class Profiler:
             if self.maxinet_experiment:
                 self.maxinet_experiment.stop()
                 self.maxinet_experiment = None
-            # aggregate all outfiles from all hosts in the mapping, only works for static mappings
+            # aggregate all outfiles from all hosts in the mapping
             # and of course rsync has to be passwordless
-            if "hostnamemapping" in self.data.get("maxinet"):
+            if "hostnamemapping" in self.data.get("maxinet", ""):
                 for host in self.data['maxinet']['hostnamemapping'].keys():
                     self.run_command(["rsync", "-avz", "%s:%s/" % (host, self.output_folder), self.output_folder])
         elif self.profile_type == "containernet":
@@ -427,7 +441,7 @@ if __name__ == "__main__":
         "-t",
         help="type: local, containernet, maxinet",
         required=False,
-        default="all",
+        default="containernet",
         dest="exp_type")
 
     parser.add_argument(

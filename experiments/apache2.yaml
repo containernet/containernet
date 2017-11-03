@@ -11,10 +11,8 @@ experiments:
       nodemapping:
         vm1: 3
         vm2: 2
-        vm3: 1
         s1: 3
         s2: 2
-        s3: 1
     nodes:
       vm1:
         cpu_cores:
@@ -40,23 +38,21 @@ experiments:
         run_on: "fgcn-of-3"
         ip: "192.168.10.8/24"
         start:
-          args: "/usr/bin/nohup /usr/bin/ab -s 1 -n 10000 -e {outfile} {target_ip}/ > /dev/null &"
+          args: "/usr/bin/nohup /usr/bin/ab -s 1 -n 1000 -e {outfile} {target_ip}/ > /dev/null &"
           waitpid: True
-      vm3:
-        run_on: "fgcn-of-2"
-        ip: "192.168.10.5/24"
     links:
-      - from: "vm1"
-        to: "s1"
-      - from: "vm2"
-        to: "s2"
-      - from: "vm3"
-        to: "s3"
-      - from: "s1"
-        to: "s2"
-      - from: "s2"
-        to: "s3"
+      - from: vm1
+        to: s1
+        params:
+          bw: 100
+          loss: 0
+      - from: s2
+        to: vm2
+        params:
+          bw: 100
+          loss: 0
+      - from: s1
+        to: s2
     switches:
-      - "s1"
-      - "s2"
-      - "s3"
+      - s1
+      - s2
