@@ -24,12 +24,15 @@ from MaxiNet.Frontend.libvirt import LibvirtHost as MaxiVm
 
 
 class Profiler:
-    def __init__(self, experiment, output_folder, profile_type):
+    def __init__(self, experiment, output_folder, profile_type, custom_controller=False):
         self.data = experiment
         self.output_folder = output_folder.rstrip("/")
 
         self.systemd_run_cmd = "/usr/bin/systemd-run"
         self.remote_run = "root@{host}"
+        self.custom_controller = custom_controller
+
+        self.params = ["cpu_quota", "cpu_period", "cpu_shares", "cpu_cores", "mem"]
 
         self.nodes = []
         self.configurations = 0
@@ -45,12 +48,16 @@ class Profiler:
             node['name'] = nodename
             node.update(settings)
 
-            if "mem" in settings and "cpu_cores" in settings:
-                node['configuration'] = Profiler.compute_cartesian_product(
-                    {'mem': settings.get('mem'), 'cpu_cores': settings.get('cpu_cores')})
-                if len(node['configuration']) > self.configurations:
-                    self.configurations = len(node['configuration'])
+            # aggregate all resource params
+            parms = dict()
+            for p in self.params:
+                if p in settings:
+                    parms[p] = settings.get(p)
 
+            # compute the number of configs
+            node['configuration'] = Profiler.compute_cartesian_product(parms)
+            if len(node['configuration']) > self.configurations:
+                self.configurations = len(node['configuration'])
             self.nodes.append(node)
 
         print("Experiment contains %d different configurations." % self.configurations)
@@ -60,6 +67,8 @@ class Profiler:
         # maxinet related stuff
 
         if self.profile_type == 'maxinet':
+            if not self.custom_controller:
+                self.run_command("nohup controller -v ptcp:6633:192.168.10.1 > /dev/null 2>&1 &")
             self.topo = Topo()
             self.cluster = maxinet.Cluster()
             self.maxinet_experiment = None
@@ -291,6 +300,9 @@ class Profiler:
 
                 self.run_command(cmd, node)
 
+        info("Giving the startup commands some time to settle.\n")
+        time.sleep(5)
+
     def start_experiment(self):
         try:
             for index in range(0, self.configurations):
@@ -386,7 +398,10 @@ class Profiler:
             # and of course rsync has to be passwordless
             if "hostnamemapping" in self.data.get("maxinet", ""):
                 for host in self.data['maxinet']['hostnamemapping'].keys():
-                    self.run_command(["rsync", "-avz", "%s:%s/" % (host, self.output_folder), self.output_folder])
+                    try:
+                        self.run_command(["rsync", "-avz", "%s:%s/" % (host, self.output_folder), self.output_folder])
+                    except subprocess.CalledProcessError:
+                        pass
         elif self.profile_type == "containernet":
             if self.containernet:
                 self.containernet.stop()
@@ -440,7 +455,7 @@ if __name__ == "__main__":
         "-t",
         help="type: local, containernet, maxinet",
         required=False,
-        default="containernet",
+        default="all",
         dest="exp_type")
 
     parser.add_argument(
@@ -459,26 +474,30 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if not os.path.exists(args.output):
-        os.mkdir(args.output)
+        os.makedirs(args.output)
 
     args.output = os.path.abspath(args.output)
 
     experiments = yaml.load(open(args.yaml_file))['experiments']
     setLogLevel('debug')
 
-    types = ['local', 'containernet', 'maxinet']
-
-    if args.exp_type not in types and args.exp_type != 'all':
-        print("Not a valid type of experiment.")
-        sys.exit(0)
+    types = ['local', 'containernet', 'maxinet', 'all']
 
     for exp in experiments:
         if args.target_ip:
             exp['target_ip'] = args.target_ip
         if args.exp_type == 'all':
             for t in types:
+                if t not in exp.get("profiles", types):
+                    print("Skipping type %s because it is not a valid target." % t)
+                    continue
+
                 e = Profiler(exp, args.output, profile_type=t)
                 e.run_experiment()
         else:
+            if args.exp_type not in exp.get("profiles", types):
+                print("Skipping type %s because it is not a valid target for experiment %s." %
+                      (args.exp_type, exp.get('name', "")))
+                continue
             e = Profiler(exp, args.output, profile_type=args.exp_type)
             e.run_experiment()
