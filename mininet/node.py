@@ -1835,7 +1835,8 @@ class LibvirtHost( Host ):
         self.updateCpuLimit(**kwargs)
         self.updateMemoryLimit(**kwargs)
 
-    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1, cores=None, **kwargs):
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1,
+                       emulator_period=-1, emulator_quota=-1, cores=None, **kwargs):
         """
         Update CPU resource limitations.
         This method allows to update resource limitations at runtime in the same fashion as docker containers.
@@ -1845,6 +1846,8 @@ class LibvirtHost( Host ):
             cpu_quota: cfs quota us
             cpu_period: cfs period us
             cpu_shares: cpu shares
+            emulator_period: cfs_quota_us assigned to emulator
+            emulator_quota: cfs_period_us assigned to emulator
             cores: maps vcpus to physical cores, e.g. {0: "1", 1: "2-3"} maps vcpu 0 to cpu 1 and vcpu 1 to cpu 2 and 3.
                     Offline cores will be brought online. Cores not specified will be set offline.
                     if just a string is used, vcpu 0 will be pinned to the specified cores.
@@ -1857,6 +1860,10 @@ class LibvirtHost( Host ):
             params['vcpu_period'] = cpu_period
         if cpu_shares != -1:
             params['cpu_shares'] = cpu_shares
+        if emulator_period != -1:
+            params['emulator_period'] = emulator_period
+        if emulator_quota != -1:
+            params['emulator_quota'] = emulator_quota
         try:
             if len(params) > 0:
                 self.domain.setSchedulerParameters(params)
