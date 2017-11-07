@@ -1123,7 +1123,7 @@ class LibvirtHost( Host ):
         mgmt_network: String. Contains the libvirt name of the management network. Default: mn.libvirt.mgmt
         mgmt_ip: String. Custom IP of the host for the management network. Default: None
         mgmt_mac: String. Custom MAC for the host in the management network. Default: None
-        mgmt_pci_slot: String. Set a custom pci slot for the management network. Max: "0xF1". Default: "0x08"
+        mgmt_pci_slot: String. Set a custom pci slot for the management network. Max: "0x1F". Default: "0x1F"
         no_check: Boolean. Overrides the check_domain. Use this for non standard domains. Default: False
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
@@ -1217,8 +1217,7 @@ class LibvirtHost( Host ):
         kwargs.setdefault('use_sudo', False)
         kwargs.setdefault('mgmt_net_at_start', True)
         kwargs.setdefault('no_check', False)
-        kwargs.setdefault('mgmt_pci_slot', '0x08')
-        kwargs.setdefault('mgmt_pci_function', '0x0')
+        kwargs.setdefault('mgmt_pci_slot', '0x1F')
 
         kwargs.setdefault('resources', {
             'cpu_quota': -1,
@@ -1412,6 +1411,8 @@ class LibvirtHost( Host ):
 
     def _get_new_ssh_session(self):
         session = paramiko.SSHClient()
+
+        t = time.time()
         while True:
             try:
                 if "timeout" not in self.params['login']['credentials']:
@@ -1423,7 +1424,7 @@ class LibvirtHost( Host ):
                 session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
                 session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
                 debug("LibvirtHost._get_new_ssh_session: Logged in to domain %s using ssh.\n" % self.domain_name)
-                break
+                return session
             except paramiko.BadHostKeyException as e:
                 error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
                       "but has HostKey problems. Error: %s\n" %
@@ -1441,13 +1442,15 @@ class LibvirtHost( Host ):
                       "Error: %s\n" % (self.name, e))
                 return False
             except socket.error as e:
-                # if the domain is still starting up, allow connections to it to fail
-                pass
+                # if the domain is still starting up, allow connections to it to fail unless timeout is reached
+                if time.time() - t > self.params['login']['credentials']['timeout']:
+                    error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                          "but could not connect to the VM. Reached timeout!"
+                          "Error: %s\n" % (self.name, e))
+                    return False
             except KeyboardInterrupt:
                 error("LibvirtHost._get_new_ssh_session: Keyboard Interrupt.\n")
                 return False
-
-        return session
 
     def startShell(self, mnopts=None):
         """ Tries to connect to a domain via SSH and exposes a shell that behaves like a normal mininet shell."""

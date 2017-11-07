@@ -68,6 +68,10 @@ class Profiler:
 
         if self.profile_type == 'maxinet':
             if not self.custom_controller:
+                try:
+                    self.run_command("killall -9 controller")
+                except:
+                    pass
                 self.run_command("nohup controller -v ptcp:6633:192.168.10.1 > /dev/null 2>&1 &")
             self.topo = Topo()
             self.cluster = maxinet.Cluster()
@@ -117,6 +121,47 @@ class Profiler:
             cmd = node[self.profile_type][cmd_type]
         return cmd
 
+    def calculate_cpu_cfs_values(self, cpu_time_percentage):
+        """
+        Calculate cpu period and quota for CFS
+        :param cpu_time_percentage: percentage of overall CPU to be used
+        :return: cpu_period, cpu_quota
+        """
+        if cpu_time_percentage is None:
+            return None, None
+        if cpu_time_percentage < 0:
+            return None, None
+        # using calculation of systemd
+        # define CGROUP_CPU_QUOTA_PERIOD_USEC ((usec_t) 100 * USEC_PER_MSEC)
+        # quota * CGROUP_CPU_QUOTA_PERIOD_USEC / USEC_PER_SEC)
+        CGROUP_CPU_QUOTA_PERIOD_USEC = int(100 * 1000)
+        USEC_PER_SEC = int(1000000)
+        cpu_quota = int(cpu_time_percentage) * int(CGROUP_CPU_QUOTA_PERIOD_USEC) / int(USEC_PER_SEC)
+        if cpu_quota < 1000:
+            cpu_quota = 1000
+
+        return int(CGROUP_CPU_QUOTA_PERIOD_USEC), int(cpu_quota)
+
+    def get_systemctl_property(self, node, param, value):
+        """"Modify a running slice using systemd"""
+
+        cmd = "systemctl set-property perf-{}.slice {}={}"
+        if param == "cpu_quota":
+            resource = "CPUQuota"
+            cmd = cmd.format(node['name'], resource, "%s%%" % value)
+        # hacky fallback to cpuquota as CPUAffinity is bugged
+        if param == "cpu_cores":
+            resource = "CPUQuota"
+            cmd = cmd.format(node['name'], resource, int(value) * 100)
+        if param == "mem":
+            resource = "MemoryLimit"
+            cmd = cmd.format(node['name'], resource, "%sM" % value)
+        # todo other params
+        return cmd
+
+    #def get_remove_cgroup(self):
+    #    return "find /sys/fs/cgroup/systemd/perf.slice -depth -type d -print -exec rmdir {} \;"
+
     def apply_configuration(self, node, index):
         if "configuration" not in node:
             return True
@@ -127,15 +172,9 @@ class Profiler:
         self.active_configuration = index
 
         if self.profile_type == 'local':
-            command = ["systemctl", "set-property", "perf-%s.slice" % node['name'], "--runtime"]
-            cmd = copy.copy(command)
             for c, value in conf.items():
-                if c == "cpu_cores":
-                    cmd.append("CPUQuota={}%".format(int(float(value) * 100)))
-                if c == "mem":
-                    cmd.append("MemoryLimit={}M".format(int(value)))
-
-            self.run_command(cmd, node)
+                cmd = self.get_systemctl_property(node, c, value)
+                self.run_command(cmd, node)
             info("Updated node %s configuration to: %s\n" % (node['name'], conf))
 
         else:
@@ -149,6 +188,13 @@ class Profiler:
                         for i in range(0, int(value)):
                             core_map[i] = str(i)
                         ret = n.updateCpuLimit(cores=core_map)
+                    if c == "cpu_quota":
+                        period, quota = self.calculate_cpu_cfs_values(value)
+                        ret = n.updateCpuLimit(cpu_quota=quota, cpu_period=period)
+                    if c == "cpu_period":
+                        ret = n.updateCpuLimit(cpu_period=c)
+                    if c == "cpu_shares":
+                        ret = n.updateCpuLimit(cpu_shares=value)
                     if c == "mem":
                         ret = n.updateMemoryLimit(mem_limit=value)
 
@@ -180,7 +226,7 @@ class Profiler:
             return subprocess.check_output(**cmd)
 
         cmd['args'] = self.format_command(cmd['args'], node)
-        create_dir ="mkdir -p %s" % self.output_folder
+        create_dir = "mkdir -p %s" % self.output_folder
 
         if self.profile_type == 'local':
             # add ssh call to our command if we have to run remote
@@ -484,6 +530,9 @@ if __name__ == "__main__":
     types = ['local', 'containernet', 'maxinet', 'all']
 
     for exp in experiments:
+        # experiment is flagged as disabled
+        if exp.get("disabled", False):
+            continue
         if args.target_ip:
             exp['target_ip'] = args.target_ip
         if args.exp_type == 'all':
