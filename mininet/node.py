@@ -67,7 +67,7 @@ from time import sleep
 
 from mininet.log import info, error, warn, debug
 from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups, libvirtErrorHandler )
+                           numCores, retry, mountCgroups, libvirtErrorHandler, numCores )
 from mininet.moduledeps import moduleDeps, pathCheck, TUN
 from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
@@ -1095,7 +1095,8 @@ class LibvirtHost( Host ):
         name: name of the node
         disk_image: file that holds a disk image, if empty string is passed
                     an existing domain with name = name will be used
-        use_existing_vm: force the usage of an existing VM. Default: False
+        use_existing_vm: Use an existing VM of name kwargs['name'] if domain_name is not set. Default: False
+        domain_name: The domain that is used when using an existing VM. Default: kwargs['name']
         type: the type of domain to instantiate, default: 'kvm'
         login: the dictionary to pass to the management network paramiko ssh session.
                 default: {'credentials': { 'username': 'root', 'password': 'containernet'},})
@@ -1167,7 +1168,6 @@ class LibvirtHost( Host ):
             self.DOMAIN_XML = """
             <domain type="{type}">
               <name>{name}</name>
-              <title>{title}</title>
               <memory unit="MiB">{memory}</memory>
               <currentMemory unit="MiB">{currentMemory}</currentMemory>
               <vcpu current="{vcpu}">{cpumax}</vcpu>
@@ -1244,7 +1244,7 @@ class LibvirtHost( Host ):
             use_existing_vm = True
 
         if use_existing_vm:
-            self.domain_name = name
+            self.domain_name = kwargs.get('domain_name', name)
         else:
             # domain name with prefix
             self.domain_name = "%s.%s" % ("mn", name)
@@ -1254,8 +1254,8 @@ class LibvirtHost( Host ):
         self.ssh_session = paramiko.SSHClient()
         self.shell = None
 
-        # get the maximum amount of physical cpus on the host system
-        self.maxCpus = int(self.lv_conn.getCPUMap()[0])
+        # get the maximum amount of physical cpus
+        self.maxCpus = numCores()
         self.use_existing_vm = use_existing_vm
         # set resources to empty dict, will update them later
         self.resources = {}
@@ -1291,7 +1291,7 @@ class LibvirtHost( Host ):
                 error("LibvirtHost.__init__: Domain '%s' does not exist. Cannot use preexisting domain.\n"
                       % self.domain_name)
                 return
-            debug("Using preexisting domain %s.\n" % self.domain_name)
+            debug("Using preexisting domain %s as node %s.\n" % (self.domain_name, name))
 
         # instantiate the domain in libvirt
         if self.domain is None:
@@ -1324,6 +1324,13 @@ class LibvirtHost( Host ):
                       % self.domain_name)
                 raise e
 
+        if not self.use_existing_vm:
+            # snapshots are created so now we can set the title so cleanup can remove the domain if something crashes
+            self.domain.setMetadata(libvirt.VIR_DOMAIN_METADATA_TITLE,
+                                    "com.containernet-%s" % self.domain_name,
+                                    key=None,
+                                    uri=None)
+
         # pre-existing domains might still be shut down. so start them
         if not self.domain.isActive():
             # launch
@@ -1354,11 +1361,10 @@ class LibvirtHost( Host ):
 
     @property
     def isQemu(self):
-        # very simple way to determine if libvirt will use qemu
-        return "qemu" in self.params['emulator']
+        return "qemu" in self.params['cmd_endpoint']
 
     @property
-    def isKvm(self):
+    def isKVM(self):
         return "kvm" in self.params['type']
 
     @property
@@ -1374,7 +1380,6 @@ class LibvirtHost( Host ):
 
         domain = self.DOMAIN_XML.format(
             name=self.domain_name,
-            title="com.containernet-%s" % self.domain_name,
             cpumax=self.maxCpus,
             disk_image=self.disk_image,
             mgmt_interface=self.mgmt_net_interface_xml,
@@ -1393,7 +1398,7 @@ class LibvirtHost( Host ):
             return True
         try:
             if self.lv_conn.lookupByName(self.domain_name):
-                error("LibvirtHost.check_domain: Domain '%s' does already exist.\n" % self.domain_name)
+                error("LibvirtHost.check_domain: Domain '%s' exists already.\n" % self.domain_name)
                 return False
         except libvirt.libvirtError:
             # domain does not yet exist. everything is fine
@@ -1481,16 +1486,17 @@ class LibvirtHost( Host ):
         while self.shell.recv_ready():
             self.read()
         self.waiting = False
+
         # set prompt to sentinel
         self.cmd('export PS1="\\177"')
 
+        # call sudo, has to be passwordless and PS1 has to be preserved!
+        if self.params['use_sudo']:
+            self.cmd("sudo -Es")
         # set the hostname
         self.cmd('hostname %s' % self.name)
         self.cmd('unset HISTFILE; stty -echo; set +m')
 
-        # call sudo, has to be passwordless
-        if self.params['use_sudo']:
-            self.cmd("sudo su -")
 
     def read( self, maxbytes=1024 ):
         """Buffered read from node, potentially blocking.
@@ -1558,7 +1564,7 @@ class LibvirtHost( Host ):
         self.cmd("ip link set %s name %s" % (str(new_intf), intf))
 
         # let the hostobject do the bookkeeping
-        Node.addIntf(self, intf, port)
+        Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
 
     def monitor( self, timeoutms=None, findPid=True ):
         """Monitor and return the output of a command.
@@ -1677,6 +1683,7 @@ class LibvirtHost( Host ):
             return
 
         try:
+            self.ssh_session.get_transport().sock.settimeout(30.0)
             sftp = self.ssh_session.open_sftp()
         except Exception as e:
             error(e)
@@ -1796,7 +1803,7 @@ class LibvirtHost( Host ):
             try:
                 self.domain.destroy()
             except libvirt.libvirtError as e:
-                warn("LibvirtHost.terminate: Could not terminate the domain %s, maybe its already destroyed? %s" %
+                warn("LibvirtHost.terminate: Could not terminate the domain %s, maybe it is already destroyed? %s" %
                      (self.domain_name, e))
             if self.params['snapshot']:
                 self.remove_snapshot_file()
@@ -1817,7 +1824,7 @@ class LibvirtHost( Host ):
                     info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
                     self.domain.shutdown()
                 except libvirt.libvirtError as e:
-                    warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe its already offline? %s" %
+                    warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe it is already offline? %s" %
                          (self.domain_name, e))
 
         self.cleanup()
@@ -1836,37 +1843,97 @@ class LibvirtHost( Host ):
         self.updateMemoryLimit(**kwargs)
 
     def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1,
-                       emulator_period=-1, emulator_quota=-1, cores=None, **kwargs):
+                       emulator_period=-1, emulator_quota=-1, cores=None,
+                       emulator_cores=None, use_libvirt=True, **kwargs):
         """
         Update CPU resource limitations.
         This method allows to update resource limitations at runtime in the same fashion as docker containers.
         For more control use libvirt directly.
         You can not disable the first core on a running VM!
         Args:
-            cpu_quota: cfs quota us
-            cpu_period: cfs period us
+            cpu_quota: cfs quota us, time in microseconds a cgroup can access cpus during one cfs_cpu_period
+            cpu_period: cfs period us, time in microseconds when quota should be refreshed
             cpu_shares: cpu shares
             emulator_period: cfs_quota_us assigned to emulator
             emulator_quota: cfs_period_us assigned to emulator
+            use_libvirt: boolean. If False, containernet will try to manipulate the cgroups directly and not through
+                    libvirt. Sets the limit for the VM as a whole!
+                    Only supports cpu_quota, cpu_period, cpu_shares and cores. Default: True
             cores: maps vcpus to physical cores, e.g. {0: "1", 1: "2-3"} maps vcpu 0 to cpu 1 and vcpu 1 to cpu 2 and 3.
                     Offline cores will be brought online. Cores not specified will be set offline.
-                    if just a string is used, vcpu 0 will be pinned to the specified cores.
-
+                    if just a string is used, vcpus will be pinned to their physical counterparts e.g. 0 -> 0, 1 -> 1.
+            emulator_cores: tuple. maps emulator to physical cores, (0,1,0,1) maps the emulator to cores 1 and 3.
+                    Default: None
         """
+        if not use_libvirt:
+            def cgroupSet(param, value, resource='cpu'):
+                # this one is a hack
+                # if we want to change the resource limits for the parent we have to set them for the children as well
+                # the problem is that when we restrict the resources we have to do this bottom up
+                # when we increase the limits we have to do this top down
+                # evaluating if we actually increase or decrease the limits is finicky
+                # so just do the brute force approach
+                def apply_children():
+                    # set limits for all children first!
+                    parent = "/sys/fs/cgroup/%s/machine/%s.libvirt-qemu" % (resource, self.domain_name)
+                    for d in os.listdir(parent):
+                        if os.path.isdir("%s/%s" % (parent, d)):
+                            try:
+                                check_output('cgset -r %s.%s=%s machine/%s.libvirt-qemu/%s' % (
+                                resource, param, value, self.domain_name, d), shell=True)
+                            except:
+                                pass
+
+                # bottom up for decreasing limits. will fail silently
+                apply_children()
+                # set limits for parent process
+                cmd = 'cgset -r %s.%s=%s machine/%s.libvirt-qemu' % (resource, param, value, self.domain_name)
+                debug(cmd + "\n")
+                # top down for increasing limits. will fail silently
+                apply_children()
+                try:
+                    check_output(cmd, shell=True)
+                except:
+                    error("Problem writing cgroup setting %r\n" % cmd)
+                    return -1
+                return value
+
+            if isinstance(cpu_quota, (int, long)):
+                self.resources['cpu_quota'] = cgroupSet("cfs_quota_us", cpu_quota)
+            if cpu_period >= 0:
+                self.resources['cpu_period'] = cgroupSet("cfs_period_us", cpu_period)
+            if cpu_shares >= 0:
+                self.resources['cpu_shares'] = cgroupSet("shares", cpu_shares)
+            if cores:
+                self.resources['cores'] = cgroupSet("cpus", cores, resource="cpuset")
+            return
+
+
+        # use libvirt to set the limits
         params = {}
         if cpu_quota != -1:
-            params['vcpu_quota'] = cpu_quota
+            params['vcpu_quota'] = int(cpu_quota)
         if cpu_period != -1:
-            params['vcpu_period'] = cpu_period
+            params['vcpu_period'] = int(cpu_period)
         if cpu_shares != -1:
-            params['cpu_shares'] = cpu_shares
+            params['cpu_shares'] = int(cpu_shares)
         if emulator_period != -1:
-            params['emulator_period'] = emulator_period
+            params['emulator_period'] = int(emulator_period)
         if emulator_quota != -1:
-            params['emulator_quota'] = emulator_quota
+            params['emulator_quota'] = int(emulator_quota)
+
+        if emulator_cores:
+            try:
+                debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(emulator_cores))
+                self.domain.pinEmulator(emulator_cores)
+            except libvirt.libvirtError:
+                error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(emulator_cores))
+                return False
+
         try:
             if len(params) > 0:
                 self.domain.setSchedulerParameters(params)
+                info("LibvirtHost.updateCpuLimit: Set scheduler parameters to %s.\n" % params)
             if cores is not None:
                 # if someone is calling this method like the docker version, then just map the single vcpu to
                 # the specified cores, even though this will not lead to the same behaviour
@@ -1881,6 +1948,7 @@ class LibvirtHost( Host ):
                     else:
                         cores_dict = {cores: str(cores)}
                     cores = cores_dict
+
 
                 if 0 not in cores:
                     info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
@@ -1934,15 +2002,6 @@ class LibvirtHost( Host ):
                         error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (int(vcpu_nr),
                                                                                               str(mapping)))
                         return False
-
-                emu_mapping = [1 if x not in offlinecores else 0 for x in list(range(0, self.maxCpus))]
-                # pin the emulator to the same cores to make overhead visible
-                try:
-                    debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(emu_mapping))
-                    self.domain.pinEmulator(tuple(emu_mapping))
-                except libvirt.libvirtError:
-                    error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(emu_mapping))
-                    return False
 
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus

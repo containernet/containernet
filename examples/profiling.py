@@ -11,7 +11,7 @@ import sys
 import re
 from mininet.net import Containernet
 from mininet.clean import cleanup
-from mininet.node import Controller, Docker, OVSSwitch, LibvirtHost, Host
+from mininet.node import Controller, Docker, OVSSwitch, LibvirtHost, Host, UserSwitch
 from mininet.cli import CLI
 from mininet.log import setLogLevel, info, debug, warn, error, output
 from mininet.link import TCLink, Link
@@ -63,16 +63,11 @@ class Profiler:
         print("Experiment contains %d different configurations." % self.configurations)
 
         self.profile_type = profile_type
+        self.reset_controller()
 
         # maxinet related stuff
 
         if self.profile_type == 'maxinet':
-            if not self.custom_controller:
-                try:
-                    self.run_command("killall -9 controller")
-                except:
-                    pass
-                self.run_command("nohup controller -v ptcp:6633:192.168.10.1 > /dev/null 2>&1 &")
             self.topo = Topo()
             self.cluster = maxinet.Cluster()
             self.maxinet_experiment = None
@@ -115,6 +110,16 @@ class Profiler:
         if self.profile_type == 'maxinet':
             return self.maxinet_experiment.get_node(nodename)
 
+    def reset_controller(self):
+        if not self.custom_controller and self.profile_type == "maxinet":
+            try:
+                self.run_command("killall -9 controller")
+            except:
+                pass
+            # only maxinet needs an external controller, containernet instantiates one on its own
+            if self.profile_type == "maxinet":
+                self.run_command("nohup controller -v ptcp:6633:192.168.10.1 > /dev/null 2>&1 &")
+
     def get_node_command(self, cmd_type, node):
         cmd = node.get(cmd_type)
         if self.profile_type in node and cmd_type in node[self.profile_type]:
@@ -131,16 +136,12 @@ class Profiler:
             return None, None
         if cpu_time_percentage < 0:
             return None, None
-        # using calculation of systemd
-        # define CGROUP_CPU_QUOTA_PERIOD_USEC ((usec_t) 100 * USEC_PER_MSEC)
-        # quota * CGROUP_CPU_QUOTA_PERIOD_USEC / USEC_PER_SEC)
-        CGROUP_CPU_QUOTA_PERIOD_USEC = int(100 * 1000)
-        USEC_PER_SEC = int(1000000)
-        cpu_quota = int(cpu_time_percentage) * int(CGROUP_CPU_QUOTA_PERIOD_USEC) / int(USEC_PER_SEC)
+        period = 100000
+        cpu_quota = cpu_time_percentage * period
         if cpu_quota < 1000:
             cpu_quota = 1000
 
-        return int(CGROUP_CPU_QUOTA_PERIOD_USEC), int(cpu_quota)
+        return int(period), int(cpu_quota)
 
     def get_systemctl_property(self, node, param, value):
         """"Modify a running slice using systemd"""
@@ -148,19 +149,16 @@ class Profiler:
         cmd = "systemctl set-property perf-{}.slice {}={}"
         if param == "cpu_quota":
             resource = "CPUQuota"
-            cmd = cmd.format(node['name'], resource, "%s%%" % value)
+            cmd = cmd.format(node['name'], resource, "%d%%" % int(float(value) * 100))
         # hacky fallback to cpuquota as CPUAffinity is bugged
         if param == "cpu_cores":
             resource = "CPUQuota"
-            cmd = cmd.format(node['name'], resource, int(value) * 100)
+            cmd = cmd.format(node['name'], resource, "%d%%" % int(float(value) * 100))
         if param == "mem":
             resource = "MemoryLimit"
             cmd = cmd.format(node['name'], resource, "%sM" % value)
         # todo other params
         return cmd
-
-    #def get_remove_cgroup(self):
-    #    return "find /sys/fs/cgroup/systemd/perf.slice -depth -type d -print -exec rmdir {} \;"
 
     def apply_configuration(self, node, index):
         if "configuration" not in node:
@@ -184,17 +182,14 @@ class Profiler:
                 for c, value in conf.items():
                     ret = True
                     if c == "cpu_cores":
-                        core_map = {}
-                        for i in range(0, int(value)):
-                            core_map[i] = str(i)
-                        ret = n.updateCpuLimit(cores=core_map)
+                        ret = n.updateCpuLimit(cores=value, use_libvirt=False)
                     if c == "cpu_quota":
-                        period, quota = self.calculate_cpu_cfs_values(value)
-                        ret = n.updateCpuLimit(cpu_quota=quota, cpu_period=period)
+                        period, quota = self.calculate_cpu_cfs_values(float(value))
+                        ret = n.updateCpuLimit(cpu_quota=quota, cpu_period=period, use_libvirt=False)
                     if c == "cpu_period":
-                        ret = n.updateCpuLimit(cpu_period=c)
+                        ret = n.updateCpuLimit(cpu_period=c, use_libvirt=False)
                     if c == "cpu_shares":
-                        ret = n.updateCpuLimit(cpu_shares=value)
+                        ret = n.updateCpuLimit(cpu_shares=value, use_libvirt=False)
                     if c == "mem":
                         ret = n.updateMemoryLimit(mem_limit=value)
 
@@ -265,6 +260,7 @@ class Profiler:
             privateDirs = [(self.output_folder, self.output_folder)]
             mac = maxinet.Tools.makeMAC(self.nodes.index(n))
             if self.profile_type in node:
+                privateDirs = node[self.profile_type].get("privateDirs", privateDirs)
                 if 'mac' not in node[self.profile_type]:
                     node[self.profile_type]['mac'] = mac
                 # default to host
@@ -299,11 +295,10 @@ class Profiler:
                     if 'mac' not in node:
                         node['mac'] = mac
                     self.topo.addHost(node['name'],
-                                      privateDirs=privateDirs,
+                                      privateDirs=node.get('privateDirs', privateDirs),
                                       ip=node['ip'],
                                       mac=node['mac'])
 
-        # TODO: netem calls for local profiling
         output("Setting up links\n")
         for link in self.data.get('links', {}):
             if self.profile_type != 'local':
@@ -344,15 +339,20 @@ class Profiler:
                         cmd['args']
                     )
 
-                self.run_command(cmd, node)
+                # this creates some arp requests so the controller can set up routes beforehand
+                self.run_command("ping -c 1 {target_ip}", node)
 
         info("Giving the startup commands some time to settle.\n")
-        time.sleep(5)
+        time.sleep(2)
 
     def start_experiment(self):
         try:
             for index in range(0, self.configurations):
-                print("\n\nRun Nr: %d of Exp: %s. Configuration: %d\n\n" % (self.run_nr, self.data['name'], index))
+                current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+                print("\n\n%s: Run Nr: %d of Exp: %s. Configuration: %d\n\n" % (current_time,
+                                                                                self.run_nr,
+                                                                                self.data['name'],
+                                                                                index))
                 failed = False
                 for node in self.nodes:
                     if not self.apply_configuration(node, index):
@@ -472,9 +472,9 @@ class Profiler:
 
     def run_experiment(self):
         try:
-            self.clean()
             for run in range(0, self.data['repetitions']):
-                print("\n\nStart Run Nr: %d of Exp: %s.\n\n" % (run, self.data['name']))
+                print("\n\nStart Run Nr: %d of Exp: %s Type: %s.\n\n" % (run, self.data['name'], self.profile_type))
+                self.clean()
                 self.setup_experiment()
                 try:
                     self.run_nr = run
@@ -485,6 +485,7 @@ class Profiler:
                 self.stop_experiment()
         finally:
             print("**** FINISHED ****")
+            self.clean()
 
 
 if __name__ == "__main__":
@@ -537,6 +538,8 @@ if __name__ == "__main__":
             exp['target_ip'] = args.target_ip
         if args.exp_type == 'all':
             for t in types:
+                if t == "all":
+                    continue
                 if t not in exp.get("profiles", types):
                     print("Skipping type %s because it is not a valid target." % t)
                     continue
