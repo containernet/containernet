@@ -22,11 +22,15 @@ from MaxiNet.Frontend import maxinet
 from MaxiNet.Frontend.container import Docker as MaxiDocker
 from MaxiNet.Frontend.libvirt import LibvirtHost as MaxiVm
 
-
 class Profiler:
-    def __init__(self, experiment, output_folder, profile_type, custom_controller=False):
+    def __init__(self, experiment, output_folder, profile_type, custom_controller=False, cluster=None):
         self.data = experiment
         self.output_folder = output_folder.rstrip("/")
+
+        self.maxinet_hosts = ['fgcn-of-1.cs.uni-paderborn.de',
+                              'fgcn-of-2.cs.uni-paderborn.de',
+                              'fgcn-of-3.cs.uni-paderborn.de',
+                              'fgcn-of-4.cs.uni-paderborn.de']
 
         self.systemd_run_cmd = "/usr/bin/systemd-run"
         self.remote_run = "root@{host}"
@@ -69,7 +73,10 @@ class Profiler:
 
         if self.profile_type == 'maxinet':
             self.topo = Topo()
-            self.cluster = maxinet.Cluster()
+            if not cluster:
+                self.cluster = maxinet.Cluster()
+            else:
+                self.cluster = cluster
             self.maxinet_experiment = None
 
         # containernet
@@ -152,12 +159,10 @@ class Profiler:
             cmd = cmd.format(node['name'], resource, "%d%%" % int(float(value) * 100))
         # hacky fallback to cpuquota as CPUAffinity is bugged
         if param == "cpu_cores":
-            resource = "CPUQuota"
-            cmd = cmd.format(node['name'], resource, "%d%%" % int(float(value) * 100))
+            return None
         if param == "mem":
             resource = "MemoryLimit"
             cmd = cmd.format(node['name'], resource, "%sM" % value)
-        # todo other params
         return cmd
 
     def apply_configuration(self, node, index):
@@ -172,24 +177,28 @@ class Profiler:
         if self.profile_type == 'local':
             for c, value in conf.items():
                 cmd = self.get_systemctl_property(node, c, value)
-                self.run_command(cmd, node)
+                if cmd:
+                    self.run_command(cmd, node)
             info("Updated node %s configuration to: %s\n" % (node['name'], conf))
 
         else:
             n = self.get_node(node['name'])
             # normal hosts are not profiled so only apply limits to nodes within profiles
             if self.profile_type in node and not type(n) == Host:
+                kwargs = dict()
+                if type(n) == LibvirtHost:
+                    kwargs['use_libvirt'] = False
                 for c, value in conf.items():
                     ret = True
                     if c == "cpu_cores":
-                        ret = n.updateCpuLimit(cores=value, use_libvirt=False)
+                        ret = n.updateCpuLimit(cores=value, **kwargs)
                     if c == "cpu_quota":
                         period, quota = self.calculate_cpu_cfs_values(float(value))
-                        ret = n.updateCpuLimit(cpu_quota=quota, cpu_period=period, use_libvirt=False)
+                        ret = n.updateCpuLimit(cpu_quota=quota, cpu_period=period, **kwargs)
                     if c == "cpu_period":
-                        ret = n.updateCpuLimit(cpu_period=c, use_libvirt=False)
+                        ret = n.updateCpuLimit(cpu_period=value, **kwargs)
                     if c == "cpu_shares":
-                        ret = n.updateCpuLimit(cpu_shares=value, use_libvirt=False)
+                        ret = n.updateCpuLimit(cpu_shares=value, **kwargs)
                     if c == "mem":
                         ret = n.updateMemoryLimit(mem_limit=value)
 
@@ -261,6 +270,7 @@ class Profiler:
             mac = maxinet.Tools.makeMAC(self.nodes.index(n))
             if self.profile_type in node:
                 privateDirs = node[self.profile_type].get("privateDirs", privateDirs)
+                volumes = list()
                 if 'mac' not in node[self.profile_type]:
                     node[self.profile_type]['mac'] = mac
                 # default to host
@@ -272,10 +282,13 @@ class Profiler:
                         cls = LibvirtHost
                     if node[self.profile_type]['type'] == "Docker":
                         cls = Docker
+                        for tup in privateDirs:
+                            volumes.append("%s:%s:rw" % (tup[0], tup[1]))
                     del node[self.profile_type]['type']
                     self.topo.addHost(node['name'],
                                       cls=cls,
                                       privateDirs=privateDirs,
+                                      volumes=volumes,
                                       **node.get('containernet', {}))
 
                 if self.profile_type == 'maxinet':
@@ -283,10 +296,13 @@ class Profiler:
                         cls = MaxiVm
                     if node[self.profile_type]['type'] == "Docker":
                         cls = MaxiDocker
+                        for tup in privateDirs:
+                            volumes.append("%s:%s:rw" % (tup[0], tup[1]))
                     del node[self.profile_type]['type']
                     self.topo.addHost(node['name'],
                                       cls=cls,
                                       privateDirs=privateDirs,
+                                      volumes=volumes,
                                       **node.get('maxinet', {}))
 
             else:
@@ -338,9 +354,10 @@ class Profiler:
                         cmd.get("systemd_type", "oneshot"),
                         cmd['args']
                     )
-
                 # this creates some arp requests so the controller can set up routes beforehand
                 self.run_command("ping -c 1 {target_ip}", node)
+                # run the real setup cmd
+                self.run_command(cmd, node)
 
         info("Giving the startup commands some time to settle.\n")
         time.sleep(2)
@@ -440,10 +457,8 @@ class Profiler:
             if self.maxinet_experiment:
                 self.maxinet_experiment.stop()
                 self.maxinet_experiment = None
-            # aggregate all outfiles from all hosts in the mapping
-            # and of course rsync has to be passwordless
-            if "hostnamemapping" in self.data.get("maxinet", ""):
-                for host in self.data['maxinet']['hostnamemapping'].keys():
+                # rsync has to be passwordless
+                for host in self.maxinet_hosts:
                     try:
                         self.run_command(["rsync", "-avz", "%s:%s/" % (host, self.output_folder), self.output_folder])
                     except subprocess.CalledProcessError:
@@ -461,6 +476,8 @@ class Profiler:
             for node in self.nodes:
                 cmd = ["systemctl", "stop", "perf-%s.slice" % node['name']]
                 try:
+                    self.run_command(cmd, node)
+                    cmd = ["systemctl", "reset-failed"]
                     self.run_command(cmd, node)
                 except:
                     pass
@@ -529,7 +546,10 @@ if __name__ == "__main__":
     setLogLevel('debug')
 
     types = ['local', 'containernet', 'maxinet', 'all']
-
+    if args.exp_type == 'all' or args.exp_type == 'maxinet':
+        cluster = maxinet.Cluster()
+    else:
+        cluster = None
     for exp in experiments:
         # experiment is flagged as disabled
         if exp.get("disabled", False):
@@ -544,12 +564,12 @@ if __name__ == "__main__":
                     print("Skipping type %s because it is not a valid target." % t)
                     continue
 
-                e = Profiler(exp, args.output, profile_type=t)
+                e = Profiler(exp, args.output, profile_type=t, cluster=cluster)
                 e.run_experiment()
         else:
             if args.exp_type not in exp.get("profiles", types):
                 print("Skipping type %s because it is not a valid target for experiment %s." %
                       (args.exp_type, exp.get('name', "")))
                 continue
-            e = Profiler(exp, args.output, profile_type=args.exp_type)
+            e = Profiler(exp, args.output, profile_type=args.exp_type, cluster=cluster)
             e.run_experiment()

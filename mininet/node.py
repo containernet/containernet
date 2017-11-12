@@ -1890,15 +1890,15 @@ class LibvirtHost( Host ):
                 cmd = 'cgset -r %s.%s=%s machine/%s.libvirt-qemu' % (resource, param, value, self.domain_name)
                 debug(cmd + "\n")
                 # top down for increasing limits. will fail silently
-                apply_children()
                 try:
                     check_output(cmd, shell=True)
                 except:
                     error("Problem writing cgroup setting %r\n" % cmd)
                     return -1
+                apply_children()
                 return value
 
-            if isinstance(cpu_quota, (int, long)):
+            if isinstance(cpu_quota, (int, long)) and cpu_quota > 1000:
                 self.resources['cpu_quota'] = cgroupSet("cfs_quota_us", cpu_quota)
             if cpu_period >= 0:
                 self.resources['cpu_period'] = cgroupSet("cfs_period_us", cpu_period)
