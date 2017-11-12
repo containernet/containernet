@@ -1906,7 +1906,7 @@ class LibvirtHost( Host ):
                 self.resources['cpu_shares'] = cgroupSet("shares", cpu_shares)
             if cores:
                 self.resources['cores'] = cgroupSet("cpus", cores, resource="cpuset")
-            return
+            return True
 
 
         # use libvirt to set the limits
