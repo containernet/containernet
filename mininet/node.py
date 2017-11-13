@@ -1550,22 +1550,24 @@ class LibvirtHost( Host ):
 
         # we wait until something changes in network devices
         # the device that appears is our new interface
-        # and then we wait again to see if this really is the new interface...
-        after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
-        while len(before_interfaces) == len(after_interfaces):
-            time.sleep(0.1)
+        done = False
+        start = time.time()
+        debug("LibvirtHost.addIntf: Waiting a maximum amount of 60 Seconds for the interface to appear.\n")
+        while not done:
             after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
             if len(before_interfaces) == len(after_interfaces):
                 time.sleep(0.1)
-                after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+                continue
 
-        if not len(before_interfaces) < len(after_interfaces):
-            raise Exception("Error while attaching a new interface. Could not find the newly attached interface.")
-        # get name of the new interface
-        new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
+            if not len(before_interfaces) < len(after_interfaces) or start + 60 < time.time():
+                raise Exception("Error while attaching a new interface. Could not find the newly attached interface.")
 
-        # rename the interface
-        self.cmd("ip link set %s name %s" % (str(new_intf), intf))
+            # get name of the new interface
+            new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
+
+            # rename the interface
+            if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
+                done = True
 
         # let the hostobject do the bookkeeping
         Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
