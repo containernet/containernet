@@ -17,7 +17,7 @@ Based on: Mininet 2.2.2
 
 If you use Containernet for your research and/or other publications, please cite (beside the original Mininet paper) the following paper to reference our work:
 
-* Manuel Peuster, Holger Karl, and Steven van Rossem. "**[MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments.**](http://ieeexplore.ieee.org/document/7919490/)" in IEEE Conference on Network Function Virtualization and Software Defined Network (NFV-SDN), 2016.
+* M. Peuster, H. Karl, and S. v. Rossem: [MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments](http://ieeexplore.ieee.org/document/7919490/). IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Palo Alto, CA, USA, pp. 148-153. doi: 10.1109/NFV-SDN.2016.7919490. (2016)
 
 ### NFV multi-PoP Extension
 
