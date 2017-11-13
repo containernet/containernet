@@ -1550,10 +1550,14 @@ class LibvirtHost( Host ):
 
         # we wait until something changes in network devices
         # the device that appears is our new interface
+        # and then we wait again to see if this really is the new interface...
         after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
         while len(before_interfaces) == len(after_interfaces):
             time.sleep(0.1)
             after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+            if len(before_interfaces) == len(after_interfaces):
+                time.sleep(0.1)
+                after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
 
         if not len(before_interfaces) < len(after_interfaces):
             raise Exception("Error while attaching a new interface. Could not find the newly attached interface.")
