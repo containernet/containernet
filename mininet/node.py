@@ -1554,12 +1554,15 @@ class LibvirtHost( Host ):
         start = time.time()
         debug("LibvirtHost.addIntf: Waiting a maximum amount of 60 Seconds for the interface to appear.\n")
         while not done:
+            if start + 60 < time.time():
+                raise Exception("Error while attaching a new interface. Could not find the newly attached interface."
+                                "Timeout reached.")
             after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
             if len(before_interfaces) == len(after_interfaces):
                 time.sleep(0.1)
                 continue
 
-            if not len(before_interfaces) < len(after_interfaces) or start + 60 < time.time():
+            if len(before_interfaces) > len(after_interfaces):
                 raise Exception("Error while attaching a new interface. Could not find the newly attached interface.")
 
             # get name of the new interface
