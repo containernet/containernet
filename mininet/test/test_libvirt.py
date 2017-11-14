@@ -363,6 +363,62 @@ class testContainernetTCLinks( simpleTestTopology ):
         self.stopNet()
 
 
+class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
+    """
+    Test to check the resource limitation API of the LibvirtHost integration.
+    TODO: Also check if values are set correctly in to running containers,
+    e.g., with: docker inspect mn.d1 CLI calls?
+    """
+
+    def testCPUShare( self ):
+        """
+        d1, d2 with CPU share limits
+        """
+        # create network
+        # create network
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=0, use_running=True)
+        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
+        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        self.net.addLink(self.s[0], vm1)
+        self.net.addLink(self.s[0], vm2)
+        # add dockers
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        # check connectivity by using ping: default link
+        self.assertTrue(self.net.ping([vm1], manualdestip="10.0.0.2", timeout=1) <= 0.0)
+        vm1.updateCpuLimit(cpu_shares=512, use_libvirt=False)
+        params = vm1.schedulerParameters()
+        assert(int(params['cpu_shares']) == 512)
+        vm2.updateCpuLimit(cpu_quota=500000, cpu_period=100000, use_libvirt=False)
+        params = vm2.schedulerParameters()
+        assert (int(params['vcpu_quota']) == 500000)
+        assert (int(params['vcpu_period']) == 100000)
+        self.assertTrue(self.net.ping([vm1], manualdestip="10.0.0.2", timeout=1) <= 0.0)
+        # stop Mininet network
+        self.stopNet()
+
+    def testMemLimits( self ):
+        """
+        d1, d2 with CPU share limits
+        """
+        # create network
+        # create network
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=0, use_running=True)
+        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
+        self.net.addLink(self.s[0], vm1)
+        # add dockers
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        # check connectivity by using ping: default link
+        vm1.updateMemoryLimit(1000000)
+        time.sleep(5)
+        params = vm1.memoryStats()
+        assert(long(params['actual']) == 1000000)
+        # stop Mininet network
+        self.stopNet()
+
 if __name__ == '__main__':
     #setLogLevel('debug')
     unittest.main()
