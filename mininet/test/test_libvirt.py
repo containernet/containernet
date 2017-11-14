@@ -413,10 +413,10 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # check number of running docker containers
         # check connectivity by using ping: default link
         curmem = vm1.domain.memoryStats()['actual']
-        vm1.updateMemoryLimit(500)
+        vm1.updateMemoryLimit(600)
         time.sleep(5)
         params = vm1.domain.memoryStats()
-        assert(long(params['actual']) == 500 * 1024)
+        assert(long(params['actual']) == 600 * 1024)
         vm1.updateMemoryLimit(curmem / 1024)
         # stop Mininet network
         self.stopNet()
