@@ -1071,7 +1071,7 @@ class Containernet( Mininet ):
         host_ip_int = ipParse(self.mgmt_dict['ip']) + 1
         while ipStr(host_ip_int) in self.leases:
             host_ip_int += 1
-        params.setdefault("mgmt_mac", macColonHex(host_ip_int))
+        params.setdefault("mgmt_mac", self.randMac())
         params.setdefault("mgmt_ip", ipStr(host_ip_int))
         if params['mgmt_ip'] in self.leases:
             error("Containernet.addLibvirthost: There is already a DHCP lease for IP %s. Adding host %s failed.\n" %

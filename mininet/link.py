@@ -388,10 +388,11 @@ class TCIntf( Intf ):
 
         # Set offload parameters with ethool
         cmd = 'ethtool -K', str(self), 'gro', on( gro ), 'tx', on( txo ), 'rx', on( rxo )
+        # configure the interface on the host as well as the VM
         if isinstance(self.node, mininet.node.LibvirtHost):
             quietRun(" ".join(cmd))
-        else:
-            self.cmd(" ".join(cmd))
+
+        self.cmd(" ".join(cmd))
 
         # Optimization: return if nothing else to configure
         # Question: what happens if we want to reset things?
