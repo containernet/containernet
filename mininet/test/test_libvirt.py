@@ -388,10 +388,10 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # check connectivity by using ping: default link
         self.assertTrue(self.net.ping([vm1], manualdestip="10.0.0.2", timeout=1) <= 0.0)
         vm1.updateCpuLimit(cpu_shares=512, use_libvirt=False)
-        params = vm1.schedulerParameters()
+        params = vm1.domain.schedulerParameters()
         assert(int(params['cpu_shares']) == 512)
         vm2.updateCpuLimit(cpu_quota=500000, cpu_period=100000, use_libvirt=False)
-        params = vm2.schedulerParameters()
+        params = vm2.domain.schedulerParameters()
         assert (int(params['vcpu_quota']) == 500000)
         assert (int(params['vcpu_period']) == 100000)
         self.assertTrue(self.net.ping([vm1], manualdestip="10.0.0.2", timeout=1) <= 0.0)
@@ -414,7 +414,7 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # check connectivity by using ping: default link
         vm1.updateMemoryLimit(1000000)
         time.sleep(5)
-        params = vm1.memoryStats()
+        params = vm1.domain.memoryStats()
         assert(long(params['actual']) == 1000000)
         # stop Mininet network
         self.stopNet()
