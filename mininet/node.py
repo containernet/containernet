@@ -1116,6 +1116,8 @@ class LibvirtHost( Host ):
         vcpu: String contining the amount of VCPUs allocated to this domain. Default: '1'
         snapshot: Boolean. if the domain should create a snapshot before being added to the emulated network.
                 Default: True
+        restore_snapshot: Boolean. if the domain should be restored to its original state if a snapshot exists.
+                Default: True
         snapshot_disk_image_path: String. Specify a fixed path for the snapshot. Default: None
         use_sudo: Boolean. Set this to true to let Containernet call sudo su - after logging in.
                 Passwordless sudo required. Default False
@@ -1213,6 +1215,7 @@ class LibvirtHost( Host ):
         kwargs.setdefault('features', '')
         kwargs.setdefault('vcpu', '1')
         kwargs.setdefault('snapshot', True)
+        kwargs.setdefault('restore_snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
         kwargs.setdefault('use_sudo', False)
         kwargs.setdefault('mgmt_net_at_start', True)
@@ -1820,14 +1823,15 @@ class LibvirtHost( Host ):
             # remove the mgmt network so snapshot restore can work
             self.detach_management_network()
             if self.params['snapshot']:
-                try:
-                    # reverting to the snapshot, contains the previous state
-                    info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
-                    self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
-                    self.lv_domain_snapshot.delete()
-                except libvirt.libvirtError as e:
-                    error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
-                          (self.domain_name, e))
+                if self.params['restore_snapshot']:
+                    try:
+                        # reverting to the snapshot, contains the previous state
+                        info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
+                        self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+                        self.lv_domain_snapshot.delete()
+                    except libvirt.libvirtError as e:
+                        error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
+                              (self.domain_name, e))
             else:
                 try:
                     info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
