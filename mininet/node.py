@@ -1569,6 +1569,7 @@ class LibvirtHost( Host ):
 
             # rename the interface
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
+                time.sleep(0.2)
                 if new_intf in self.cmd(interface_list_cmd).strip().split('  '):
                     done = True
 
