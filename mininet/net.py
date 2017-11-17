@@ -1069,6 +1069,8 @@ class Containernet( Mininet ):
 
         # add host to the DHCP table of the management network
         host_ip_int = ipParse(self.mgmt_dict['ip']) + 1
+        while ipStr(host_ip_int) in self.leases:
+            host_ip_int += 1
         # mac address generator in mininet is flawed and will pick reserved macs!
         mac = "02:00:00:%02x:%02x:%02x" % (random.randint(0, 255),
                                      random.randint(0, 255),

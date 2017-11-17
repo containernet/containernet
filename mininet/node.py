@@ -1273,15 +1273,15 @@ class LibvirtHost( Host ):
                 # check if we got a path to a file instead of a whole xml representation
                 if os.path.isfile(kwargs['domain_xml']):
                     with open(kwargs['domain_xml'], 'r') as xml_file:
-                        self.domain_xml = xml_file.read()
+                        self.DOMAIN_XML = xml_file.read()
                         info("LibvirtHost.__init__: Using provided domain XML file for domain %s.\n" % self.domain_name)
                 else:
-                    self.domain_xml = kwargs['domain_xml']
+                    self.DOMAIN_XML = kwargs['domain_xml']
                     info("LibvirtHost.__init__: Using provided domain XML for domain %s.\n" % self.domain_name)
-                if not self.check_domain(**kwargs):
-                    error("LibvirtHost.__init__: Provided domain XML has errors!\n")
-            else:
-                self.build_domain(**kwargs)
+
+            self.build_domain(**kwargs)
+            if not self.check_domain(**kwargs):
+                error("LibvirtHost.__init__: Provided domain XML has errors!\n")
 
             debug("Created Domain object: %s\n" % self.domain_name)
             debug("image: %s\n" % str(self.disk_image))
@@ -1391,10 +1391,6 @@ class LibvirtHost( Host ):
 
         # store the domain_xml until we have the real one from libvirt
         self.domain_xml = domain
-
-        if not self.check_domain(**params):
-            error("LibvirtHost.buildDomain: Domain '%s' failed validity checks\n" % self.domain_name)
-            return False
 
     def check_domain(self, **kwargs):
         if kwargs.get('no_check'):
@@ -1573,7 +1569,8 @@ class LibvirtHost( Host ):
 
             # rename the interface
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
-                done = True
+                if new_intf in self.cmd(interface_list_cmd).strip().split('  '):
+                    done = True
 
         # let the hostobject do the bookkeeping
         Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
