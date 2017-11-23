@@ -1569,10 +1569,11 @@ class LibvirtHost( Host ):
             # get name of the new interface
             new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
 
-            # rename the interface
+            # rename the interface, if command does not produce output it might be successful
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
                 time.sleep(0.2)
-                if not new_intf in self.cmd(interface_list_cmd).strip().split('  '):
+                # check if the command was a success
+                if new_intf not in self.cmd(interface_list_cmd).strip().split('  '):
                     done = True
 
         # let the hostobject do the bookkeeping
@@ -1948,8 +1949,7 @@ class LibvirtHost( Host ):
                 self.domain.setSchedulerParameters(params)
                 info("LibvirtHost.updateCpuLimit: Set scheduler parameters to %s.\n" % params)
             if cores is not None:
-                # if someone is calling this method like the docker version, then just map the single vcpu to
-                # the specified cores, even though this will not lead to the same behaviour
+                # if someone is calling this method like the docker version
                 if isinstance(cores, basestring):
                     warn("LibvirtHost.updateCpuLimit: "
                          "This method does not behave the same way as with docker containers.\n")
@@ -1959,13 +1959,8 @@ class LibvirtHost( Host ):
                         for cpu in range(int(start), int(end) + 1):
                             cores_dict[cpu] = str(cpu)
                     else:
-                        cores_dict = {cores: str(cores)}
+                        cores_dict = {int(cores): str(cores)}
                     cores = cores_dict
-
-                if 0 not in cores:
-                    info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
-                         "This will not work! Keeping it online.\n")
-                    cores[0] = "0-%d" % (int(self.maxCpus) - 1)
 
                 # check if set_vcpu method is avaiable
                 set_vcpu = getattr(self.domain, "setVcpu", None)
@@ -1980,6 +1975,11 @@ class LibvirtHost( Host ):
                         warn("Could not change the amount of vcpus. Maybe this version of Qemu / libvirt does not "
                              "allow reducing vcpus.\n")
                         return False
+                else:
+                    if 0 not in cores:
+                        info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
+                             "This will not work! Keeping it online.\n")
+                        cores[0] = "0-%d" % (int(self.maxCpus) - 1)
 
                 mapping = []
                 # calculate the mapping and if available bring up the vcpu
