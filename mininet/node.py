@@ -1573,7 +1573,8 @@ class LibvirtHost( Host ):
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
                 time.sleep(0.2)
                 # check if the command was a success
-                if new_intf not in self.cmd(interface_list_cmd).strip().split('  '):
+                reality = self.cmd(interface_list_cmd).strip().split('  ')
+                if new_intf not in reality and intf in reality:
                     done = True
 
         # let the hostobject do the bookkeeping
