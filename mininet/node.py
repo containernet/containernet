@@ -1189,6 +1189,7 @@ class LibvirtHost( Host ):
                 </disk>
                 {mgmt_interface}
                 <console type="pty"/>
+                {additional_devices}
               </devices>
             </domain>
             """
@@ -1221,6 +1222,7 @@ class LibvirtHost( Host ):
         kwargs.setdefault('mgmt_net_at_start', True)
         kwargs.setdefault('no_check', False)
         kwargs.setdefault('mgmt_pci_slot', '0x1F')
+        kwargs.setdefault('additional_devices', "")
 
         kwargs.setdefault('resources', {
             'cpu_quota': -1,
@@ -1570,7 +1572,7 @@ class LibvirtHost( Host ):
             # rename the interface
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
                 time.sleep(0.2)
-                if new_intf in self.cmd(interface_list_cmd).strip().split('  '):
+                if not new_intf in self.cmd(interface_list_cmd).strip().split('  '):
                     done = True
 
         # let the hostobject do the bookkeeping
@@ -1960,7 +1962,6 @@ class LibvirtHost( Host ):
                         cores_dict = {cores: str(cores)}
                     cores = cores_dict
 
-
                 if 0 not in cores:
                     info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
                          "This will not work! Keeping it online.\n")
@@ -1980,14 +1981,10 @@ class LibvirtHost( Host ):
                              "allow reducing vcpus.\n")
                         return False
 
-
-                # initialize a list with all cores marked as offline
-                offlinecores = list(range(0, self.maxCpus))
-
+                mapping = []
                 # calculate the mapping and if available bring up the vcpu
                 for vcpu_nr, vcpu_map in cores.items():
                     mapping = [0] * self.maxCpus
-                    offlinecores.remove(vcpu_nr)
 
                     for inp in vcpu_map.split(","):
                         if "-" in inp:
@@ -2017,6 +2014,8 @@ class LibvirtHost( Host ):
                 # bring down the not mentioned cores, but only if set_vcpu is available
                 # if set_vcpu is unavailable this was already done by setVcpus
                 if set_vcpu:
+                    # reverse the mapping to get the offline cores
+                    offlinecores = [0 if x == 1 else 1 for x in mapping]
                     for vcpu_nr in offlinecores:
                         try:
                             debug("LibvirtHost.updateCpuLimit: Setting core %d state to offline.\n" % vcpu_nr)
