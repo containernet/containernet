@@ -1574,7 +1574,7 @@ class LibvirtHost( Host ):
                 time.sleep(0.2)
                 # check if the command was a success
                 reality = self.cmd(interface_list_cmd).strip().split('  ')
-                if new_intf not in reality and intf in reality:
+                if intf in reality:
                     done = True
 
         # let the hostobject do the bookkeeping
