@@ -1555,8 +1555,9 @@ class LibvirtHost( Host ):
         # we wait until something changes in network devices
         # the device that appears is our new interface
         start = time.time()
+        done = False
         debug("LibvirtHost.addIntf: Waiting a maximum amount of 60 Seconds for the interface to appear.\n")
-        while True:
+        while not done:
             if start + 60 < time.time():
                 raise Exception("Error while attaching a new interface. Could not find the newly attached interface."
                                 "Timeout reached.")
@@ -1577,9 +1578,10 @@ class LibvirtHost( Host ):
 
             # rename the interface, if command does not produce output it might be successful
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
-                if new_intf not in self.cmd(interface_list_cmd).strip().split('  '):
-                    break
-            time.sleep(0.5)
+                if not new_intf in self.cmd(interface_list_cmd).strip().split('  '):
+                    done = True
+            if not done:
+                time.sleep(0.5)
 
         # let the hostobject do the bookkeeping
         Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
