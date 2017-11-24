@@ -1549,6 +1549,9 @@ class LibvirtHost( Host ):
             error("Could not attach interface %s to node %s. Error: %s\n" % (intf.name, self.name, e))
             raise Exception("Error while attaching a new interface.")
 
+        # be conservative and wait a little for the device to appear
+        time.sleep(0.3)
+
         # we wait until something changes in network devices
         # the device that appears is our new interface
         start = time.time()
@@ -1559,7 +1562,7 @@ class LibvirtHost( Host ):
                                 "Timeout reached.")
             after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
             if len(before_interfaces) == len(after_interfaces):
-                time.sleep(0.1)
+                time.sleep(0.5)
                 continue
 
             if len(before_interfaces) > len(after_interfaces):
@@ -1574,13 +1577,9 @@ class LibvirtHost( Host ):
 
             # rename the interface, if command does not produce output it might be successful
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
-                time.sleep(0.5)
-                # check if the command was a success
-                reality = self.cmd(interface_list_cmd).strip().split('  ')
-                new_intf = list(set(reality) - set(before_interfaces))[0]
-                # if the interface we want already exists we can stop
-                if str(new_intf).strip() == str(intf).strip():
+                if new_intf not in self.cmd(interface_list_cmd).strip().split('  '):
                     break
+            time.sleep(0.5)
 
         # let the hostobject do the bookkeeping
         Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
