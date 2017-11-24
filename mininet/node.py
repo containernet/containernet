@@ -1574,7 +1574,7 @@ class LibvirtHost( Host ):
 
             # rename the interface, if command does not produce output it might be successful
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
-                time.sleep(0.2)
+                time.sleep(0.5)
                 # check if the command was a success
                 reality = self.cmd(interface_list_cmd).strip().split('  ')
                 new_intf = list(set(reality) - set(before_interfaces))[0]
