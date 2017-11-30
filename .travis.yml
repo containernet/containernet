@@ -10,8 +10,8 @@ matrix:
 
 env:
   global:
-    - secure: "DR3lxFc1HRQymJKVcadcDYvRCa6ZiBCxamuKo5wXQKcgEBEXNpXOmRe8ZQbFfahRDr23FAbyhz7Q9Fi1b+g1rf9+gM6cMsyZ41uPu3da71zUjyW7BjordOQwBsvP6TfYn8GEIt6ZCG1dahGR5Bk/fk4ku0KZQR63ctvM7ktAhyvSo4nRS/zcswMAntvhe7ObkkBIKe0pOsxbhS2yUaHOFmJuM9G0umo2LhqCioeiA6UGzeOj0nKkL4F9TNc9OB46johiHQ0kTojCNcOagYjhrwK6Zepn7adIzNEA6n0n5Dt41UbLFu2jfftrNbcmr0Lzegcxcm11J1EHrBRCqHcwGDm++dWGqWCUmhB28dxUcP1++rbtzEo+rbCnQ2rmp1HA/XfLDA/8Wd+2FhcUm6SuilndaTb2AnIovBxjWRux5MzyiVLYZmSL6M1bWjEb82M6miKGz0fc3eLXKYjMMU8KaLTObWwy3C2Uu3OmMajnXJ/FG9xwJMMuGeAbErcHX02vPUbHKOmi+oLzSFNwDq9XNGWfb+GcG+kNNXLnj3x04lR+94VSMEFYpGnEOjB9bIzvVK2znbCyBc5vL4K31kVJQ82BdpFFAytcRy8rfW6zx5igcmdZpkCnFlOfeyxWopimjpob7GGNPha3Xlu3GMuDnXixNFCy4ZtX9yIJHa4XhXI=" # DOCKER_USER
-    - secure: "HVq/JAJi0tQPbPFqqtAUHOKfcFR5yqJ1eXxpg3UKkrxQ2hHjDVLAMg7kRAx6jXSl3JvczdU9SJJtDLmVGywMVvq1fs+aACiSUJwnCJi8ktnZQuScaWUGJvcaXlgMsZ1jUUE4t0sjwaLM3EF45Mhq8jAZ6Z9oBNyKT6M6DQJBGACQibRfLGK3KlprtHDw29065Vv6jYTYYv8poMLdF6T8Brqbkawql4ppwo/CrEdXswAIF6wPNuc2la+5kqqUAEIsfgsG0Hi/HS8FEILG6bAxx1dQTnJzBRVjUXKAxa00Vj1BMzUq6OA83yLpI4TCkaasTQJChqYHiKd0/vSE2Rz4caI8yqIKYcWVsxUXAkQiyxKZmQ9CfZuXKnn3ZO1p1L9rnX9/577q3g9nWy+Hs0uwd8wRfqaiP/p8ac41nEQsYmOIfm+lYUbYVciEX4ovtIxKFLsH6vS5wMedsIjkr8dICWG3XwCeDM5Bv/P7cuVR50r0LZxfOMviKDjHg0qDH9Ate5AvloJpjAE6P0ef7DeevNfFDCE8zSnb1Wbbfi/Gj6Z7nUu2FLa0u4bpckeE1Ug0pixxtcrceJawk7oPIpa9QVhAh4ckXogtwbuMh9OlKsvLTkizyTrpi6CUstNPpAc6w2HdR3+FiPjbfChL49KJ93DSTMu8JER7RlaCGrFrBuY=" # DOCKER_PASS
+    - secure: "jMxuqh0ei4AZlq61pATJS6TCnhzi22ywX5W5HwEup8Aa/1Dhago/HBkGNj4GH/c1kGf1NFm1mgFrIfOT8dLqOmsj44l+027rZ6xw9KuLJCTExViRg/Pyvj94zlkTXpSOpuXknRa+luDOUTSHG8NTbGCZZgQ9ybMTv7bPnwID0oDGa4E8R0KpJSZ+MS5mC2k5SQNusHqwn1ZHr/J+mH0fDCLvlBTDmRl1YfFLz5AcITr3ixZcgVQQeXEP2cAphoyMs87HK1A/iMnbu34dqOZ/WyvXE+ynhnxXrMDS9vUWjXz45Wx9w4lWtnMwQRshlGzhH5u44Gqg6zmxrxkcy87ZWrdRp85cYGoG164gR1RfHK0QyEebyKSlezvfpTAsMR0ZW9xdVIEMJJzrK3T8FL6bC/GnYe0xx9F4i9DX0VkNvUc6mvCaALLpcmszxVkzsalRdMQz5RXYlZNvHRVBaoyMHjqS7F5CGvvM3kOUSPkD3m9AAngGfCnR2Pgqern0q7wqVOZGhVUW/a3555U20nBaXMvKRejERkF6MbJ0X9kaTl/6Za8v9Yxnxn5ugB0EJaJVzsjjncCWiCo5O3uM46E4YHGxF8jUl//p45t0jm39H+9JZay9hL+NS11DVNoY7n57u7oAoyOpkL7q7+j4L1s2n3V6kcaHhn8h/AbFOxuieCM=" # DOCKER_USER
+    - secure: "kR4lDndJwATwOMrOdKFY5/13z+cgDsnRqKPnZoFilFCVUX0n14ZGnBG5QgS6SAbkH6s0hMOsoz3dPVG0BOEE8lchriCMugZ1r5864VyheumHMhSebU2UwywjW6dkNzOKF9MHzwsnktoqJrwU89Bsn/spgeQV43rKuGifr77KV9/YevM5qwNvhrT++n+eLfcsHyiOfGURTV0IXEoTl+2ys8qoLjIv5qaf9RBG4CblZ5Sne5644OGTwrxLFAhefgQvyLwTlQm1cS+km485ekAVxU83zkRdmo9dUZJll1s6BDEXQ+QvUm0rGQWIK599A4XYd9a+7HT/tUXLpUKsRpxP6gKsZcsHj9pU2XRPWZR6p6crQlCqyBrRYJnQ3rUdNvkL4fcOPJJXfwsF+pY7c00DbG5kGZ62d391zq+gMR/veHCy3AeEbdvZdk7c9W5WNa54tI/dUnP48PB4jbE1OGQNDoXTUQyPAZHj96taUt5DFolDmfs4mMq4mqmSJZKIuyVm3EgJik86BYWuT4+VFD7tbsecbXLHSsmap9/94/tQnGgFPeArcEu7dI/4gVlqxkB/OJ+N69RRHZDC+F5Ft9GvdVYaZZghyccGsQ8tB4qDwYF9jm/V4hPvTXmrHxBrNojLmcmiewwEIXYPlC3ssepXR2vfwhVlOWyBr0kYtEzBRmQ=" # DOCKER_PASS
     - COMMIT=${TRAVIS_COMMIT::8}
 
 virtualenv:
@@ -28,14 +28,15 @@ install:
 # run tests
 script:
   - env
+  # run unit tests
   - sudo py.test -v mininet/test/test_containernet.py
-  # build docker container
+  # build docker container (also checks in-docker installation)
   - docker build -t containernet/containernet:$COMMIT .
 
 # do docker push to dockerhub (use only 14.04 for this)
 after_success:
   - if [ "$dist" == "14.04 LTS trusty" ]; then
-    docker login -u="$DOCKER_USER" -p="$DOCKER_PASS";
+    docker login -u=$DOCKER_USER -p=$DOCKER_PASS;
     export REPO="containernet/containernet";
     export TAG=`if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "pr$TRAVIS_PULL_REQUEST"; else echo "latest"; fi`;
     docker tag $REPO:$COMMIT $REPO:$TAG;
