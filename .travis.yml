@@ -35,6 +35,8 @@ script:
 
 # do docker push to dockerhub (use only 14.04 for this)
 after_success:
+  - echo $DOCKER_USER
+  - echo $DOCKER_PASS
   - if [ "$dist" == "14.04 LTS trusty" ]; then
     docker login -u=$DOCKER_USER -p=$DOCKER_PASS;
     export REPO="containernet/containernet";
