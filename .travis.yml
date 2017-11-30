@@ -32,13 +32,15 @@ script:
 
 # test docker build and push to dockerhub
 after_success:
+  - env
   - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
   - export REPO=containernet/containernet
   - export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo $TRAVIS_BRANCH ; fi`
   - docker build -t $REPO:$COMMIT .
   - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
-  - if ["$dist" == "16.04 LTS xenial"]; then docker push $REPO;
+  - docker images
+  - if ["$dist" == "16.04 LTS xenial"]; then docker push $REPO; fi
 
 notifications:
   email:
