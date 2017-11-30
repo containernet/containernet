@@ -36,11 +36,11 @@ after_success:
   - if [ "$dist" == "14.04 LTS trusty" ]; then
     docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS;
     export REPO=containernet/containernet;
-    export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`;
+    export TAG=`if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "pr.$TRAVIS_PULL_REQUEST"; else echo "latest"; fi`;
     docker build -t $REPO:$COMMIT .;
     docker tag $REPO:$COMMIT $REPO:$TAG;
     docker images;
-    if [ "$dist" == "14.04 LTS trusty" ]; then docker push $REPO; fi;
+    if [ "$dist" == "14.04 LTS trusty" ]; then docker push $REPO:$TAG; fi;
     fi
 
 notifications:
