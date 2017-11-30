@@ -33,13 +33,22 @@ script:
 # test docker build and push to dockerhub
 after_success:
   - env
-  - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
-  - export REPO=containernet/containernet
-  - export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`
-  - docker build -t $REPO:$COMMIT .
-  - docker tag $REPO:$COMMIT $REPO:$TAG
-  - docker images
-  - if [ "$dist" == "16.04 LTS xenial" ]; then docker push $REPO; fi
+  #- docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+  #- export REPO=containernet/containernet
+  #- export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`
+  #- docker build -t $REPO:$COMMIT .
+  #- docker tag $REPO:$COMMIT $REPO:$TAG
+  #- docker images
+  #- if [ "$dist" == "16.04 LTS xenial" ]; then docker push $REPO; fi
+  - if [ "$dist" == "16.04 LTS xenial" ]; then
+    docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS;
+    export REPO=containernet/containernet;
+    export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`;
+    docker build -t $REPO:$COMMIT .;
+    docker tag $REPO:$COMMIT $REPO:$TAG;
+    docker images;
+    if [ "$dist" == "16.04 LTS xenial" ]; then docker push $REPO; fi;
+    fi
 
 notifications:
   email:
