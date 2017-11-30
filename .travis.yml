@@ -34,7 +34,7 @@ script:
 # do docker push to dockerhub (use only 14.04 for this)
 after_success:
   - if [ "$dist" == "14.04 LTS trusty" ]; then
-    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD";
+    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
     export REPO="containernet/containernet";
     export TAG=`if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "pr$TRAVIS_PULL_REQUEST"; else echo "latest"; fi`;
     docker tag $REPO:$COMMIT $REPO:$TAG;
