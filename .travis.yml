@@ -30,24 +30,17 @@ install:
 script:
   - sudo py.test -v mininet/test/test_containernet.py
 
-# test docker build and push to dockerhub
+# do docker build and push to dockerhub
 after_success:
   - env
-  #- docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
-  #- export REPO=containernet/containernet
-  #- export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`
-  #- docker build -t $REPO:$COMMIT .
-  #- docker tag $REPO:$COMMIT $REPO:$TAG
-  #- docker images
-  #- if [ "$dist" == "16.04 LTS xenial" ]; then docker push $REPO; fi
-  - if [ "$dist" == "16.04 LTS xenial" ]; then
+  - if [ "$dist" == "14.04 LTS trusty" ]; then
     docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS;
     export REPO=containernet/containernet;
     export TAG=`if [ "$TRAVIS_BRANCH" == "master" ]; then echo "latest"; else echo "travis-$TRAVIS_BUILD_NUMBER"; fi`;
     docker build -t $REPO:$COMMIT .;
     docker tag $REPO:$COMMIT $REPO:$TAG;
     docker images;
-    if [ "$dist" == "16.04 LTS xenial" ]; then docker push $REPO; fi;
+    if [ "$dist" == "14.04 LTS trusty" ]; then docker push $REPO; fi;
     fi
 
 notifications:
