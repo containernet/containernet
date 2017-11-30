@@ -10,7 +10,6 @@ matrix:
 
 env:
   global:
-    - secure: "W8eKqxmhwM9wjc2mWt3OUvNbjXu9QE2TNyT8C3XN+FQCsZS+YouBuYL9DfNLTv1RJWWvnFkQ3uD7w8rQoI6wQLWSdB0CjwX0n3KQJdxAL00TkOdoOiYIHXMEKHB0y1F7An5g5k+JBWVpu3cZK6ohyn5EhhwxhJ37JxVkFqvLk9vt+KZ1L2irlcz/JwNLXRfwSE02m2jP+wal6YCjHgS+8XErAcC7VposCW6R8oqhXHEmvk/exuez/zEE7Tupaq1qlINpF3MqpzbKMImdEp3XD/s/LxmVsL48aX2knxFgrLIYMsqAdz/y972WTspl88FiBx9BOycLOCpfds4K/f0FGkqXY3v5NpL2rFbVrSlDW0jMEaY/HmU0CmimWdVbNEfJCutYsyYgmTTqjnz6RQeRTnlmgTti4/9+yCQ/qB4IqV4lbKkqXE7OyU4VSKzMAkT0hsc726vq2B13KzKtNDkVzxbQse5qyF0B1XKeUWsRhNX3nFt2FaLVJlLHifencx5FyzDHih0r+AKWZIGKeuN5Xq1R3OGcCeISSNsJ5bDvyeuue/PvX4efGYeMdH2A82mRJPFlegXI17LMacAXdhfAMJxSUtTJiZhbGv/d4t8hgC338A1wTQqfVEM/vuIscNa5JEpI1B/KLZYN3jnx/Dq5hi8EImrOx/0usKAC5XubTbA=" # DOCKER_EMAIL
     - secure: "DR3lxFc1HRQymJKVcadcDYvRCa6ZiBCxamuKo5wXQKcgEBEXNpXOmRe8ZQbFfahRDr23FAbyhz7Q9Fi1b+g1rf9+gM6cMsyZ41uPu3da71zUjyW7BjordOQwBsvP6TfYn8GEIt6ZCG1dahGR5Bk/fk4ku0KZQR63ctvM7ktAhyvSo4nRS/zcswMAntvhe7ObkkBIKe0pOsxbhS2yUaHOFmJuM9G0umo2LhqCioeiA6UGzeOj0nKkL4F9TNc9OB46johiHQ0kTojCNcOagYjhrwK6Zepn7adIzNEA6n0n5Dt41UbLFu2jfftrNbcmr0Lzegcxcm11J1EHrBRCqHcwGDm++dWGqWCUmhB28dxUcP1++rbtzEo+rbCnQ2rmp1HA/XfLDA/8Wd+2FhcUm6SuilndaTb2AnIovBxjWRux5MzyiVLYZmSL6M1bWjEb82M6miKGz0fc3eLXKYjMMU8KaLTObWwy3C2Uu3OmMajnXJ/FG9xwJMMuGeAbErcHX02vPUbHKOmi+oLzSFNwDq9XNGWfb+GcG+kNNXLnj3x04lR+94VSMEFYpGnEOjB9bIzvVK2znbCyBc5vL4K31kVJQ82BdpFFAytcRy8rfW6zx5igcmdZpkCnFlOfeyxWopimjpob7GGNPha3Xlu3GMuDnXixNFCy4ZtX9yIJHa4XhXI=" # DOCKER_USER
     - secure: "DNR3PyBDPkGaR49IDZKcw+On7TEnkcqWk6bA+y6MIsRqUuDTltuj5PQ6bzkqO9mrBa2CY9ea5KlFAykZ0Y1etwHESIURzDPDJSI8wpf/fiwVfefkVI9LlC6GzyxLPh2nUEMBXLtOFyOwROZdkXG5DdrCk6sZG7fnuxG7rxQ9CMrXB/iW9jf+qC1fMsMBpX6kGlkNUU8Ms7zeqj2NVgUevjigysIm+JBwIKXodIPiLWsMyZA1MMWNxe1Nwa7fBSFcWhGxPmO1jN0+y+2XyX2k2aHirlHC0Sx3Q5rCzqEEAnKqVc9D4Yr5vFgrM+/EjDO3XRTHMQgCtTBMEsY2xw0oqEjmVcrqCg7JfgEbigS6A3GatQAWB22//oHjueenTV9aF2q93QTFn47AIXkQ0RwZxridc/JMG5k70lgsAkcik0hV4BegsNETSyT/92dv2XTu252ErRkendz+OtW5BWyKh9mBVm+DpbYsPOAlByH2g+sWp7+ErG1c7w1eTCGsMtmMahmRWXUtKKAFx1dBHBuej8gyiILOT5tgtdIqaqkP96XLEQiul/yhROIsI1bJ6Hzv6F1qpOJ9yYr5jTqjfBztpWZrTIoY3CRhyQ7DnH3DLX7TpGIejm1r6amQj12L6E4MVVl/hbBrEr2R1wLnyrHpbv36wvPk/NH2CxNEJYZXx0M=" # DOCKER_PASS
     - COMMIT=${TRAVIS_COMMIT::8}
@@ -34,7 +33,7 @@ script:
 # do docker build and push to dockerhub (use only 14.04 for this)
 after_success:
   - if [ "$dist" == "14.04 LTS trusty" ]; then
-    docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS;
+    docker login -u $DOCKER_USER -p $DOCKER_PASS;
     export REPO=containernet/containernet;
     export TAG=`if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "pr.$TRAVIS_PULL_REQUEST"; else echo "latest"; fi`;
     docker build -t $REPO:$COMMIT .;
