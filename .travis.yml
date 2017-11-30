@@ -39,7 +39,7 @@ after_success:
   - docker build -t $REPO:$COMMIT .
   - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker images
-  - if [$dist == "16.04 LTS xenial"]; then docker push $REPO; fi
+  - if ["$dist" == "16.04 LTS xenial"]; then docker push $REPO; fi
 
 notifications:
   email:
