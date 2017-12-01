@@ -1571,10 +1571,10 @@ class LibvirtHost( Host ):
 
             # get name of the new interface
             new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
-
             # bail out and say its ok after 10 seconds if the interfaces are named the same
             if str(new_intf).strip() == str(intf).strip() and start + 10 < time.time():
                 break
+            time.sleep(0.3)
 
             # rename the interface, if command does not produce output it might be successful
             if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
