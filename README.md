@@ -26,23 +26,26 @@ There is an extension of Containernet called [son-emu](https://github.com/sonata
 ### Features
 
 * Add, remove Docker containers to Mininet topologies
-* Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts )
+* Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts)
 * Execute commands inside Docker containers by using the Mininet CLI 
-* Dynamic topology changes (lets behave like a small cloud ;-) )
- * Add Hosts/Docker containers to a *running* Mininet topology
- * Connect Hosts/Docker containers to a *running* Mininet topology
- * Remove Hosts/Docker containers/Links from a *running* Mininet topology
+* Dynamic topology changes (lets behave like a small cloud ;-))
+   * Add Hosts/Docker containers to a *running* Mininet topology
+   * Connect Hosts/Docker containers to a *running* Mininet topology
+   * Remove Hosts/Docker containers/Links from a *running* Mininet topology
 * Resource limitation of Docker containers
- * CPU limitation with Docker CPU share option
- * CPU limitation with Docker CFS period/quota options
- * Memory/swap limitation
- * Change CPU/mem limitations at runtime!
+   * CPU limitation with Docker CPU share option
+   * CPU limitation with Docker CFS period/quota options
+   * Memory/swap limitation
+   * Change CPU/mem limitations at runtime!
 * Traffic control links (delay, bw, loss, jitter)
- * (missing: TCLink support for dynamically added containers/hosts)
+   * (missing: TCLink support for dynamically added containers/hosts)
 * Automated unit tests for all new features
 * Automated installation based on Ansible playbook
 
 ### Installation
+Containernet comes with three installation and deployment options.
+
+#### Option 1: Bare metal installation
 Automatic installation is provided through an Ansible playbook.
 * Requires: Ubuntu **16.04 LTS**
 
@@ -53,6 +56,30 @@ cd containernet/ansible
 sudo ansible-playbook -i "localhost," -c local install.yml
 ```
 Wait (and have a coffee) ...
+
+#### Option 2: Nested Docker deployment
+Containernet can be executed within a privileged Docker container (nested container deployment). There is also a pre-build Docker image available on [DockerHub](https://hub.docker.com/r/containernet/containernet/)
+
+```bash
+# build the container locally
+docker build -t containernet .
+
+# or pull the latest pre-build container
+docker pull containernet/containernet
+```
+
+```bash
+# run the container
+docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet /bin/bash
+```
+
+#### Option 3: Vagrant-based VM creation
+Using the provided Vagrantfile is the another way to run and test Containernet:
+
+```bash
+vagrant up
+vagrant ssh
+```
 
 ### Usage / Run
 Start example topology with some empty Docker containers connected to the network.
@@ -80,26 +107,6 @@ There is a set of Containernet specific unit tests located in `mininet/test/test
 
 * `sudo py.test -v mininet/test/test_containernet.py`
 
-### Vagrant support
-
-Using the provided Vagrantfile is the most simple way to run and test Containernet:
-
-```
-git clone https://github.com/containernet/containernet.git
-cd containernet
-vagrant up
-vagrant ssh
-```
-
-### Nested Docker Deployment
-Containernet can be executed within a privileged container (nested container deployment).
-
-```bash
-# build the container
-docker build -t containernet-img .
-# run the container
-docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet-img /bin/bash
-```
 
 ### Contact
 #### Support
