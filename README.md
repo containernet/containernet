@@ -58,12 +58,14 @@ sudo ansible-playbook -i "localhost," -c local install.yml
 Wait (and have a coffee) ...
 
 #### Option 2: Nested Docker deployment
-Containernet can be executed within a privileged Docker container (nested container deployment). There is also a pre-build Docker image available on [DockerHub](https://hub.docker.com/r/containernet/containernet/)
+Containernet can be executed within a privileged Docker container (nested container deployment). There is also a pre-build Docker image available on [DockerHub](https://hub.docker.com/r/containernet/containernet/).
 
 ```bash
 # build the container locally
 docker build -t containernet .
+```
 
+```bash
 # or pull the latest pre-build container
 docker pull containernet/containernet
 ```
