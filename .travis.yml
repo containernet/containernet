@@ -31,17 +31,6 @@ script:
   # build docker container (also checks in-docker installation)
   - docker build -t containernet/containernet:$COMMIT .
 
-# do docker push to dockerhub (use only 14.04 for this)
-after_success:
-  #- if [ "$dist" == "14.04 LTS trusty" ]; then
-  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD" https://index.docker.io/v1/;
-  - export REPO="containernet/containernet";
-  - export TAG=`if [ -n "$TRAVIS_PULL_REQUEST_BRANCH" ]; then echo "pr$TRAVIS_PULL_REQUEST"; else echo "latest"; fi`;
-  - docker tag $REPO:$COMMIT $REPO:$TAG;
-  - docker images;
-  - docker push $REPO:$TAG;
-  #  fi
-
 notifications:
   email:
     on_success: change
