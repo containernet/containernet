@@ -45,7 +45,7 @@ There is an extension of Containernet called [son-emu](https://github.com/sonata
 ### Installation
 Containernet comes with three installation and deployment options.
 
-#### Option 1: Bare metal installation
+#### Option 1: Bare-metal installation
 Automatic installation is provided through an Ansible playbook.
 * Requires: Ubuntu **16.04 LTS**
 
