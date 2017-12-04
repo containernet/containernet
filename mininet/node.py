@@ -1102,6 +1102,8 @@ class LibvirtHost( Host ):
                 default: {'credentials': { 'username': 'root', 'password': 'containernet'},})
         cmd_endpoint: which endpoint to use. default 'qemu:///system'
         domain_xml: If defined this XML string will be used to instantiate the domain.
+                This string will formatted like the default domain_xml in LibvirtHost.
+                So you can use placeholders that will be filled by Containernet.
                 If a path is specified the file will be read instead. default: None
         disk_target_dev: String. disk device string for domain_xml. Default: 'sda'
         disk_target_driver_name: String. disk device driver string for domain_xml. Default: 'qemu'
@@ -1113,7 +1115,9 @@ class LibvirtHost( Host ):
         memory: String. Amount of memory in MB. Defines max memory. Default: '1024'
         currentMemory: String. Amount of memory currently assigned to the domain. Default: '1024'
         features: String containing XML for possible features that need to be added. Default: ""
-        vcpu: String contining the amount of VCPUs allocated to this domain. Default: '1'
+        vcpu: String containing the amount of VCPUs allocated to this domain. Default: '1'
+        transient_disk: Boolean. Defines the domain with a transient disk. Disables Snapshots. Not possible with current
+                qemu versions. Default: False
         snapshot: Boolean. if the domain should create a snapshot before being added to the emulated network.
                 Default: True
         restore_snapshot: Boolean. if the domain should be restored to its original state if a snapshot exists.
@@ -1121,13 +1125,17 @@ class LibvirtHost( Host ):
         snapshot_disk_image_path: String. Specify a fixed path for the snapshot. Default: None
         use_sudo: Boolean. Set this to true to let Containernet call sudo su - after logging in.
                 Passwordless sudo required. Default False
+        keep_running: Boolean. Do not shut down this host when it is removed. Default: False
         mgmt_net_at_start: Boolean. Set this to true for generated domains where the guest does not
-                understand hotplugging. Has no effect for predefined domains. Default False
-        mgmt_network: String. Contains the libvirt name of the management network. Default: mn.libvirt.mgmt
-        mgmt_ip: String. Custom IP of the host for the management network. Default: None
+                understand hotplugging. Has no effect for predefined domains. Default: False
+        mgmt_net_attached: Boolean. Set this to true when you are using a predefined domain that is already attached
+                to the mangement network. Default: False
+        mgmt_network: String. Contains the libvirt name of the management network. Usually not needed to be specified
+                manually. Default: mn.libvirt.mgmt
+        mgmt_ip: String. Custom static IP of the host for the management network. Default: None
         mgmt_mac: String. Custom MAC for the host in the management network. Default: None
         mgmt_pci_slot: String. Set a custom pci slot for the management network. Max: "0x1F". Default: "0x1F"
-        no_check: Boolean. Overrides the check_domain. Use this for non standard domains. Default: False
+        no_check: Boolean. Overrides check_domain. Use this for non standard domains. Default: False
     """
     def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
         # only define these if they are not defined yet to make inheritance viable
@@ -1186,6 +1194,7 @@ class LibvirtHost( Host ):
                   <source file="{disk_image}"/>
                   <target dev="{disk_target_dev}"/>
                   <driver name="{disk_target_driver_name}" type="{disk_target_driver_type}"/>
+                  {disk_transient_disk}
                 </disk>
                 {mgmt_interface}
                 <console type="pty"/>
@@ -1218,8 +1227,11 @@ class LibvirtHost( Host ):
         kwargs.setdefault('snapshot', True)
         kwargs.setdefault('restore_snapshot', True)
         kwargs.setdefault('snapshot_disk_image_path', None)
+        kwargs.setdefault('transient_disk', False)
         kwargs.setdefault('use_sudo', False)
+        kwargs.setdefault('keep_running', False)
         kwargs.setdefault('mgmt_net_at_start', True)
+        kwargs.setdefault('mgmt_net_attached', False)
         kwargs.setdefault('no_check', False)
         kwargs.setdefault('mgmt_pci_slot', '0x1F')
         kwargs.setdefault('additional_devices', "")
@@ -1235,6 +1247,9 @@ class LibvirtHost( Host ):
             error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
 
         self.disk_image = disk_image
+        # do not allow snapshots for transient disks
+        if kwargs['transient_disk']:
+            kwargs['snapshot'] = False
 
         self.mgmt_net_interface_xml = ""
         # domain object we get from libvirt
@@ -1346,7 +1361,8 @@ class LibvirtHost( Host ):
             self.domain.resume()
 
         # if the management network is not added before starting the domain add it now
-        if self.mgmt_net_interface_xml is "":
+        # don't add it if we use an existing vm and mgmt_net_at_start is true
+        if self.mgmt_net_interface_xml is "" and not kwargs['mgmt_net_attached']:
             self.attach_management_network(**kwargs)
 
         # finally update the resource dict to reflect our current configuration
@@ -1382,6 +1398,11 @@ class LibvirtHost( Host ):
             debug("LibvirtHost.buildDomain: Adding management network before starting the domain '%s'\n" %
                   self.domain_name)
             self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**params)
+
+        if params['transient_disk']:
+            params['disk_transient_disk'] = "<transient/>"
+        else:
+            params['disk_transient_disk'] = ""
 
         domain = self.DOMAIN_XML.format(
             name=self.domain_name,
@@ -1829,24 +1850,27 @@ class LibvirtHost( Host ):
                 self.remove_snapshot_file()
         else:
             # remove the mgmt network so snapshot restore can work
-            self.detach_management_network()
+            if not self.params['mgmt_net_attached']:
+                self.detach_management_network()
             if self.params['snapshot']:
                 if self.params['restore_snapshot']:
                     try:
                         # reverting to the snapshot, contains the previous state
                         info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
                         self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
-                        self.lv_domain_snapshot.delete()
+                        debug("LibvirtHost.terminate: Deleting earlier snapshot.\n")
+                        self.lv_domain_snapshot.delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
                     except libvirt.libvirtError as e:
                         error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
                               (self.domain_name, e))
             else:
-                try:
-                    info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
-                    self.domain.shutdown()
-                except libvirt.libvirtError as e:
-                    warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe it is already offline? %s" %
-                         (self.domain_name, e))
+                if not self.params['keep_running']:
+                    try:
+                        info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
+                        self.domain.shutdown()
+                    except libvirt.libvirtError as e:
+                        warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe it is already offline? %s" %
+                             (self.domain_name, e))
 
         self.cleanup()
 
