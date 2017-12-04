@@ -1063,6 +1063,7 @@ class Containernet( Mininet ):
             error("Containernet.addLibvirthost: "
                   "No libvirt functionality available. Please install the required modules!\n")
             return False
+
         if self.libvirtManagementNetwork is None:
             self.lv_conn = libvirt.open(self.cmd_endpoint)
             # if a network with the given name exists use it
@@ -1085,6 +1086,14 @@ class Containernet( Mininet ):
                     error("Containernet.addLibvirthost: "
                           "Could not add the custom management network %s. %s\n" % (self.mgmt_dict['name'], e))
             else:
+                # delete the management network if it is instantiated already
+                # this will only apply to the default management network!
+                try:
+                    mgmt = self.lv_conn.networkLookupByName(self.mgmt_dict['name'])
+                    mgmt.destroy()
+                except libvirt.libvirtError:
+                    pass
+
                 self.createManagementNetwork()
 
         # inject the name of the management network into the host params so we can access it there

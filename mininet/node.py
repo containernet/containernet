@@ -1099,7 +1099,7 @@ class LibvirtHost( Host ):
         domain_name: The domain that is used when using an existing VM. Default: kwargs['name']
         type: the type of domain to instantiate, default: 'kvm'
         login: the dictionary to pass to the management network paramiko ssh session.
-                default: {'credentials': { 'username': 'root', 'password': 'containernet'},})
+                default: {'credentials': { 'username': 'root', 'password': 'containernet'},}
         cmd_endpoint: which endpoint to use. default 'qemu:///system'
         domain_xml: If defined this XML string will be used to instantiate the domain.
                 This string will formatted like the default domain_xml in LibvirtHost.
@@ -1859,7 +1859,8 @@ class LibvirtHost( Host ):
                         info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
                         self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
                         debug("LibvirtHost.terminate: Deleting earlier snapshot.\n")
-                        self.lv_domain_snapshot.delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
+                        self.domain.snapshotCurrent().delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
+                        #self.lv_domain_snapshot.delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
                     except libvirt.libvirtError as e:
                         error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
                               (self.domain_name, e))
