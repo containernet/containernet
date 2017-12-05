@@ -29,7 +29,6 @@ class simpleTestTopology( unittest.TestCase ):
         self.l = []
         self.docker_cli = None
         self.lv_conn_qemu = libvirt.open('qemu:///system')
-        self.image_name = "/srv/images/ubuntu16.04.qcow2"
         self.vm_names = ["vm1", "vm2", "vm3"]
         super(simpleTestTopology, self).__init__(*args, **kwargs)
 
@@ -60,7 +59,7 @@ class simpleTestTopology( unittest.TestCase ):
 
         for i in range(1, nlibvirt+1):
             self.l.append(self.net.addLibvirthost('vm%d' % i,
-                                                  disk_image=self.image_name,
+                                                  disk_image=DISK_IMAGE,
                                                   use_existing_vm=use_running))
 
     def startNet(self):
