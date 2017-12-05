@@ -1047,12 +1047,12 @@ class Containernet( Mininet ):
             return Mininet.addHost(self, name, cls=cls, **params)
 
     def removeHost(self, name, **params):
-        if isinstance(self.nameToNode[name], LibvirtHost):
+        if LIBVIRT_AVAILABLE:
             for ip, n in self.leases.items():
                 if name == n:
                     del self.leases[ip]
                     break
-        return self.removeHost(name, **params)
+        return Mininet.removeHost(self, name, **params)
 
     def addLibvirthost( self, name, cls=LibvirtHost, **params ):
         """

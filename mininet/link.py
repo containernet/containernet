@@ -235,7 +235,7 @@ class Intf( object ):
                 error("Intf.delete: Could not remove interface %s from node %s. Error: %s.\n" %
                       (self.node.name, self.name, e))
             # this is needed if the VMs don't terminate after a run!
-            info("Intf.delete: If an error is thrown here, this is normal behavior!\n")
+            debug("Intf.delete: If an error is thrown here, this is normal behavior!\n")
             quietRun('ip link del ' + self.name)
         # We used to do this, but it slows us down:
         # if self.node.inNamespace:

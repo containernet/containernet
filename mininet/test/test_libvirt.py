@@ -13,7 +13,7 @@ from mininet.util import quietRun
 from mininet.clean import cleanup
 import libvirt
 import xml.dom.minidom as minidom
-
+DISK_IMAGE = "/srv/images/ubuntu16.04.qcow2"
 
 class simpleTestTopology( unittest.TestCase ):
     """
@@ -36,7 +36,7 @@ class simpleTestTopology( unittest.TestCase ):
     def createNet(
             self,
             nswitches=1, nhosts=0, ndockers=0, nlibvirt=0,
-            autolinkswitches=False, use_running=True):
+            autolinkswitches=False, use_running=False):
         """
         Creates a Mininet instance and automatically adds some
         nodes to it.
@@ -173,7 +173,7 @@ class testContainernetConnectivity( simpleTestTopology ):
         self.createNet(nswitches=2, nhosts=0, nlibvirt=2)
         # add additional Docker with special IP
         self.l.append(self.net.addLibvirthost(
-            'vm%d' % len(self.d), ip="11.0.0.2", disk_image=self.image_name))
+            'vm%d' % len(self.d), ip="11.0.0.2", disk_image=DISK_IMAGE))
         # setup links
         self.net.addLink(self.s[0], self.s[1])
         self.net.addLink(self.l[0], self.s[0])
@@ -206,13 +206,13 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         add vm2
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=1, use_running=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=1)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         # start Mininet network
         self.startNet()
         self.assertTrue(len(self.net.hosts) == 1)
-        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        vm2 = self.net.addLibvirthost('vm2', disk_image=DISK_IMAGE)
         self.l.append(vm2)
         self.net.addLink(vm2, self.s[0], params1={"ip": "10.0.0.254/8"})
         self.assertTrue(len(self.net.hosts) == 2)
@@ -227,7 +227,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         remove vm2
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=2, use_running=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=2)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
@@ -267,9 +267,9 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(self.getContainernetLibvirtHosts() == 0)
         self.assertTrue(len(self.net.hosts) == 1)
         self.assertTrue(len(self.net.links) == 1)
-        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
+        vm1 = self.net.addLibvirthost('vm1', disk_image=DISK_IMAGE)
         self.net.addLink(vm1, self.s[0], params1={"ip": "10.0.0.202/8"})
-        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        vm2 = self.net.addLibvirthost('vm2', disk_image=DISK_IMAGE)
         self.net.addLink(vm2, self.s[0], params1={"ip": "10.0.0.203/8"})
         # check number of running hosts
         self.assertTrue(len(self.net.hosts) == 3)
@@ -286,7 +286,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         self.assertTrue(self.net.ping(
                [self.h[0]], manualdestip="10.0.0.202", timeout=1) >= 100.0)
         ### add libvirt: vm3
-        vm3 = self.net.addLibvirthost('vm3', use_existing_vm=True)
+        vm3 = self.net.addLibvirthost('vm3', disk_image=DISK_IMAGE)
         self.net.addLink(vm3, self.s[0], params1={"ip": "10.0.0.204/8"})
         self.assertTrue(len(self.net.hosts) == 3)
         self.assertTrue(len(self.net.links) == 3)
@@ -311,6 +311,7 @@ class testContainernetDynamicTopologies( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+#@unittest.skip("test")
 class testContainernetTCLinks( simpleTestTopology ):
     """
     Tests to check TCLinks together with LibvirtHosts
@@ -321,7 +322,7 @@ class testContainernetTCLinks( simpleTestTopology ):
         vm1,vm2 -- s0 --delay-- vm3
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=3, use_running=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=3)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
@@ -339,12 +340,13 @@ class testContainernetTCLinks( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+    #@unittest.skip("test")
     def testCustomLoss( self ):
         """
         vm1,vm2 -- s0 --loss-- vm3
         """
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=3, use_running=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=3)
         # setup links
         self.net.addLink(self.s[0], self.l[0])
         self.net.addLink(self.s[0], self.l[1])
@@ -362,7 +364,7 @@ class testContainernetTCLinks( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
-
+#@unittest.skip("test")
 class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
     """
     Test to check the resource limitation API of the LibvirtHost integration.
@@ -376,9 +378,9 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         """
         # create network
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=0, use_running=True)
-        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
-        vm2 = self.net.addLibvirthost('vm2', use_existing_vm=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=0)
+        vm1 = self.net.addLibvirthost('vm1', disk_image=DISK_IMAGE)
+        vm2 = self.net.addLibvirthost('vm2', disk_image=DISK_IMAGE)
         self.net.addLink(self.s[0], vm1)
         self.net.addLink(self.s[0], vm2)
         # add dockers
@@ -404,8 +406,8 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         """
         # create network
         # create network
-        self.createNet(nswitches=1, nhosts=0, nlibvirt=0, use_running=True)
-        vm1 = self.net.addLibvirthost('vm1', use_existing_vm=True)
+        self.createNet(nswitches=1, nhosts=0, nlibvirt=0)
+        vm1 = self.net.addLibvirthost('vm1', disk_image=DISK_IMAGE)
         self.net.addLink(self.s[0], vm1)
         # add dockers
         # start Mininet network
@@ -422,5 +424,5 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         self.stopNet()
 
 if __name__ == '__main__':
-    #setLogLevel('debug')
+    setLogLevel('info')
     unittest.main()

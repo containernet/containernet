@@ -1260,7 +1260,7 @@ class LibvirtHost( Host ):
         self.domain_xml = None
 
         if disk_image == "" and kwargs['domain_xml'] is None:
-            info("No disk image given. Trying to use an existing domain with name %s.\n" % name)
+            info("LibvirtHost.__init__: No disk image given. Trying to use an existing domain with name %s.\n" % name)
             use_existing_vm = True
 
         if use_existing_vm:
@@ -1340,7 +1340,7 @@ class LibvirtHost( Host ):
             try:
                 self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml)
             except libvirt.libvirtError as e:
-                error("LibvirtHost.__init__: Could not create Snapshot for domain '%s'.\n"
+                error("LibvirtHost.__init__: Could not create snapshot for domain '%s'.\n"
                       % self.domain_name)
                 raise e
 
@@ -1488,7 +1488,7 @@ class LibvirtHost( Host ):
             self.ssh_session = sess
         else:
             error("LibvirtHost.startShell: Could not start the shell for domain %s.\n" % self.domain_name)
-            return
+            return False
         self.domain_xml = self.getDomainXML()
         self.pid = self.getPid()
         self.pollOut = select.poll()
@@ -1856,6 +1856,8 @@ class LibvirtHost( Host ):
                 if self.params['restore_snapshot']:
                     try:
                         # reverting to the snapshot, contains the previous state
+                        # this needs fixing in corner cases, running VMs do not like to be snapshot multiple
+                        # times...
                         info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
                         self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
                         debug("LibvirtHost.terminate: Deleting earlier snapshot.\n")
