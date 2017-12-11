@@ -669,7 +669,7 @@ class Docker ( Host ):
         * cpu_shares: Relative amount of max. avail CPU for container
             (not a hard limit, e.g. if only one container is busy and the rest idle)
             e.g. usage: d1=4 d2=6 <=> 40% 60% CPU
-        * cpuset: Bind containers to CPU 0 = cpu_1 ... n-1 = cpu_n
+        * cpuset_cpus: Bind containers to CPU 0 = cpu_1 ... n-1 = cpu_n (string: '0,2')
         * mem_limit: Memory limit (format: <number>[<unit>], where unit = b, k, m or g)
         * memswap_limit: Total limit = memory + swap
 
