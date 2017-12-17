@@ -59,7 +59,8 @@ class CLI( Cmd ):
         self.inPoller.register( stdin )
         self.inputFile = script
         Cmd.__init__( self )
-        # Containernet allows '.' in host identifiers to build human readable hierarchical name spaces:
+        # Containernet allows '.' in host identifiers to build human readable
+        # hierarchical name spaces:
         self.identchars = string.ascii_letters + string.digits + '_' + '.'
         info( '*** Starting CLI:\n' )
 
@@ -80,13 +81,15 @@ class CLI( Cmd ):
             return
         cls.readlineInited = True
         try:
-            from readline import read_history_file, write_history_file
+            from readline import ( read_history_file, write_history_file,
+                                   set_history_length )
         except ImportError:
             pass
         else:
             history_path = os.path.expanduser( '~/.mininet_history' )
             if os.path.isfile( history_path ):
                 read_history_file( history_path )
+                set_history_length( 1000 )
             atexit.register( lambda: write_history_file( history_path ) )
 
     def run( self ):
