@@ -25,7 +25,6 @@ install:
 
 # run tests
 script:
-  - env
   # run unit tests
   - sudo py.test -v mininet/test/test_containernet.py
   # build docker container (also checks in-docker installation)
