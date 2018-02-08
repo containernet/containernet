@@ -109,11 +109,12 @@ function pre_build {
 
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
-
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST"="CentOS" ]; then
-        sudo yum -y update
+    yum_update='sudo yum -y install'
+    apt_update='sudo apt-get update'
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
+        $yum_update
     else
-        sudo apt-get update
+        $apt_update
     fi
     if ! $install linux-image-$KERNEL_NAME; then
         echo "Could not install linux-image-$KERNEL_NAME"
