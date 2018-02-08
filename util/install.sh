@@ -49,7 +49,7 @@ test -e /etc/fedora-release && DIST="Fedora"
 test -e /etc/redhat-release && DIST="RedHatEnterpriseServer"
 test -e /etc/centos-release && DIST="CentOS"
 
-if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "CentOS" ]; then
+if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
     install='sudo yum -y install'
     remove='sudo yum -y erase'
     pkginst='sudo rpm -ivh'
@@ -110,7 +110,7 @@ function pre_build {
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
 
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "CentOS" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST"="CentOS" ]; then
         sudo yum -y update
     else
         sudo apt-get update
