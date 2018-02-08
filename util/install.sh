@@ -47,7 +47,9 @@ if [ "$DIST" = "Ubuntu" ] || [ "$DIST" = "Debian" ]; then
 fi
 test -e /etc/fedora-release && DIST="Fedora"
 test -e /etc/redhat-release && DIST="RedHatEnterpriseServer"
-if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+test -e /etc/centos-release && DIST="CentOS"
+
+if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "CentOS" ]; then
     install='sudo yum -y install'
     remove='sudo yum -y erase'
     pkginst='sudo rpm -ivh'
@@ -68,8 +70,8 @@ echo "Detected Linux distribution: $DIST $RELEASE $CODENAME $ARCH"
 KERNEL_NAME=`uname -r`
 KERNEL_HEADERS=kernel-headers-${KERNEL_NAME}
 
-if ! echo $DIST | egrep 'Ubuntu|Debian|Fedora|RedHatEnterpriseServer'; then
-    echo "Install.sh currently only supports Ubuntu, Debian, RedHat and Fedora."
+if ! echo $DIST | egrep 'Ubuntu|Debian|Fedora|RedHatEnterpriseServer|CentOS'; then
+    echo "Install.sh currently only supports Ubuntu, Debian, RedHat, Fedora and CentOS."
     exit 1
 fi
 
@@ -107,7 +109,12 @@ function pre_build {
 
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
-    sudo apt-get update
+
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "CentOS" ]; then
+        sudo yum -y update
+    else
+        sudo apt-get update
+    fi
     if ! $install linux-image-$KERNEL_NAME; then
         echo "Could not install linux-image-$KERNEL_NAME"
         echo "Skipping - assuming installed kernel is OK."
@@ -129,7 +136,7 @@ function kernel_clean {
 # Install Mininet deps
 function mn_deps {
     echo "Installing Mininet dependencies"
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install gcc make socat psmisc xterm openssh-clients iperf \
             iproute telnet python-setuptools libcgroup-tools \
             ethtool help2man pyflakes pylint python-pep8 python-pexpect
@@ -162,7 +169,7 @@ function of {
     echo "Installing OpenFlow reference implementation..."
     cd $BUILD_DIR
     $install autoconf automake libtool make gcc
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install git pkgconfig glibc-devel
     else
         $install git-core autotools-dev pkg-config libc6-dev
@@ -232,7 +239,7 @@ function of13 {
 function install_wireshark {
     if ! which wireshark; then
         echo "Installing Wireshark"
-        if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+        if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
             $install wireshark wireshark-gnome
         else
             $install wireshark tshark
@@ -259,7 +266,18 @@ function install_wireshark {
 
     # Copy into plugin directory
     # libwireshark0/ on 11.04; libwireshark1/ on later
-    WSDIR=`find /usr/lib -type d -name 'libwireshark*' | head -1`
+
+    if [ "$ARCH" = "amd64" ]; then
+        WSDIR=`find /usr/lib64 -type d -name 'wireshark*' | head -1`
+	    if [ -z "$WSDIR" ]; then
+            WSDIR=`find /usr/lib64 -type d -name 'libwireshark*' | head -1`
+        fi
+    else
+        WSDIR=`find /usr/lib -type d -name 'wireshark*' | head -1`
+        if [ -z "$WSDIR" ]; then
+            WSDIR=`find /usr/lib -type d -name 'libwireshark*' | head -1`
+        fi
+    fi
     WSPLUGDIR=$WSDIR/plugins/
     PLUGIN=loxi_output/wireshark/openflow.lua
     sudo cp $PLUGIN $WSPLUGDIR
@@ -342,7 +360,7 @@ function ubuntuOvs {
 function ovs {
     echo "Installing Open vSwitch..."
 
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install openvswitch openvswitch-controller
         return
     fi
@@ -557,7 +575,7 @@ function oftest {
 function cbench {
     echo "Installing cbench..."
 
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install net-snmp-devel libpcap-devel libconfig-devel
     else
         $install libsnmp-dev libpcap-dev libconfig-dev
@@ -629,7 +647,7 @@ net.ipv6.conf.lo.disable_ipv6 = 1' | sudo tee -a /etc/sysctl.conf > /dev/null
     $install ntp
 
     # Install vconfig for VLAN example
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install vconfig
     else
         $install vlan
