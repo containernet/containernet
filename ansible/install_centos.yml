@@ -35,7 +35,7 @@
    - name: install Docker CE repos (2/3)
      yum:
        name: docker-ce
-     state: latest 
+       state: latest 
 
    - name: install Docker CE repos (3/3)
      systemd:
