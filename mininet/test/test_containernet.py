@@ -1,3 +1,4 @@
+import pytest
 import unittest
 import os
 import time
@@ -508,6 +509,8 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
     def testRuntimeCPULimitUpdate(self):
         """
         Test CPU limit update at runtime
@@ -539,6 +542,8 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
     def testRuntimeMemoryLimitUpdate(self):
         """
         Test mem limit update at runtime

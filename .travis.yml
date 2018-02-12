@@ -25,10 +25,16 @@ install:
 
 # run tests
 script:
-  # run unit tests
+  # run unit tests (bare metal)
   - sudo py.test -v mininet/test/test_containernet.py
-  # build docker container (also checks in-docker installation)
-  - docker build -t containernet/containernet:$COMMIT .
+  # build ubuntu-based docker container
+  - docker build -t containernet/containernet:ubuntu .
+  # build centos-based docker container
+  - docker build -t containernet/containernet:centos7 -f Dockerfile.centos .
+  # run unit tests on ubuntu-based docker container
+  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:ubuntu  py.test -v mininet/test/test_containernet.py
+  # run unit tests on centos-based docker container
+  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:centos7  py.test -v mininet/test/test_containernet.py
 
 notifications:
   email:

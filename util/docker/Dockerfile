@@ -24,6 +24,9 @@ RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install.
 WORKDIR /containernet
 RUN python setup.py develop
 
+# tell containernet that it runs in a container
+ENV CONTAINERNET_NESTED 1
+
 # Important: This entrypoint is required to start the OVS service
 ENTRYPOINT ["util/docker/entrypoint.sh"]
 CMD ["python", "examples/containernet_example.py"]
