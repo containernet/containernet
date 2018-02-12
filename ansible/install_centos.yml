@@ -37,11 +37,6 @@
        name: docker-ce
        state: latest 
 
-   - name: install Docker CE repos (3/3)
-     systemd:
-       name: docker
-       state: started
-
    - name: install pytest
      pip: name=pytest state=latest
 
