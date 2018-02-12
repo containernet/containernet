@@ -109,7 +109,7 @@ function pre_build {
 
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
-    yum_update='sudo yum -y install'
+    yum_update='sudo yum -y update'
     apt_update='sudo apt-get update'
     if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $yum_update
