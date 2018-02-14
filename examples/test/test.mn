@@ -19,22 +19,22 @@
             "sflowSampling": "400",
             "sflowTarget": ""
         },
-        "startCLI": "1",
+        "startCLI": "0",
         "switchType": "ovs",
         "terminalType": "xterm"
     },
     "controllers": [],
     "hosts": [
         {
-            "number": "2",
+            "number": "1",
             "opts": {
-                "hostname": "d2",
-                "nodeNum": 2,
+                "hostname": "d1",
+                "nodeNum": 1,
                 "nodeType": "Docker",
                 "sched": "host"
             },
-            "x": "763.0",
-            "y": "110.0"
+            "x": "139.0",
+            "y": "82.0"
         },
         {
             "number": "4",
@@ -48,6 +48,17 @@
             "y": "417.0"
         },
         {
+            "number": "2",
+            "opts": {
+                "hostname": "d2",
+                "nodeNum": 2,
+                "nodeType": "Docker",
+                "sched": "host"
+            },
+            "x": "763.0",
+            "y": "110.0"
+        },
+        {
             "number": "3",
             "opts": {
                 "hostname": "h3",
@@ -57,25 +68,9 @@
             },
             "x": "211.0",
             "y": "347.0"
-        },
-        {
-            "number": "1",
-            "opts": {
-                "hostname": "d1",
-                "nodeNum": 1,
-                "nodeType": "Docker",
-                "sched": "host"
-            },
-            "x": "139.0",
-            "y": "82.0"
         }
     ],
     "links": [
-        {
-            "dest": "s2",
-            "opts": {},
-            "src": "d2"
-        },
         {
             "dest": "h4",
             "opts": {},
@@ -95,20 +90,14 @@
             "dest": "d2",
             "opts": {},
             "src": "s1"
+        },
+        {
+            "dest": "s2",
+            "opts": {},
+            "src": "d2"
         }
     ],
     "switches": [
-        {
-            "number": "1",
-            "opts": {
-                "controllers": [],
-                "hostname": "s1",
-                "nodeNum": 1,
-                "switchType": "legacySwitch"
-            },
-            "x": "310.0",
-            "y": "182.0"
-        },
         {
             "number": "2",
             "opts": {
@@ -119,6 +108,17 @@
             },
             "x": "643.0",
             "y": "286.0"
+        },
+        {
+            "number": "1",
+            "opts": {
+                "controllers": [],
+                "hostname": "s1",
+                "nodeNum": 1,
+                "switchType": "legacySwitch"
+            },
+            "x": "310.0",
+            "y": "182.0"
         }
     ],
     "version": "2"

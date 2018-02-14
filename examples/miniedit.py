@@ -1180,10 +1180,20 @@ class MiniEdit( Frame ):
         self.hostPopup.add_separator()
         self.hostPopup.add_command(label='Properties', font=self.font, command=self.hostDetails )
 
+        self.dockerPopup = Menu(self.top, tearoff=0)
+        self.dockerPopup.add_command(label='Docker Options', font=self.font)
+        self.dockerPopup.add_separator()
+        self.dockerPopup.add_command(label='Properties', font=self.font, command=self.dockerDetails )
+
         self.hostRunPopup = Menu(self.top, tearoff=0)
         self.hostRunPopup.add_command(label='Host Options', font=self.font)
         self.hostRunPopup.add_separator()
         self.hostRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
+
+        self.dockerRunPopup = Menu(self.top, tearoff=0)
+        self.dockerRunPopup.add_command(label='Docker Options', font=self.font)
+        self.dockerRunPopup.add_separator()
+        self.dockerRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
 
         self.legacyRouterRunPopup = Menu(self.top, tearoff=0)
         self.legacyRouterRunPopup.add_command(label='Router Options', font=self.font)
@@ -1509,7 +1519,10 @@ class MiniEdit( Frame ):
                 host['opts']['privateDirectory'] = newDirList
             self.hostOpts[hostname] = host['opts']
             icon = self.findWidgetByName(hostname)
-            icon.bind('<Button-3>', self.do_hostPopup )
+            if host['opts'].get('nodeType') == 'Docker':
+                icon.bind('<Button-3>', self.do_dockerPopup )
+            else:
+                icon.bind('<Button-3>', self.do_hostPopup )
 
         # Load switches
         switches = loadedTopology['switches']
@@ -2179,6 +2192,8 @@ class MiniEdit( Frame ):
             icon.bind('<Button-3>', self.do_legacySwitchPopup )
         if 'Host' == node:
             icon.bind('<Button-3>', self.do_hostPopup )
+        if 'Docker' == node:
+            icon.bind('<Button-3>', self.do_dockerPopup )
         if 'Controller' == node:
             icon.bind('<Button-3>', self.do_controllerPopup )
 
@@ -2511,6 +2526,10 @@ class MiniEdit( Frame ):
                 newHostOpts['privateDirectory'] = hostBox.result['privateDirectory']
             self.hostOpts[name] = newHostOpts
             print 'New host details for ' + name + ' = ' + str(newHostOpts)
+
+    def dockerDetails( self, _ignore=None ):
+        # TODO implement
+        print("dockerDetails(...) not implemented")
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -3144,6 +3163,21 @@ class MiniEdit( Frame ):
             finally:
                 # make sure to release the grab (Tk 8.0a1 only)
                 self.hostRunPopup.grab_release()
+
+    def do_dockerPopup(self, event):
+        # display the popup menu
+        if self.net is None:
+            try:
+                self.dockerPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.dockerPopup.grab_release()
+        else:
+            try:
+                self.dockerRunPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.dockerRunPopup.grab_release()
 
     def do_legacySwitchPopup(self, event):
         # display the popup menu
