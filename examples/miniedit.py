@@ -1493,7 +1493,10 @@ class MiniEdit( Frame ):
                 host['opts']['nodeNum'] = int(nodeNum)
             x = host['x']
             y = host['y']
-            self.addNode('Host', nodeNum, float(x), float(y), name=hostname)
+            if host['opts'].get('nodeType') == 'Docker':
+                self.addNode('Docker', nodeNum, float(x), float(y), name=hostname)
+            else:
+                self.addNode('Host', nodeNum, float(x), float(y), name=hostname)
 
             # Fix JSON converting tuple to list when saving
             if 'privateDirectory' in host['opts']:
@@ -1641,7 +1644,7 @@ class MiniEdit( Frame ):
                                   'y':str(y1),
                                   'opts':self.switchOpts[name] }
                     switchesToSave.append(nodeToSave)
-                elif 'Host' in tags:
+                elif 'Host' in tags or 'Docker' in tags:
                     nodeNum = self.hostOpts[name]['nodeNum']
                     nodeToSave = {'number':str(nodeNum),
                                   'x':str(x1),
