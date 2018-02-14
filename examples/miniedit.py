@@ -46,7 +46,7 @@ if 'PYTHONPATH' in os.environ:
 # someday: from ttk import *
 
 from mininet.log import info, setLogLevel
-from mininet.net import Mininet, VERSION
+from mininet.net import Mininet, VERSION, Containernet
 from mininet.util import netParse, ipAdd, quietRun
 from mininet.util import buildTopo
 from mininet.util import custom, customClass
@@ -2838,6 +2838,23 @@ class MiniEdit( Frame ):
                         print 'Checking that OS is VLAN prepared'
                         self.pathCheck('vconfig', moduleName='vlan package')
                         moduleDeps( add='8021q' )
+            elif 'Docker' in tags:
+                opts = self.hostOpts[name]
+                #print str(opts)
+                ip = None
+                if 'ip' in opts and len(opts['ip']) > 0:
+                    ip = opts['ip']
+                else:
+                    nodeNum = self.hostOpts[name]['nodeNum']
+                    ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
+                    ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
+
+                newHost = net.addDocker( name,
+                                         ip=ip,
+                                         dimage="ubuntu:trusty",
+                                         cmd="/bin/bash"
+                                        )
+
             elif 'Controller' in tags:
                 opts = self.controllers[name]
 
@@ -2916,7 +2933,7 @@ class MiniEdit( Frame ):
         dpctl = None
         if len(self.appPrefs['dpctl']) > 0:
             dpctl = int(self.appPrefs['dpctl'])
-        net = Mininet( topo=None,
+        net = Containernet( topo=None,
                        listenPort=dpctl,
                        build=False,
                        ipBase=self.appPrefs['ipBase'] )
