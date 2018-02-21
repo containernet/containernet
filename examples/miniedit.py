@@ -643,11 +643,11 @@ class DockerDialog(CustomDialog):
             self.startEntry.insert(0, str(self.prefValues['startCommand']))
 
         # Field for Switch IP
-        #Label(self.propFrame, text="IP Address:").grid(row=1, sticky=E)
-        #self.ipEntry = Entry(self.propFrame)
-        #self.ipEntry.grid(row=1, column=1)
-        #if 'ip' in self.prefValues:
-        #    self.ipEntry.insert(0, self.prefValues['ip'])
+        Label(self.propFrame, text="IP Address:").grid(row=1, sticky=E)
+        self.ipEntry = Entry(self.propFrame)
+        self.ipEntry.grid(row=1, column=1)
+        if 'ip' in self.prefValues:
+            self.ipEntry.insert(0, self.prefValues['ip'])
 
         # Field for default route
         #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
@@ -685,8 +685,8 @@ class DockerDialog(CustomDialog):
         privateDirectories = []
 
         results = {'hostname':self.hostnameEntry.get(),
-                   #'ip':self.ipEntry.get(),
-                   #'defaultRoute':self.routeEntry.get(),
+                   'ip':self.ipEntry.get(),
+                   'defaultRoute':self.routeEntry.get(),
                    'startCommand':self.startEntry.get(),
                    'nwInterfaces':nwInterfaces}
         self.result = results
@@ -2634,10 +2634,10 @@ class MiniEdit( Frame ):
                 newDockerOpts['hostname'] = dockerBox.result['hostname']
                 name = dockerBox.result['hostname']
                 widget[ 'text' ] = name
-            #if len(dockerBox.result['defaultRoute']) > 0:
-            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
-            #if len(dockerBox.result['ip']) > 0:
-            #    newDockerOpts['ip'] = dockerBox.result['ip']
+            if len(dockerBox.result['defaultRoute']) > 0:
+                newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
+            if len(dockerBox.result['ip']) > 0:
+                newDockerOpts['ip'] = dockerBox.result['ip']
             # TODO apply the IPs to the right interfaces
             if len(dockerBox.result['nwInterfaces']) > 0:
                 newDockerOpts['nwInterfaces'] = dockerBox.result['nwInterfaces']
