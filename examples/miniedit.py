@@ -624,7 +624,7 @@ class DockerDialog(CustomDialog):
         self.propFrame = Frame(n)
         self.ifaceFrame = Frame(n)
         n.add(self.propFrame, text='Properties')
-        n.add(self.ifaceFrame, text='Network Interfaces')
+        n.add(self.ifaceFrame, text='Multihoming IPs')
         n.pack()
 
         ### TAB 1
@@ -659,36 +659,36 @@ class DockerDialog(CustomDialog):
         ### TAB 2
         # Interfaces
         #self.vlanInterfaces = 0
-        Label(self.ifaceFrame, text="Network Interfaces:").grid(row=0, column=0, sticky=E)
-        #self.ifaceButton = Button( self.vlanFrame, text='Add', command=self.addVlanInterface)
-        #self.vlanButton.grid(row=0, column=1)
+        Label(self.ifaceFrame, text="").grid(row=0, column=0, sticky=E)
+        self.ifaceButton = Button( self.ifaceFrame, text='add IP/subnet', command=self.addIpAndSubnet)
+        self.ifaceButton.grid(row=0, column=1)
 
-        self.ifaceFrame = VerticalScrolledTable(self.ifaceFrame, rows=0, columns=2, title='Network Interfaces')
+        self.ifaceFrame = VerticalScrolledTable(self.ifaceFrame, rows=0, columns=1, title='IPs/subnets for add. interfaces')
         self.ifaceFrame.grid(row=1, column=0, sticky='nswe', columnspan=2)
         self.ifaceTableFrame = self.ifaceFrame.interior
-        self.ifaceTableFrame.addRow(value=['Inteface','IP/Subnet'], readonly=True)
+        self.ifaceTableFrame.addRow(value=['IP/Subnet'], readonly=True)
 
-        # TODO fill table based on connected link
-        #vlanInterfaces = []
-        #if 'vlanInterfaces' in self.prefValues:
-        #    vlanInterfaces = self.prefValues['vlanInterfaces']
-        #for vlanInterface in vlanInterfaces:
-        #    self.vlanTableFrame.addRow(value=vlanInterface)
+        # fill table based on connected link
+        multiInterfaces = []
+        if 'multiInterfaces' in self.prefValues:
+            multiInterfaces = self.prefValues['multiInterfaces']
+        for subnet in multiInterfaces:
+            self.ifaceTableFrame.addRow(value=[subnet])
+
+    def addIpAndSubnet( self ):
+        self.ifaceTableFrame.addRow()
 
     def apply(self):
-        nwInterfaces = []
+        multiInterfaces = []
         for row in range(self.ifaceTableFrame.rows):
             if (len(self.ifaceTableFrame.get(row, 0)) > 0 and
-                len(self.ifaceTableFrame.get(row, 1)) > 0 and
                 row > 0):
-                nwInterfaces.append([self.ifaceTableFrame.get(row, 0), self.ifaceTableFrame.get(row, 1)])
-        privateDirectories = []
-
+                multiInterfaces.append(self.ifaceTableFrame.get(row, 0))
         results = {'hostname':self.hostnameEntry.get(),
                    'ip':self.ipEntry.get(),
                    #'defaultRoute':self.routeEntry.get(),
                    'startCommand':self.startEntry.get(),
-                   'nwInterfaces':nwInterfaces}
+                   'multiInterfaces':multiInterfaces}
         self.result = results
 
 
@@ -2476,6 +2476,7 @@ class MiniEdit( Frame ):
                 or dest in source.links or source in dest.links ):
             self.releaseNetLink( event )
             return
+        # TODO direct links
         # For now, don't allow hosts to be directly linked
         stags = self.canvas.gettags( self.widgetToItem[ source ] )
         dtags = self.canvas.gettags( target )
@@ -2489,6 +2490,8 @@ class MiniEdit( Frame ):
            ('Controller' in stags and 'Controller' in dtags)):
             self.releaseNetLink( event )
             return
+
+        #print("Creating link s={} t={}".format(self.widgetToItem[ source ], target))
 
         # Set link type
         linkType='data'
@@ -2612,7 +2615,6 @@ class MiniEdit( Frame ):
             print 'New host details for ' + name + ' = ' + str(newHostOpts)
 
     def dockerDetails( self, _ignore=None ):
-        # TODO implement: continue here
         if ( self.selection is None or
              self.net is not None or
              self.selection not in self.itemToWidget ):
@@ -2639,8 +2641,8 @@ class MiniEdit( Frame ):
             if len(dockerBox.result['ip']) > 0:
                 newDockerOpts['ip'] = dockerBox.result['ip']
             # TODO apply the IPs to the right interfaces
-            if len(dockerBox.result['nwInterfaces']) > 0:
-                newDockerOpts['nwInterfaces'] = dockerBox.result['nwInterfaces']
+            if len(dockerBox.result['multiInterfaces']) > 0:
+                newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
             self.hostOpts[name] = newDockerOpts
             print 'New host details for ' + name + ' = ' + str(newDockerOpts)
         
