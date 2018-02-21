@@ -686,7 +686,7 @@ class DockerDialog(CustomDialog):
 
         results = {'hostname':self.hostnameEntry.get(),
                    'ip':self.ipEntry.get(),
-                   'defaultRoute':self.routeEntry.get(),
+                   #'defaultRoute':self.routeEntry.get(),
                    'startCommand':self.startEntry.get(),
                    'nwInterfaces':nwInterfaces}
         self.result = results
@@ -2634,8 +2634,8 @@ class MiniEdit( Frame ):
                 newDockerOpts['hostname'] = dockerBox.result['hostname']
                 name = dockerBox.result['hostname']
                 widget[ 'text' ] = name
-            if len(dockerBox.result['defaultRoute']) > 0:
-                newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
+            #if len(dockerBox.result['defaultRoute']) > 0:
+            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
             if len(dockerBox.result['ip']) > 0:
                 newDockerOpts['ip'] = dockerBox.result['ip']
             # TODO apply the IPs to the right interfaces
