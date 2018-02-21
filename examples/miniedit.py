@@ -608,6 +608,90 @@ class HostDialog(CustomDialog):
                    'vlanInterfaces':vlanInterfaces}
         self.result = results
 
+
+class DockerDialog(CustomDialog):
+
+    def __init__(self, master, title, prefDefaults):
+
+        self.prefValues = prefDefaults
+        self.result = None
+
+        CustomDialog.__init__(self, master, title)
+
+    def body(self, master):
+        self.rootFrame = master
+        n = Notebook(self.rootFrame)
+        self.propFrame = Frame(n)
+        self.ifaceFrame = Frame(n)
+        n.add(self.propFrame, text='Properties')
+        n.add(self.ifaceFrame, text='Network Interfaces')
+        n.pack()
+
+        ### TAB 1
+        # Field for Hostname
+        Label(self.propFrame, text="Hostname:").grid(row=0, sticky=E)
+        self.hostnameEntry = Entry(self.propFrame)
+        self.hostnameEntry.grid(row=0, column=1)
+        if 'hostname' in self.prefValues:
+            self.hostnameEntry.insert(0, self.prefValues['hostname'])
+
+        # Start command
+        Label(self.propFrame, text="Start Command:").grid(row=5, sticky=E)
+        self.startEntry = Entry(self.propFrame)
+        self.startEntry.grid(row=5, column=1, sticky='nswe', columnspan=3)
+        if 'startCommand' in self.prefValues:
+            self.startEntry.insert(0, str(self.prefValues['startCommand']))
+
+        # Field for Switch IP
+        #Label(self.propFrame, text="IP Address:").grid(row=1, sticky=E)
+        #self.ipEntry = Entry(self.propFrame)
+        #self.ipEntry.grid(row=1, column=1)
+        #if 'ip' in self.prefValues:
+        #    self.ipEntry.insert(0, self.prefValues['ip'])
+
+        # Field for default route
+        #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
+        #self.routeEntry = Entry(self.propFrame)
+        #self.routeEntry.grid(row=2, column=1)
+        #if 'defaultRoute' in self.prefValues:
+        #    self.routeEntry.insert(0, self.prefValues['defaultRoute'])
+
+        ### TAB 2
+        # Interfaces
+        #self.vlanInterfaces = 0
+        Label(self.ifaceFrame, text="Network Interfaces:").grid(row=0, column=0, sticky=E)
+        #self.ifaceButton = Button( self.vlanFrame, text='Add', command=self.addVlanInterface)
+        #self.vlanButton.grid(row=0, column=1)
+
+        self.ifaceFrame = VerticalScrolledTable(self.ifaceFrame, rows=0, columns=2, title='Network Interfaces')
+        self.ifaceFrame.grid(row=1, column=0, sticky='nswe', columnspan=2)
+        self.ifaceTableFrame = self.ifaceFrame.interior
+        self.ifaceTableFrame.addRow(value=['Inteface','IP/Subnet'], readonly=True)
+
+        # TODO fill table based on connected link
+        #vlanInterfaces = []
+        #if 'vlanInterfaces' in self.prefValues:
+        #    vlanInterfaces = self.prefValues['vlanInterfaces']
+        #for vlanInterface in vlanInterfaces:
+        #    self.vlanTableFrame.addRow(value=vlanInterface)
+
+    def apply(self):
+        nwInterfaces = []
+        for row in range(self.ifaceTableFrame.rows):
+            if (len(self.ifaceTableFrame.get(row, 0)) > 0 and
+                len(self.ifaceTableFrame.get(row, 1)) > 0 and
+                row > 0):
+                nwInterfaces.append([self.ifaceTableFrame.get(row, 0), self.ifaceTableFrame.get(row, 1)])
+        privateDirectories = []
+
+        results = {'hostname':self.hostnameEntry.get(),
+                   #'ip':self.ipEntry.get(),
+                   #'defaultRoute':self.routeEntry.get(),
+                   'startCommand':self.startEntry.get(),
+                   'nwInterfaces':nwInterfaces}
+        self.result = results
+
+
 class SwitchDialog(CustomDialog):
 
     def __init__(self, master, title, prefDefaults):
@@ -2528,8 +2612,39 @@ class MiniEdit( Frame ):
             print 'New host details for ' + name + ' = ' + str(newHostOpts)
 
     def dockerDetails( self, _ignore=None ):
-        # TODO implement
-        print("dockerDetails(...) not implemented")
+        # TODO implement: continue here
+        if ( self.selection is None or
+             self.net is not None or
+             self.selection not in self.itemToWidget ):
+            return
+        widget = self.itemToWidget[ self.selection ]
+        name = widget[ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+        if 'Docker' not in tags:
+            return
+
+        prefDefaults = self.hostOpts[name]
+        dockerBox = DockerDialog(self, title='Docker Details', prefDefaults=prefDefaults)
+        self.master.wait_window(dockerBox.top)
+        if dockerBox.result:
+            newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            if len(dockerBox.result['startCommand']) > 0:
+                newDockerOpts['startCommand'] = dockerBox.result['startCommand']
+            if len(dockerBox.result['hostname']) > 0:
+                newDockerOpts['hostname'] = dockerBox.result['hostname']
+                name = dockerBox.result['hostname']
+                widget[ 'text' ] = name
+            #if len(dockerBox.result['defaultRoute']) > 0:
+            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
+            #if len(dockerBox.result['ip']) > 0:
+            #    newDockerOpts['ip'] = dockerBox.result['ip']
+            # TODO apply the IPs to the right interfaces
+            if len(dockerBox.result['nwInterfaces']) > 0:
+                newDockerOpts['nwInterfaces'] = dockerBox.result['nwInterfaces']
+            self.hostOpts[name] = newDockerOpts
+            print 'New host details for ' + name + ' = ' + str(newDockerOpts)
+        
+
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
