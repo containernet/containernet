@@ -2666,8 +2666,6 @@ class MiniEdit( Frame ):
                 newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
             self.hostOpts[name] = newDockerOpts
             print 'New host details for ' + name + ' = ' + str(self.hostOpts[name])
-        
-
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -3079,13 +3077,51 @@ class MiniEdit( Frame ):
         print "Getting Links."
         for key,link in self.links.iteritems():
             tags = self.canvas.gettags(key)
+            # start links
             if 'data' in tags:
                 src=link['src']
                 dst=link['dest']
                 linkopts=link['linkOpts']
+                multilink = None
                 srcName, dstName = src[ 'text' ], dst[ 'text' ]
                 srcNode, dstNode = net.nameToNode[ srcName ], net.nameToNode[ dstName ]
-                if linkopts:
+                
+                # MULTIHOMING support
+                #print("srcName: {} intfList: {}".format(srcName, srcNode.intfList()))
+                #print("dstName: {} intfList: {}".format(dstName, dstNode.intfList()))
+                # if have a multihoming node (link no. 2 or greater)
+                # this means we apply IP configs from the multihoming
+                # node options
+                if len(srcNode.intfList()) > 0 and srcName in self.hostOpts:
+                    opts = self.hostOpts[srcName]
+                    if opts:
+                        srcIP = None
+                        if (opts.get("multiInterfaces")
+                            and len(opts.get("multiInterfaces")) >= len(srcNode.intfList())):
+                                srcIP = opts.get("multiInterfaces")[len(srcNode.intfList()) -1]
+                        #print("Multihome detected srcIP: {}".format(srcIP))
+                        if not multilink:
+                            multilink = dict()
+                        if srcIP:
+                            multilink.update({"params1": {"ip": srcIP}})
+                if len(dstNode.intfList()) > 0 and dstName in self.hostOpts:
+                    opts = self.hostOpts[dstName]
+                    if opts:
+                        dstIP = None
+                        if (opts.get("multiInterfaces")
+                            and len(opts.get("multiInterfaces")) >= len(dstNode.intfList())):
+                                dstIP = opts.get("multiInterfaces")[len(dstNode.intfList()) -1]
+                        #print("Multihome detected dstIP: {}".format(dstIP))
+                        if not multilink:
+                            multilink = dict()
+                        if dstIP:
+                            multilink.update({"params2": {"ip": dstIP}})
+
+                # TODO combination between TCLink and multilink does not work right now
+                if multilink:
+                    print("Adding multihome link: {}".format(multilink))
+                    net.addLink(srcNode, dstNode, **multilink)
+                elif linkopts:
                     net.addLink(srcNode, dstNode, cls=TCLink, **linkopts)
                 else:
                     #print str(srcNode)

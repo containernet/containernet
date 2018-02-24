@@ -37,22 +37,14 @@
             "y": "347.0"
         },
         {
-            "number": "4",
-            "opts": {
-                "hostname": "h4",
-                "nodeNum": 4,
-                "nodeType": "Host",
-                "sched": "host"
-            },
-            "x": "644.0",
-            "y": "417.0"
-        },
-        {
             "number": "2",
             "opts": {
                 "dimage": "custom",
                 "hostname": "d2",
-                "ip": "9.1.1.1/24",
+                "multiInterfaces": [
+                    "11.0.0.2/24",
+                    "12.0.0.2/24"
+                ],
                 "nodeNum": 2,
                 "nodeType": "Docker",
                 "startCommand": "/bin/sh"
@@ -70,14 +62,34 @@
             },
             "x": "139.0",
             "y": "82.0"
+        },
+        {
+            "number": "2",
+            "opts": {
+                "dimage": "ubuntu:trusty",
+                "hostname": "d3",
+                "ip": "12.0.0.1/24",
+                "nodeNum": 2,
+                "nodeType": "Docker",
+                "startCommand": "/bin/bash"
+            },
+            "x": "900.0",
+            "y": "231.0"
+        },
+        {
+            "number": "4",
+            "opts": {
+                "hostname": "h4",
+                "ip": "11.0.0.1/24",
+                "nodeNum": 4,
+                "nodeType": "Host",
+                "sched": "host"
+            },
+            "x": "644.0",
+            "y": "417.0"
         }
     ],
     "links": [
-        {
-            "dest": "s1",
-            "opts": {},
-            "src": "h3"
-        },
         {
             "dest": "s1",
             "opts": {},
@@ -97,20 +109,24 @@
             "dest": "h4",
             "opts": {},
             "src": "s2"
+        },
+        {
+            "dest": "s1",
+            "opts": {},
+            "src": "h3"
+        },
+        {
+            "dest": "d2",
+            "opts": {},
+            "src": "s1"
+        },
+        {
+            "dest": "s1",
+            "opts": {},
+            "src": "d3"
         }
     ],
     "switches": [
-        {
-            "number": "1",
-            "opts": {
-                "controllers": [],
-                "hostname": "s1",
-                "nodeNum": 1,
-                "switchType": "legacySwitch"
-            },
-            "x": "310.0",
-            "y": "182.0"
-        },
         {
             "number": "2",
             "opts": {
@@ -121,6 +137,28 @@
             },
             "x": "643.0",
             "y": "286.0"
+        },
+        {
+            "number": "1",
+            "opts": {
+                "controllers": [],
+                "hostname": "s1",
+                "nodeNum": 1,
+                "switchType": "legacySwitch"
+            },
+            "x": "802.0",
+            "y": "301.0"
+        },
+        {
+            "number": "1",
+            "opts": {
+                "controllers": [],
+                "hostname": "s1",
+                "nodeNum": 1,
+                "switchType": "legacySwitch"
+            },
+            "x": "310.0",
+            "y": "182.0"
         }
     ],
     "version": "2"
