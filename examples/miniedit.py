@@ -635,19 +635,26 @@ class DockerDialog(CustomDialog):
         if 'hostname' in self.prefValues:
             self.hostnameEntry.insert(0, self.prefValues['hostname'])
 
-        # Start command
-        Label(self.propFrame, text="Start Command:").grid(row=5, sticky=E)
-        self.startEntry = Entry(self.propFrame)
-        self.startEntry.grid(row=5, column=1, sticky='nswe', columnspan=3)
-        if 'startCommand' in self.prefValues:
-            self.startEntry.insert(0, str(self.prefValues['startCommand']))
+        # Field for Docker image
+        Label(self.propFrame, text="Docker image:").grid(row=1, sticky=E)
+        self.dimageEntry = Entry(self.propFrame)
+        self.dimageEntry.grid(row=1, column=1)
+        if 'dimage' in self.prefValues:
+            self.dimageEntry.insert(0, self.prefValues['dimage'])
 
         # Field for Switch IP
-        Label(self.propFrame, text="IP Address:").grid(row=1, sticky=E)
+        Label(self.propFrame, text="IP Address:").grid(row=2, sticky=E)
         self.ipEntry = Entry(self.propFrame)
-        self.ipEntry.grid(row=1, column=1)
+        self.ipEntry.grid(row=2, column=1)
         if 'ip' in self.prefValues:
             self.ipEntry.insert(0, self.prefValues['ip'])
+
+        # Start command
+        Label(self.propFrame, text="Start Command:").grid(row=3, sticky=E)
+        self.startEntry = Entry(self.propFrame)
+        self.startEntry.grid(row=3, column=1, sticky='nswe', columnspan=3)
+        if 'startCommand' in self.prefValues:
+            self.startEntry.insert(0, str(self.prefValues['startCommand']))
 
         # Field for default route
         #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
@@ -685,6 +692,7 @@ class DockerDialog(CustomDialog):
                 row > 0):
                 multiInterfaces.append(self.ifaceTableFrame.get(row, 0))
         results = {'hostname':self.hostnameEntry.get(),
+                   'dimage':self.dimageEntry.get(),
                    'ip':self.ipEntry.get(),
                    #'defaultRoute':self.routeEntry.get(),
                    'startCommand':self.startEntry.get(),
@@ -2243,12 +2251,21 @@ class MiniEdit( Frame ):
             self.switchOpts[name]['hostname']=name
             self.switchOpts[name]['switchType']='legacySwitch'
             self.switchOpts[name]['controllers']=[]
-        if 'Host' == node or 'Docker' == node:
+        if 'Host' == node:
             self.hostCount += 1
             name = self.nodePrefixes[ node ] + str( self.hostCount )
             self.hostOpts[name] = {'sched':'host'}
             self.hostOpts[name]['nodeNum']=self.hostCount
             self.hostOpts[name]['hostname']=name
+            self.hostOpts[name]['nodeType']=node
+        if 'Docker' == node:
+            self.dockerCount += 1
+            name = self.nodePrefixes[ node ] + str( self.dockerCount )
+            self.hostOpts[name] = {'sched':'host'}
+            self.hostOpts[name]['nodeNum']=self.hostCount
+            self.hostOpts[name]['hostname']=name
+            self.hostOpts[name]['dimage']='ubuntu:trusty'
+            self.hostOpts[name]['startCommand']='/bin/bash'
             self.hostOpts[name]['nodeType']=node
         if 'Controller' == node:
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
@@ -2632,6 +2649,8 @@ class MiniEdit( Frame ):
             newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
             if len(dockerBox.result['startCommand']) > 0:
                 newDockerOpts['startCommand'] = dockerBox.result['startCommand']
+            if len(dockerBox.result['dimage']) > 0:
+                newDockerOpts['dimage'] = dockerBox.result['dimage']
             if len(dockerBox.result['hostname']) > 0:
                 newDockerOpts['hostname'] = dockerBox.result['hostname']
                 name = dockerBox.result['hostname']
@@ -2644,7 +2663,7 @@ class MiniEdit( Frame ):
             if len(dockerBox.result['multiInterfaces']) > 0:
                 newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
             self.hostOpts[name] = newDockerOpts
-            print 'New host details for ' + name + ' = ' + str(newDockerOpts)
+            print 'New host details for ' + name + ' = ' + str(self.hostOpts[name])
         
 
 
@@ -2978,6 +2997,7 @@ class MiniEdit( Frame ):
                         self.pathCheck('vconfig', moduleName='vlan package')
                         moduleDeps( add='8021q' )
             elif 'Docker' in tags:
+                # start docker container
                 opts = self.hostOpts[name]
                 #print str(opts)
                 ip = None
@@ -2987,11 +3007,17 @@ class MiniEdit( Frame ):
                     nodeNum = self.hostOpts[name]['nodeNum']
                     ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
                     ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
-
+                dimage = "ubuntu:trusty"
+                if 'dimage' in opts and len(opts['dimage']) > 0:
+                    dimage = opts['dimage']
+                startCommand = "/bin/bash"
+                if 'startCommand' in opts and len(opts['startCommand']) > 0:
+                    startCommand = opts['startCommand']
+                print("Starting Docker with opts={}".format(opts))
                 newHost = net.addDocker( name,
                                          ip=ip,
-                                         dimage="ubuntu:trusty",
-                                         cmd="/bin/bash"
+                                         dimage=dimage,
+                                         dcmd=startCommand
                                         )
 
             elif 'Controller' in tags:
