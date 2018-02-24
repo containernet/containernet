@@ -26,15 +26,15 @@
     "controllers": [],
     "hosts": [
         {
-            "number": "1",
+            "number": "3",
             "opts": {
-                "hostname": "d1",
-                "nodeNum": 1,
-                "nodeType": "Docker",
+                "hostname": "h3",
+                "nodeNum": 3,
+                "nodeType": "Host",
                 "sched": "host"
             },
-            "x": "139.0",
-            "y": "82.0"
+            "x": "211.0",
+            "y": "347.0"
         },
         {
             "number": "4",
@@ -50,32 +50,29 @@
         {
             "number": "2",
             "opts": {
+                "dimage": "custom",
                 "hostname": "d2",
+                "ip": "9.1.1.1/24",
                 "nodeNum": 2,
                 "nodeType": "Docker",
-                "sched": "host"
+                "startCommand": "/bin/sh"
             },
             "x": "763.0",
             "y": "110.0"
         },
         {
-            "number": "3",
+            "number": "1",
             "opts": {
-                "hostname": "h3",
-                "nodeNum": 3,
-                "nodeType": "Host",
+                "hostname": "d1",
+                "nodeNum": 1,
+                "nodeType": "Docker",
                 "sched": "host"
             },
-            "x": "211.0",
-            "y": "347.0"
+            "x": "139.0",
+            "y": "82.0"
         }
     ],
     "links": [
-        {
-            "dest": "h4",
-            "opts": {},
-            "src": "s2"
-        },
         {
             "dest": "s1",
             "opts": {},
@@ -95,20 +92,14 @@
             "dest": "s2",
             "opts": {},
             "src": "d2"
+        },
+        {
+            "dest": "h4",
+            "opts": {},
+            "src": "s2"
         }
     ],
     "switches": [
-        {
-            "number": "2",
-            "opts": {
-                "controllers": [],
-                "hostname": "s2",
-                "nodeNum": 2,
-                "switchType": "legacySwitch"
-            },
-            "x": "643.0",
-            "y": "286.0"
-        },
         {
             "number": "1",
             "opts": {
@@ -119,6 +110,17 @@
             },
             "x": "310.0",
             "y": "182.0"
+        },
+        {
+            "number": "2",
+            "opts": {
+                "controllers": [],
+                "hostname": "s2",
+                "nodeNum": 2,
+                "switchType": "legacySwitch"
+            },
+            "x": "643.0",
+            "y": "286.0"
         }
     ],
     "version": "2"

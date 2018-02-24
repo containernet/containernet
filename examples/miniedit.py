@@ -2605,6 +2605,7 @@ class MiniEdit( Frame ):
         self.master.wait_window(hostBox.top)
         if hostBox.result:
             newHostOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newHostOpts['nodeType'] = "Host"
             newHostOpts['sched'] = hostBox.result['sched']
             if len(hostBox.result['startCommand']) > 0:
                 newHostOpts['startCommand'] = hostBox.result['startCommand']
@@ -2647,6 +2648,7 @@ class MiniEdit( Frame ):
         self.master.wait_window(dockerBox.top)
         if dockerBox.result:
             newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newDockerOpts['nodeType'] = "Docker"
             if len(dockerBox.result['startCommand']) > 0:
                 newDockerOpts['startCommand'] = dockerBox.result['startCommand']
             if len(dockerBox.result['dimage']) > 0:
