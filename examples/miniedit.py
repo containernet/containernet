@@ -700,6 +700,97 @@ class DockerDialog(CustomDialog):
         self.result = results
 
 
+class LibvirtDialog(CustomDialog):
+
+    def __init__(self, master, title, prefDefaults):
+
+        self.prefValues = prefDefaults
+        self.result = None
+
+        CustomDialog.__init__(self, master, title)
+
+    def body(self, master):
+        self.rootFrame = master
+        n = Notebook(self.rootFrame)
+        self.propFrame = Frame(n)
+        self.ifaceFrame = Frame(n)
+        n.add(self.propFrame, text='Properties')
+        n.add(self.ifaceFrame, text='Multihoming IPs')
+        n.pack()
+
+        ### TAB 1
+        # Field for Hostname
+        Label(self.propFrame, text="Hostname:").grid(row=0, sticky=E)
+        self.hostnameEntry = Entry(self.propFrame)
+        self.hostnameEntry.grid(row=0, column=1)
+        if 'hostname' in self.prefValues:
+            self.hostnameEntry.insert(0, self.prefValues['hostname'])
+
+        # Field for Docker image
+        Label(self.propFrame, text="VM image path:").grid(row=1, sticky=E)
+        self.dimageEntry = Entry(self.propFrame)
+        self.dimageEntry.grid(row=1, column=1)
+        if 'dimage' in self.prefValues:
+            self.dimageEntry.insert(0, self.prefValues['dimage'])
+
+        # Field for Switch IP
+        Label(self.propFrame, text="IP Address:").grid(row=2, sticky=E)
+        self.ipEntry = Entry(self.propFrame)
+        self.ipEntry.grid(row=2, column=1)
+        if 'ip' in self.prefValues:
+            self.ipEntry.insert(0, self.prefValues['ip'])
+
+        # Start command
+        Label(self.propFrame, text="Start Command:").grid(row=3, sticky=E)
+        self.startEntry = Entry(self.propFrame)
+        self.startEntry.grid(row=3, column=1, sticky='nswe', columnspan=3)
+        if 'startCommand' in self.prefValues:
+            self.startEntry.insert(0, str(self.prefValues['startCommand']))
+
+        # Field for default route
+        #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
+        #self.routeEntry = Entry(self.propFrame)
+        #self.routeEntry.grid(row=2, column=1)
+        #if 'defaultRoute' in self.prefValues:
+        #    self.routeEntry.insert(0, self.prefValues['defaultRoute'])
+
+        ### TAB 2
+        # Interfaces
+        #self.vlanInterfaces = 0
+        Label(self.ifaceFrame, text="").grid(row=0, column=0, sticky=E)
+        self.ifaceButton = Button( self.ifaceFrame, text='add IP/subnet', command=self.addIpAndSubnet)
+        self.ifaceButton.grid(row=0, column=1)
+
+        self.ifaceFrame = VerticalScrolledTable(self.ifaceFrame, rows=0, columns=1, title='IPs/subnets for add. interfaces')
+        self.ifaceFrame.grid(row=1, column=0, sticky='nswe', columnspan=2)
+        self.ifaceTableFrame = self.ifaceFrame.interior
+        self.ifaceTableFrame.addRow(value=['IP/Subnet'], readonly=True)
+
+        # fill table based on connected link
+        multiInterfaces = []
+        if 'multiInterfaces' in self.prefValues:
+            multiInterfaces = self.prefValues['multiInterfaces']
+        for subnet in multiInterfaces:
+            self.ifaceTableFrame.addRow(value=[subnet])
+
+    def addIpAndSubnet( self ):
+        self.ifaceTableFrame.addRow()
+
+    def apply(self):
+        multiInterfaces = []
+        for row in range(self.ifaceTableFrame.rows):
+            if (len(self.ifaceTableFrame.get(row, 0)) > 0 and
+                row > 0):
+                multiInterfaces.append(self.ifaceTableFrame.get(row, 0))
+        results = {'hostname':self.hostnameEntry.get(),
+                   'dimage':self.dimageEntry.get(),
+                   'ip':self.ipEntry.get(),
+                   #'defaultRoute':self.routeEntry.get(),
+                   'startCommand':self.startEntry.get(),
+                   'multiInterfaces':multiInterfaces}
+        self.result = results
+
+
 class SwitchDialog(CustomDialog):
 
     def __init__(self, master, title, prefDefaults):
@@ -1231,12 +1322,13 @@ class MiniEdit( Frame ):
         self.tools = ( 'Select',
                        'Host',
                        'Docker',
+                       'Libvirt',
                        'Switch',
                        'LegacySwitch',
                        'LegacyRouter',
                        'NetLink',
                        'Controller' )
-        self.customColors = { 'Switch': 'darkGreen', 'Host': 'blue', 'Docker': 'darkBlue' }
+        self.customColors = { 'Switch': 'darkGreen', 'Host': 'blue', 'Docker': 'darkBlue', 'Libvirt': 'darkBlue' }
         self.toolbar = self.createToolbar()
 
         # Layout
@@ -1251,7 +1343,7 @@ class MiniEdit( Frame ):
 
         # Initialize node data
         self.nodeBindings = self.createNodeBindings()
-        self.nodePrefixes = { 'LegacyRouter': 'r', 'LegacySwitch': 's', 'Switch': 's', 'Host': 'h' , 'Docker': 'd' , 'Controller': 'c'}
+        self.nodePrefixes = { 'LegacyRouter': 'r', 'LegacySwitch': 's', 'Switch': 's', 'Host': 'h' , 'Docker': 'd', 'Libvirt': 'v' , 'Controller': 'c'}
         self.widgetToItem = {}
         self.itemToWidget = {}
 
@@ -1277,6 +1369,11 @@ class MiniEdit( Frame ):
         self.dockerPopup.add_separator()
         self.dockerPopup.add_command(label='Properties', font=self.font, command=self.dockerDetails )
 
+        self.libvirtPopup = Menu(self.top, tearoff=0)
+        self.libvirtPopup.add_command(label='Libvirt Options', font=self.font)
+        self.libvirtPopup.add_separator()
+        self.libvirtPopup.add_command(label='Properties', font=self.font, command=self.libvirtDetails )
+
         self.hostRunPopup = Menu(self.top, tearoff=0)
         self.hostRunPopup.add_command(label='Host Options', font=self.font)
         self.hostRunPopup.add_separator()
@@ -1286,6 +1383,11 @@ class MiniEdit( Frame ):
         self.dockerRunPopup.add_command(label='Docker Options', font=self.font)
         self.dockerRunPopup.add_separator()
         self.dockerRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
+
+        self.libvirtRunPopup = Menu(self.top, tearoff=0)
+        self.libvirtRunPopup.add_command(label='Libvirt Options', font=self.font)
+        self.libvirtRunPopup.add_separator()
+        self.libvirtRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
 
         self.legacyRouterRunPopup = Menu(self.top, tearoff=0)
         self.legacyRouterRunPopup.add_command(label='Router Options', font=self.font)
@@ -1329,6 +1431,7 @@ class MiniEdit( Frame ):
         self.switchOpts = {}
         self.hostCount = 0
         self.dockerCount = 0
+        self.libvirtCount = 0
         self.switchCount = 0
         self.controllerCount = 0
         self.net = None
@@ -1503,6 +1606,8 @@ class MiniEdit( Frame ):
             self.hostCount += 1
         if 'Docker' == node:
             self.dockerCount += 1
+        if 'Libvirt' == node:
+            self.libvirtCount += 1
         if 'Controller' == node:
             self.controllerCount += 1
         if name is None:
@@ -2267,6 +2372,18 @@ class MiniEdit( Frame ):
             self.hostOpts[name]['dimage']='ubuntu:trusty'
             self.hostOpts[name]['startCommand']='/bin/bash'
             self.hostOpts[name]['nodeType']=node
+        if 'Libvirt' == node:
+            self.libvirtCount += 1
+            name = self.nodePrefixes[ node ] + str( self.libvirtCount )
+            self.hostOpts[name] = {'sched':'host'}
+            self.hostOpts[name]['nodeNum']=self.hostCount
+            self.hostOpts[name]['hostname']=name
+            self.hostOpts[name]['vmimage']='/var/lib/libvirt/images/ubuntu16.04.qcow2'
+            self.hostOpts[name]['vmtype']='qemu'
+            self.hostOpts[name]['vmusername']='root'
+            self.hostOpts[name]['vmpassword']='containernet'
+            self.hostOpts[name]['startCommand']=''
+            self.hostOpts[name]['nodeType']=node
         if 'Controller' == node:
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
             ctrlr = { 'controllerType': 'ref',
@@ -2295,6 +2412,8 @@ class MiniEdit( Frame ):
             icon.bind('<Button-3>', self.do_hostPopup )
         if 'Docker' == node:
             icon.bind('<Button-3>', self.do_dockerPopup )
+        if 'Libvirt' == node:
+            icon.bind('<Button-3>', self.do_libvirtPopup )
         if 'Controller' == node:
             icon.bind('<Button-3>', self.do_controllerPopup )
 
@@ -2309,6 +2428,10 @@ class MiniEdit( Frame ):
     def clickDocker( self, event ):
         "Add a new Docker to our canvas."
         self.newNode( 'Docker', event )
+
+    def clickLibvirt( self, event ):
+        "Add a new Libvirt host to our canvas."
+        self.newNode( 'Libvirt', event )
 
     def clickLegacyRouter( self, event ):
         "Add a new switch to our canvas."
@@ -2645,6 +2768,42 @@ class MiniEdit( Frame ):
 
         prefDefaults = self.hostOpts[name]
         dockerBox = DockerDialog(self, title='Docker Details', prefDefaults=prefDefaults)
+        self.master.wait_window(dockerBox.top)
+        if dockerBox.result:
+            newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newDockerOpts['nodeType'] = "Docker"
+            if len(dockerBox.result['startCommand']) > 0:
+                newDockerOpts['startCommand'] = dockerBox.result['startCommand']
+            if len(dockerBox.result['dimage']) > 0:
+                newDockerOpts['dimage'] = dockerBox.result['dimage']
+            if len(dockerBox.result['hostname']) > 0:
+                newDockerOpts['hostname'] = dockerBox.result['hostname']
+                name = dockerBox.result['hostname']
+                widget[ 'text' ] = name
+            #if len(dockerBox.result['defaultRoute']) > 0:
+            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
+            if len(dockerBox.result['ip']) > 0:
+                newDockerOpts['ip'] = dockerBox.result['ip']
+            # TODO apply the IPs to the right interfaces
+            if len(dockerBox.result['multiInterfaces']) > 0:
+                newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
+            self.hostOpts[name] = newDockerOpts
+            print 'New host details for ' + name + ' = ' + str(self.hostOpts[name])
+
+    def libvirtDetails( self, _ignore=None ):
+        # TODO libvirt
+        if ( self.selection is None or
+             self.net is not None or
+             self.selection not in self.itemToWidget ):
+            return
+        widget = self.itemToWidget[ self.selection ]
+        name = widget[ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+        if 'Libvirt' not in tags:
+            return
+
+        prefDefaults = self.hostOpts[name]
+        dockerBox = LibvirtDialog(self, title='Libvirt Details', prefDefaults=prefDefaults)
         self.master.wait_window(dockerBox.top)
         if dockerBox.result:
             newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
@@ -3019,7 +3178,8 @@ class MiniEdit( Frame ):
                                          dimage=dimage,
                                          dcmd=startCommand
                                         )
-
+            elif 'Libvirt' in tags:
+                pass  # TODO libvirt
             elif 'Controller' in tags:
                 opts = self.controllers[name]
 
@@ -3359,6 +3519,21 @@ class MiniEdit( Frame ):
             finally:
                 # make sure to release the grab (Tk 8.0a1 only)
                 self.dockerRunPopup.grab_release()
+
+    def do_libvirtPopup(self, event):
+        # display the popup menu
+        if self.net is None:
+            try:
+                self.libvirtPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.libvirtPopup.grab_release()
+        else:
+            try:
+                self.libvirtRunPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.libvirtRunPopup.grab_release()
 
     def do_legacySwitchPopup(self, event):
         # display the popup menu
@@ -3859,7 +4034,7 @@ myODd9tDGyUqIqMGwqhdoePb0iTriNUaq8G6lGbjzcGgf3f1+b91Kk5YWHDnDxwo5NxCWRguCNfx
 ASBhZaSWUQI9HIVqEOnO4Oa5c/FekfYkr/8CC/FIq8t0DssAAAAASUVORK5CYII=
 """ ),
 
-    'VM': PhotoImage ( data=r"""
+    'Libvirt': PhotoImage ( data=r"""
     iVBORw0KGgoAAAANSUhEUgAAAD8AAAAUCAYAAAA6NOUqAAAABmJLR0QA/wD/AP+gvaeTAAAACXBI
 WXMAAC4iAAAuIgGq4t2SAAAAB3RJTUUH4gINEjgPh3BN4AAAC/lJREFUWMOVWGtsVVd2/vbe55x7
 7sO+fmEMgRA7gB0eLsEQzCNAZkgIk7QkVERKRDNtpWYefaqtVKlS22mrSlV+tJo/rapMpHZUtRqY
