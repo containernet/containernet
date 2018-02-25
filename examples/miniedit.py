@@ -2493,8 +2493,8 @@ class MiniEdit( Frame ):
                 or dest in source.links or source in dest.links ):
             self.releaseNetLink( event )
             return
-        # TODO direct links
         # For now, don't allow hosts to be directly linked
+        # but allow docker containers
         stags = self.canvas.gettags( self.widgetToItem[ source ] )
         dtags = self.canvas.gettags( target )
         if (('Host' in stags and 'Host' in dtags) or
