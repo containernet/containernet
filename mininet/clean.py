@@ -11,17 +11,23 @@ nothing irreplaceable!
 """
 
 from subprocess import ( Popen, PIPE, check_output as co,
-                         CalledProcessError )
-from subprocess import call
+                         CalledProcessError, call )
 import time
 import os
 import iptc
 import ipaddress
 import shlex
-
+import re
 from mininet.log import info
 from mininet.term import cleanUpScreens
 from mininet.net import SAP_PREFIX
+
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 
 def sh( cmd ):
     "Print a command and send it to the shell"
@@ -42,6 +48,11 @@ def killprocs( pattern ):
             time.sleep( .5 )
         else:
             break
+
+def virsh( cmd ):
+    "Send a command via virsh"
+    info("virsh %s\n" % cmd)
+    return Popen(['/usr/bin/virsh', cmd], stdout=PIPE).communicate()[0]
 
 class Cleanup( object ):
     "Wrapper for cleanup()"
@@ -122,6 +133,24 @@ class Cleanup( object ):
         cmd =  "docker rm -f $( docker ps --filter 'label=com.containernet' -a -q)"
         call(cmd, shell=True, stdout=open(os.devnull, 'wb'),  stderr=open(os.devnull, 'wb'))
 
+        # cleanup pending virtual machines if libvirt is available using virsh instead of libvirt-python
+        # as no parameters are available
+        if LIBVIRT_AVAILABLE:
+            info("***  Removing pending LibvirtHosts\n")
+            # TODO remember possible snapshots!
+            cmd = "list --transient --title"
+            for domain in virsh(cmd).splitlines():
+                match = re.search("^\s*[\d]+\s+(\S+).*com.containernet.*", domain)
+                if match is not None:
+                    cmd = "destroy %s" %  match.group(1)
+                    virsh(cmd)
+
+            info("***  Removing the default libvirt management network (mn.libvirt.mgmt)\n")
+            cmd = "net-list --transient --name"
+            for net in virsh(cmd).splitlines():
+                if "mn.libvirt.mgmt" in net:
+                    virsh("net-destroy mn.libvirt.mgmt")
+
         # cleanup any remaining iptables rules from external SAPs with NAT
         # we use iptc module to iterate through the loops, but due to a bug, we cannot use iptc to delete the rules
         # we rely on iptables CLI to delete the found rules
@@ -137,7 +166,6 @@ class Cleanup( object ):
                 p = Popen(shlex.split(rule0_))
                 p.communicate()
                 info("delete NAT rule from SAP: {1} - {0} - {2}\n".format(rule.out_interface, rule.in_interface, src_CIDR))
-
 
         table = iptc.Table(iptc.Table.FILTER)
         chain = iptc.Chain(table, 'FORWARD')

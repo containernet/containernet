@@ -59,16 +59,29 @@ import signal
 import select
 import docker
 import json
-from subprocess import Popen, PIPE, check_output
+import time
+import sys
+
+from subprocess import Popen, PIPE, check_output, list2cmdline
 from time import sleep
 
 from mininet.log import info, error, warn, debug
 from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups )
+                           numCores, retry, mountCgroups, libvirtErrorHandler, numCores )
 from mininet.moduledeps import moduleDeps, pathCheck, TUN
 from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
 from distutils.version import StrictVersion
+
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    import xml.dom.minidom as minidom
+    import paramiko
+    import socket
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 
 class Node( object ):
     """A virtual network node is simply a shell in a network namespace.
@@ -292,7 +305,6 @@ class Node( object ):
             cmd += ' printf "\\001%d\\012" $! '
         elif printPid and not isShellBuiltin( cmd ):
             cmd = 'mnexec -p ' + cmd
-        #info('execute cmd: {0}'.format(cmd))
         self.write( cmd + '\n' )
         self.lastPid = None
         self.waiting = True
@@ -699,6 +711,7 @@ class Docker ( Host ):
                      'ports': [],
                      'dns': [],
                      }
+
         defaults.update( kwargs )
 
         # keep resource in a dict for easy update during container lifetime
@@ -783,7 +796,6 @@ class Docker ( Host ):
         #                        memswap_limit=self.resources.get('memswap_limit')
         #                        )
 
-
     # Command support via shell process in namespace
     def startShell( self, *args, **kwargs ):
         "Start a shell process for running commands"
@@ -859,10 +871,12 @@ class Docker ( Host ):
         """Return a Popen() object in node's namespace
            args: Popen() args, single list, or string
            kwargs: Popen() keyword args"""
+
         if not self._is_container_running():
             error( "ERROR: Can't connect to Container \'%s\'' for docker host \'%s\'!\n" % (self.did, self.name) )
             return
         mncmd = ["docker", "exec", "-t", "%s.%s" % (self.dnameprefix, self.name)]
+
         return Host.popen( self, *args, mncmd=mncmd, **kwargs )
 
     def cmd(self, *args, **kwargs ):
@@ -946,11 +960,11 @@ class Docker ( Host ):
         """
         :return: True if pull was successful. Else false.
         """
+        message = ""
         try:
             info('*** Image "%s:%s" not found. Trying to load the image. \n' % (repository, tag))
             info('*** This can take some minutes...\n')
 
-            message = ""
             for line in self.dcli.pull(repository, tag, stream=True):
                 # Collect output of the log for enhanced error feedback
                 message = message + json.dumps(json.loads(line), indent=4)
@@ -1078,6 +1092,1016 @@ class Docker ( Host ):
             return -1
 
 
+class LibvirtHost( Host ):
+    """Base class for controlling a host that is managed by libvirt.
+
+    Args:
+        name: name of the node
+        disk_image: file that holds a disk image, if empty string is passed
+                    an existing domain with name = name will be used
+        use_existing_vm: Use an existing VM of name kwargs['name'] if domain_name is not set. Default: False
+        domain_name: The domain that is used when using an existing VM. Default: kwargs['name']
+        type: the type of domain to instantiate, default: 'kvm'
+        login: the dictionary to pass to the management network paramiko ssh session.
+                default: {'credentials': { 'username': 'root', 'password': 'containernet'},}
+        cmd_endpoint: which endpoint to use. default 'qemu:///system'
+        domain_xml: If defined this XML string will be used to instantiate the domain.
+                This string will formatted like the default domain_xml in LibvirtHost.
+                So you can use placeholders that will be filled by Containernet.
+                If a path is specified the file will be read instead. default: None
+        disk_target_dev: String. disk device string for domain_xml. Default: 'sda'
+        disk_target_driver_name: String. disk device driver string for domain_xml. Default: 'qemu'
+        disk_target_driver_type: String. disk device type string for domain_xml. Default: 'qcow2'
+        os_arch: String. type of os string for domain_xml. Default: 'x86_64'
+        os_machine: String. default 'pc'
+        os_type: String. OS type for libvirt. Default: 'hvm'
+        emulator: String. Path to the emulator. Default: '/usr/bin/qemu-system-x86_64'
+        memory: String. Amount of memory in MB. Defines max memory. Default: '1024'
+        currentMemory: String. Amount of memory currently assigned to the domain. Default: '1024'
+        features: String containing XML for possible features that need to be added. Default: ""
+        vcpu: String containing the amount of VCPUs allocated to this domain. Default: '1'
+        transient_disk: Boolean. Defines the domain with a transient disk. Disables Snapshots. Not possible with current
+                qemu versions. Default: False
+        snapshot: Boolean. if the domain should create a snapshot before being added to the emulated network.
+                Default: True
+        restore_snapshot: Boolean. if the domain should be restored to its original state if a snapshot exists.
+                Default: True
+        snapshot_disk_image_path: String. Specify a fixed path for the snapshot. Default: None
+        use_sudo: Boolean. Set this to true to let Containernet call sudo su - after logging in.
+                Passwordless sudo required. Default False
+        keep_running: Boolean. Do not shut down this host when it is removed. Default: False
+        mgmt_net_at_start: Boolean. Set this to true for generated domains where the guest does not
+                understand hotplugging. Has no effect for predefined domains. Default: False
+        mgmt_net_attached: Boolean. Set this to true when you are using a predefined domain that is already attached
+                to the mangement network. Default: False
+        mgmt_network: String. Contains the libvirt name of the management network. Usually not needed to be specified
+                manually. Default: mn.libvirt.mgmt
+        mgmt_ip: String. Custom static IP of the host for the management network. Default: None
+        mgmt_mac: String. Custom MAC for the host in the management network. Default: None
+        mgmt_pci_slot: String. Set a custom pci slot for the management network. Max: "0x1F". Default: "0x1F"
+        no_check: Boolean. Overrides check_domain. Use this for non standard domains. Default: False
+    """
+    def __init__(self, name, disk_image="", use_existing_vm=False, **kwargs):
+        # only define these if they are not defined yet to make inheritance viable
+        if not hasattr(self, "SNAPSHOT_XML"):
+            self.SNAPSHOT_XML = """
+                            <domainsnapshot>
+                                <description>Mininet snapshot</description>
+                                <memory snapshot='external' file='{snapshot_disk_image_path}.mem'/>
+                                <disks>
+                                    <disk name='{image}'>
+                                        <source file='{snapshot_disk_image_path}'/>
+                                    </disk>
+                                </disks>
+                            </domainsnapshot>
+                            """
+
+        if not hasattr(self, "SNAPSHOT_XML_RUNNING"):
+            self.SNAPSHOT_XML_RUNNING = """
+                            <domainsnapshot>
+                                <description>Mininet snapshot</description>
+                            </domainsnapshot>
+                            """
+        if not hasattr(self, "INTERFACE_XML"):
+            self.INTERFACE_XML = """
+                    <interface type='direct' trustGuestRxFilters='yes'>
+                        <model type='virtio'/>
+                        <source dev='{intfname}' mode='private'/>
+                    </interface>
+                    """
+
+        if not hasattr(self, "INTERFACE_XML_MGMT"):
+            self.INTERFACE_XML_MGMT = """
+                    <interface type="network">
+                        <mac address="{mgmt_mac}"/>
+                        <source network="{mgmt_network}"/>
+                        <address bus="0x00" domain="0x0000" slot="{mgmt_pci_slot}" type="pci"/>
+                    </interface>
+                    """
+        if not hasattr(self, "DOMAIN_XML"):
+            self.DOMAIN_XML = """
+            <domain type="{type}">
+              <name>{name}</name>
+              <memory unit="MiB">{memory}</memory>
+              <currentMemory unit="MiB">{currentMemory}</currentMemory>
+              <vcpu current="{vcpu}">{cpumax}</vcpu>
+              <os>
+                <type arch="{os_arch}" machine="{os_machine}">{os_type}</type>
+              </os>
+              <features>
+                <acpi/>
+                {features}
+              </features>
+              <devices>
+                <emulator>{emulator}</emulator>
+                <disk device="disk" type="file">
+                  <source file="{disk_image}"/>
+                  <target dev="{disk_target_dev}"/>
+                  <driver name="{disk_target_driver_name}" type="{disk_target_driver_type}"/>
+                  {disk_transient_disk}
+                </disk>
+                {mgmt_interface}
+                <console type="pty"/>
+                {additional_devices}
+              </devices>
+            </domain>
+            """
+        # "private" dict for capabilities property
+        self._capabilities = None
+        # a lot of defaults
+        kwargs.setdefault('type', 'kvm')
+        kwargs.setdefault('login', {'credentials': {
+                                        'username': 'root',
+                                        'password': 'containernet'
+                                        },
+                                    })
+        kwargs.setdefault('cmd_endpoint', 'qemu:///system')
+        kwargs.setdefault('domain_xml', None)
+        kwargs.setdefault('disk_target_dev', 'sda')
+        kwargs.setdefault('disk_target_driver_name', 'qemu')
+        kwargs.setdefault('disk_target_driver_type', 'qcow2')
+        kwargs.setdefault('os_arch', 'x86_64')
+        kwargs.setdefault('os_machine', 'pc')
+        kwargs.setdefault('os_type', 'hvm')
+        kwargs.setdefault('emulator', "/usr/bin/qemu-system-x86_64")
+        kwargs.setdefault('memory', '1024')
+        kwargs.setdefault('currentMemory', '1024')
+        kwargs.setdefault('features', '')
+        kwargs.setdefault('vcpu', '1')
+        kwargs.setdefault('snapshot', True)
+        kwargs.setdefault('restore_snapshot', True)
+        kwargs.setdefault('snapshot_disk_image_path', None)
+        kwargs.setdefault('transient_disk', False)
+        kwargs.setdefault('use_sudo', False)
+        kwargs.setdefault('keep_running', False)
+        kwargs.setdefault('mgmt_net_at_start', True)
+        kwargs.setdefault('mgmt_net_attached', False)
+        kwargs.setdefault('no_check', False)
+        kwargs.setdefault('mgmt_pci_slot', '0x1F')
+        kwargs.setdefault('additional_devices', "")
+
+        kwargs.setdefault('resources', {
+            'cpu_quota': -1,
+            'cpu_period': -1,
+            'cpu_shares': -1,
+        })
+
+        self.lv_conn = libvirt.open(kwargs['cmd_endpoint'])
+        if self.lv_conn is None:
+            error("LibvirtHost.__init__: Failed to open connection to endpoint: %s\n" % kwargs['cmd_endpoint'])
+
+        self.disk_image = disk_image
+        # do not allow snapshots for transient disks
+        if kwargs['transient_disk']:
+            kwargs['snapshot'] = False
+
+        self.mgmt_net_interface_xml = ""
+        # domain object we get from libvirt
+        self.domain = None
+        # etree we store for domain manipulation
+        self.domain_tree = None
+        # XML serialization of the domain_tree
+        self.domain_xml = None
+
+        if disk_image == "" and kwargs['domain_xml'] is None:
+            info("LibvirtHost.__init__: No disk image given. Trying to use an existing domain with name %s.\n" % name)
+            use_existing_vm = True
+
+        if use_existing_vm:
+            self.domain_name = kwargs.get('domain_name', name)
+        else:
+            # domain name with prefix
+            self.domain_name = "%s.%s" % ("mn", name)
+        # contains the libvirt domain snapshot, if we created one
+        self.lv_domain_snapshot = None
+        # keep track of our main ssh session
+        self.ssh_session = paramiko.SSHClient()
+        self.shell = None
+
+        # get the maximum amount of physical cpus
+        self.maxCpus = numCores()
+        self.use_existing_vm = use_existing_vm
+        # set resources to empty dict, will update them later
+        self.resources = {}
+
+        self.mgmt_net = self.lv_conn.networkLookupByName(kwargs['mgmt_network'])
+        if not self.mgmt_net:
+            error("LibvirtHost.__init__: Could not find the libvirt management network: %s\n" % kwargs['mgmt_network'])
+            return
+
+        if not self.use_existing_vm:
+            if kwargs['domain_xml'] is not None:
+                # check if we got a path to a file instead of a whole xml representation
+                if os.path.isfile(kwargs['domain_xml']):
+                    with open(kwargs['domain_xml'], 'r') as xml_file:
+                        self.DOMAIN_XML = xml_file.read()
+                        info("LibvirtHost.__init__: Using provided domain XML file for domain %s.\n" % self.domain_name)
+                else:
+                    self.DOMAIN_XML = kwargs['domain_xml']
+                    info("LibvirtHost.__init__: Using provided domain XML for domain %s.\n" % self.domain_name)
+
+            self.build_domain(**kwargs)
+            if not self.check_domain(**kwargs):
+                error("LibvirtHost.__init__: Provided domain XML has errors!\n")
+
+            debug("Created Domain object: %s\n" % self.domain_name)
+            debug("image: %s\n" % str(self.disk_image))
+            debug("kwargs: %s\n" % str(kwargs))
+        else:
+            try:
+                self.domain = self.lv_conn.lookupByName(self.domain_name)
+                self.domain_xml = self.getDomainXML()
+            except libvirt.libvirtError:
+                error("LibvirtHost.__init__: Domain '%s' does not exist. Cannot use preexisting domain.\n"
+                      % self.domain_name)
+                return
+            debug("Using preexisting domain %s as node %s.\n" % (self.domain_name, name))
+
+        # instantiate the domain in libvirt
+        if self.domain is None:
+            self.domain = self.lv_conn.createXML(self.domain_xml)
+
+        if kwargs['snapshot']:
+            if kwargs['snapshot_disk_image_path'] is None:
+                # find a safe new path within the directory
+                incr = 1
+                dst_image_path = "%s.mininet.snap" % self.disk_image
+                if os.path.isfile(dst_image_path):
+                    while os.path.isfile("%s.%s" % (dst_image_path, incr)):
+                        incr += 1
+                    dst_image_path = "%s.%s" % (dst_image_path, incr)
+
+                kwargs['snapshot_disk_image_path'] = dst_image_path
+
+            if self.use_existing_vm:
+                snapshot_xml = self.SNAPSHOT_XML_RUNNING
+                info("LibvirtHost.__init__: Creating snapshot of existing domain %s.\n" % self.domain_name)
+            else:
+                snapshot_xml = self.SNAPSHOT_XML.format(image=self.disk_image, **kwargs)
+                info("LibvirtHost.__init__: Creating snapshot of domain %s at %s.\n" %
+                     (self.domain_name, kwargs['snapshot_disk_image_path']))
+
+            try:
+                self.lv_domain_snapshot = self.domain.snapshotCreateXML(snapshot_xml)
+            except libvirt.libvirtError as e:
+                error("LibvirtHost.__init__: Could not create snapshot for domain '%s'.\n"
+                      % self.domain_name)
+                raise e
+
+        if not self.use_existing_vm:
+            # snapshots are created so now we can set the title so cleanup can remove the domain if something crashes
+            self.domain.setMetadata(libvirt.VIR_DOMAIN_METADATA_TITLE,
+                                    "com.containernet-%s" % self.domain_name,
+                                    key=None,
+                                    uri=None)
+
+        # pre-existing domains might still be shut down. so start them
+        if not self.domain.isActive():
+            # launch
+            self.domain.create()
+
+        # if a domain is paused resume it
+        if libvirt.VIR_DOMAIN_PAUSED in self.domain.state():
+            self.domain.resume()
+
+        # if the management network is not added before starting the domain add it now
+        # don't add it if we use an existing vm and mgmt_net_at_start is true
+        if self.mgmt_net_interface_xml is "" and not kwargs['mgmt_net_attached']:
+            self.attach_management_network(**kwargs)
+
+        # finally update the resource dict to reflect our current configuration
+        self.update_resources(**kwargs['resources'])
+
+        # call original Node.__init__
+        Host.__init__(self, name, **kwargs)
+
+    @property
+    def capabilities(self):
+        if self._capabilities is None:
+            self._capabilities = minidom.parseString(self.lv_conn.getCapabilities())
+        return self._capabilities
+
+    def getDomainXML(self):
+        return self.domain.XMLDesc()
+
+    @property
+    def isQemu(self):
+        return "qemu" in self.params['cmd_endpoint']
+
+    @property
+    def isKVM(self):
+        return "kvm" in self.params['type']
+
+    @property
+    def isLXC(self):
+        return "lxc" in self.params['cmd_endpoint']
+
+    def build_domain(self, **params):
+        # create a host config from params
+        if "mgmt_net_at_start" in params:
+            debug("LibvirtHost.buildDomain: Adding management network before starting the domain '%s'\n" %
+                  self.domain_name)
+            self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**params)
+
+        if params['transient_disk']:
+            params['disk_transient_disk'] = "<transient/>"
+        else:
+            params['disk_transient_disk'] = ""
+
+        domain = self.DOMAIN_XML.format(
+            name=self.domain_name,
+            cpumax=self.maxCpus,
+            disk_image=self.disk_image,
+            mgmt_interface=self.mgmt_net_interface_xml,
+            **params
+        )
+
+        # store the domain_xml until we have the real one from libvirt
+        self.domain_xml = domain
+
+    def check_domain(self, **kwargs):
+        if kwargs.get('no_check'):
+            return True
+        try:
+            if self.lv_conn.lookupByName(self.domain_name):
+                error("LibvirtHost.check_domain: Domain '%s' exists already.\n" % self.domain_name)
+                return False
+        except libvirt.libvirtError:
+            # domain does not yet exist. everything is fine
+            pass
+
+        # check if acpi is present, as we need it for interface attachment / vcpu management
+        dom = minidom.parseString(self.domain_xml)
+        if not dom.getElementsByTagName("acpi"):
+            error("LibvirtHost.check_domain: Domain '%s' does not have acpi enabled.\n" % self.domain_name)
+            return False
+
+        debug("LibvirtHost.check_domain: XML Representation of domain:\n%s\n" % self.domain_xml)
+
+        return True
+
+    def _get_new_ssh_session(self):
+        session = paramiko.SSHClient()
+
+        t = time.time()
+        while True:
+            try:
+                if "timeout" not in self.params['login']['credentials']:
+                    self.params['login']['credentials']['timeout'] = 60
+
+                if "banner_timeout" not in self.params['login']['credentials']:
+                    self.params['login']['credentials']['banner_timeout'] = 60
+
+                session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
+                debug("LibvirtHost._get_new_ssh_session: Logged in to domain %s using ssh.\n" % self.domain_name)
+                return session
+            except paramiko.BadHostKeyException as e:
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but has HostKey problems. Error: %s\n" %
+                      (self.name, e))
+                return False
+            except paramiko.AuthenticationException as e:
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but SSH threw an authentication"
+                      "Error: %s\n" % (self.name, e))
+                return False
+            except paramiko.SSHException as e:
+                error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                      "but could not connect to the VM. "
+                      "Did you set up the management network correctly?."
+                      "Error: %s\n" % (self.name, e))
+                return False
+            except socket.error as e:
+                # if the domain is still starting up, allow connections to it to fail unless timeout is reached
+                if time.time() - t > self.params['login']['credentials']['timeout']:
+                    error("LibvirtHost._get_new_ssh_session: Domain '%s' has login method ssh, "
+                          "but could not connect to the VM. Reached timeout!"
+                          "Error: %s\n" % (self.name, e))
+                    return False
+            except KeyboardInterrupt:
+                error("LibvirtHost._get_new_ssh_session: Keyboard Interrupt.\n")
+                return False
+
+    def startShell(self, mnopts=None):
+        """ Tries to connect to a domain via SSH and exposes a shell that behaves like a normal mininet shell."""
+        debug("LibvirtHost.startShell: Trying to SSH into domain %s. This might take a while.\n" %
+              self.domain_name)
+        sess = self._get_new_ssh_session()
+        if sess:
+            self.ssh_session = sess
+        else:
+            error("LibvirtHost.startShell: Could not start the shell for domain %s.\n" % self.domain_name)
+            return False
+        self.domain_xml = self.getDomainXML()
+        self.pid = self.getPid()
+        self.pollOut = select.poll()
+        # create a new channel
+        self.shell = self.ssh_session.invoke_shell()
+        # this might not be needed
+        self.shell.set_combine_stderr(True)
+        self.shell.settimeout(None)
+        self.pollOut.register(self.shell, select.POLLIN | select.POLLPRI | select.POLLHUP | select.POLLERR)
+        self.stdin = self.shell
+        self.stdout = self.shell
+        self.execed = False
+        self.lastCmd = None
+        self.lastPid = None
+        self.readbuf = ''
+        # read motd etc.
+        while self.shell.recv_ready():
+            self.read()
+        self.waiting = False
+
+        # set prompt to sentinel
+        self.cmd('export PS1="\\177"')
+
+        # call sudo, has to be passwordless and PS1 has to be preserved!
+        if self.params['use_sudo']:
+            self.cmd("sudo -Es")
+        # set the hostname
+        self.cmd('hostname %s' % self.name)
+        self.cmd('unset HISTFILE; stty -echo; set +m')
+
+
+    def read( self, maxbytes=1024 ):
+        """Buffered read from node, potentially blocking.
+           maxbytes: maximum number of bytes to return"""
+        count = len( self.readbuf )
+        if count < maxbytes:
+            data = self.shell.recv(maxbytes - count )
+            self.readbuf += data
+        if maxbytes >= len( self.readbuf ):
+            result = self.readbuf
+            self.readbuf = ''
+        else:
+            result = self.readbuf[ :maxbytes ]
+            self.readbuf = self.readbuf[ maxbytes: ]
+        return result
+
+    def write( self, data ):
+        """Write data to node.
+           data: string"""
+        if self.shell.send_ready():
+            self.shell.sendall(data)
+        else:
+            raise Exception("Could not write to domain %s" % self.domain_name)
+
+    def addIntf( self, intf, port=None, moveIntfFn=moveIntf ):
+        """Add an interface.
+           intf: interface
+           port: port number (optional, typically OpenFlow port number)
+           moveIntfFn: function to move interface (optional)
+
+           Modified version for libvirt hosts.
+
+           Creates a macvtap device on the host machine and then adds the interface to the node.
+           """
+
+        # predictable network interface names are not available on every possible domain
+        # so we use a different strategy
+        # enumerate all interfaces currently available on the node first
+        interface_list_cmd = "ls --color=never /sys/class/net"
+        before_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+        debug("LibvirtHost.addIntf: Interfaces on node %s before attaching: %s\n" % (self.name,
+                                                                                     ' '.join(before_interfaces)))
+        interface_xml = self.INTERFACE_XML.format(intfname=intf.name)
+        try:
+            debug("LibvirtHost.addIntf: Attaching device %s to node %s.\n" % (intf.name, self.name))
+            debug(interface_xml + "\n")
+            self.domain.attachDevice(interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not attach interface %s to node %s. Error: %s\n" % (intf.name, self.name, e))
+            raise Exception("Error while attaching a new interface.")
+
+        # be conservative and wait a little for the device to appear
+        time.sleep(0.3)
+
+        # we wait until something changes in network devices
+        # the device that appears is our new interface
+        start = time.time()
+        done = False
+        debug("LibvirtHost.addIntf: Waiting a maximum amount of 60 Seconds for the interface to appear.\n")
+        while not done:
+            if start + 60 < time.time():
+                raise Exception("Error while attaching a new interface. Could not find the newly attached interface."
+                                "Timeout reached.")
+            after_interfaces = self.cmd(interface_list_cmd).strip().split('  ')
+            if len(before_interfaces) == len(after_interfaces):
+                time.sleep(0.5)
+                continue
+
+            if len(before_interfaces) > len(after_interfaces):
+                raise Exception("Error while attaching a new interface. Could not find the newly attached interface.")
+
+            # get name of the new interface
+            new_intf = list(set(after_interfaces) - set(before_interfaces))[0]
+            # bail out and say its ok after 10 seconds if the interfaces are named the same
+            if str(new_intf).strip() == str(intf).strip() and start + 10 < time.time():
+                break
+            time.sleep(0.3)
+
+            # rename the interface, if command does not produce output it might be successful
+            if not self.cmd("ip link set %s name %s" % (str(new_intf), intf)):
+                if not new_intf in self.cmd(interface_list_cmd).strip().split('  '):
+                    done = True
+            if not done:
+                time.sleep(0.5)
+
+        # let the hostobject do the bookkeeping
+        Node.addIntf(self, intf, port, moveIntfFn=moveIntf)
+
+    def monitor( self, timeoutms=None, findPid=True ):
+        """Monitor and return the output of a command.
+           Set self.waiting to False if command has completed.
+           timeoutms: timeout in ms or None to wait indefinitely
+           findPid: look for PID from mnexec -p"""
+
+        # pruned version for LibvirtHosts
+        ready = self.waitReadable( timeoutms )
+        if not ready:
+            return ''
+        data = self.read( 1024 )
+        # Look for sentinel/EOF
+        if len( data ) > 0 and data[ -1 ] == chr( 127 ):
+            self.waiting = False
+            data = data[ :-1 ]
+        elif chr( 127 ) in data:
+            self.waiting = False
+            data = data.replace( chr( 127 ), '' )
+        return data
+
+    def sendCmd( self, *args, **kwargs ):
+        """ Send a string as command to the LibvirtHost
+           args: command and arguments, or string"""
+        assert self.ssh_session
+        # Allow sendCmd( [ list ] )
+        if len( args ) == 1 and isinstance( args[ 0 ], list ):
+            cmd = args[ 0 ]
+        # Allow sendCmd( cmd, arg1, arg2... )
+        elif len( args ) > 0:
+            cmd = args
+        # Convert to string
+        if not isinstance( cmd, str ):
+            cmd = ' '.join( [ str( c ) for c in cmd ] )
+        if not re.search( r'\w', cmd ):
+            # Replace empty commands with something harmless
+            cmd = 'echo -n'
+        self.lastCmd = cmd
+        # if a builtin command is backgrounded, it still yields a PID
+        if len( cmd ) > 0 and cmd[ -1 ] == '&':
+            # print ^A{pid}\n so monitor() can set lastPid
+            cmd += ' printf "\\001%d\\012" $! '
+
+        debug("LibvirtHost.sendCmd: Sending command %s over ssh.\n" % cmd)
+        self.write( cmd + '\n' )
+        self.waiting = True
+
+    def getPid(self):
+        """Gets the pid of the libvirt process running the mininet host.
+           This is only to keep the behaviour of existing mininet hosts.
+        """
+
+        # iterate over all system processes and look for one containing the uuid of the domain in the commandline
+        # I don't know if this is completely foolproof for all hypervisors that libvirt supports
+        for dirname in os.listdir('/proc'):
+            if dirname == 'curproc':
+                continue
+
+            try:
+                with open('/proc/%s/cmdline' % dirname, mode='rb') as fd:
+                    content = fd.read().decode().split('\x00')
+            except Exception:
+                continue
+
+            if str(self.domain.UUIDString()) in content:
+                return dirname
+
+    def mountPrivateDirs(self):
+        """ Mounting private dirs of a vm means copying data from the host to the guest at startup.
+            The privateDirs list is interpreted as follows:
+                tuple( vmpath, hostpath)
+        """
+        assert not isinstance( self.privateDirs, basestring )
+        # ignore everything here if no privateDirs are specified
+        if not len(self.privateDirs):
+            return
+
+        info("LibvirtHost.mountPrivateDirs: Copying data to guest %s filesystem.\n" % self.name)
+        # try to open SFTP
+        try:
+            sftp = self.ssh_session.open_sftp()
+        except:
+            error("LibvirtHost.mountPrivateDirs: Could not open SFTP connection for Host %s.\n" % self.name)
+            return
+
+        for directory in self.privateDirs:
+            if isinstance( directory, tuple ):
+                # mount given private directory
+                host_dir = directory[ 1 ] % self.__dict__
+                vm_dir = directory[ 0 ]
+
+                if not os.path.exists(host_dir):
+                    # use exist_ok=True for python3
+                    os.makedirs( host_dir )
+
+                # create the directory on the remote machine
+                self.cmd("mkdir -p %s" % vm_dir)
+
+                for local_file in os.listdir(host_dir):
+                    try:
+                        sftp.put("%s/%s" % (host_dir, local_file), "%s/%s" % (vm_dir, local_file))
+                    except IOError, OSError:
+                        error("LibvirtHost.mountPrivateDirs: Failed to transfer file %s to node directory %s.\n" %
+                              (local_file, host_dir))
+            else:
+                warn("LibvirtHost.mountPrivateDirs: Only tuples are supported in VM context.\n")
+
+    def unmountPrivateDirs(self):
+        """ Unmounting should copy the data out of the VM to the host filesystem.
+            The privateDirs list is interpreted as follows:
+                tuple( vmpath, hostpath)
+        """
+        assert not isinstance( self.privateDirs, basestring )
+        # ignore everything here if no privateDirs are specified
+        if not len(self.privateDirs):
+            return
+
+        try:
+            self.ssh_session.get_transport().sock.settimeout(30.0)
+            sftp = self.ssh_session.open_sftp()
+        except Exception as e:
+            error(e)
+            return
+
+        info("LibvirtHost.unmountPrivateDirs: Copying data from Host %s to local filesystem.\n" % self.name)
+
+        for directory in self.privateDirs:
+            if isinstance( directory, tuple ):
+                # mount given private directory
+                host_dir = directory[1] % self.__dict__
+                vm_dir = directory[0]
+
+                if not os.path.exists(host_dir):
+                    # use exist_ok=True for python3
+                    os.makedirs( host_dir )
+
+                if not os.path.isdir(host_dir):
+                    error("LibvirtHost.unmountPrivateDirs: Cannot transfer files to host directory %s. "
+                          "%s is not a directory.\n" %
+                          (host_dir, host_dir))
+                    continue
+
+                for remote_file in sftp.listdir(vm_dir):
+                    try:
+                        sftp.get("%s/%s" % (vm_dir, remote_file), "%s/%s" % (host_dir, remote_file))
+                    except IOError, OSError:
+                        error("LibvirtHost.unmountPrivateDirs: Failed to transfer file %s to host directory %s.\n" %
+                              (remote_file, host_dir))
+            else:
+                warn("LibvirtHost.unmountPrivateDirs: Only tuples are supported in VM context.\n")
+
+    def cmd( self, *args, **kwargs ):
+        """Send a command, wait for output, and return it.
+           cmd: string"""
+        verbose = kwargs.get( 'verbose', False )
+        log = info if verbose else debug
+        log( '*** %s : %s\n' % ( self.name, args ) )
+
+        try:
+            self.sendCmd( *args, **kwargs )
+            return self.waitOutput( verbose )
+        except paramiko.SSHException as e:
+            info("LibvirtHost.cmd: Exception thrown. Trying to restart SSH session. Error: %s\n" % e)
+            self.startShell()
+
+    def popen( self, *args, **kwargs ):
+        """Return a Popen() object
+           args: Popen() args, single list, or string
+           kwargs: Popen() keyword args"""
+        # TODO: Implement wrapper around exec_command
+        popen_session = self._get_new_ssh_session()
+        while True:
+            try:
+                popen_session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+                popen_session.connect(self.params['mgmt_ip'], **self.params['login']['credentials'])
+                break
+            except Exception as e:
+                error("LibvirtHost.popen: Failed to launch a new ssh connection to the domain %s." % self.domain_name)
+                return
+
+        shell = popen_session.invoke_shell()
+        return shell.exec_command(list2cmdline(args))
+
+    def pexec( self, *args, **kwargs ):
+        """Execute a command using exec_command
+           returns: out, err, exitcode"""
+        chan = self.ssh_session.get_transport().open_session()
+        chan.exec_command(list2cmdline(args))
+        exitcode = chan.recv_exit_status()
+        out = ''
+        err = ''
+        while chan.recv_ready():
+            out += chan.recv(1024)
+        while chan.recv_stderr_ready():
+            err += chan.recv_stderr(1024)
+
+        return out, err, exitcode
+
+    def remove_snapshot_file(self):
+        """Removes the snapshot associated with the LibvirtHost."""
+        # remove the snapshot. The metadata is already cleared by libvirt as the domain is now undefined
+        if os.path.isfile(self.params['snapshot_disk_image_path']):
+            os.remove(self.params['snapshot_disk_image_path'])
+        if os.path.isfile("%s.mem" % self.params['snapshot_disk_image_path']):
+            os.remove("%s.mem" % self.params['snapshot_disk_image_path'])
+
+    def attach_management_network(self, **kwargs):
+        """Attaches an interfaces to the LibvirtHost. This interfaces is used to SSH into the machine."""
+        info("LibvirtHost.attach_management_network: Creating interface for management network.\n")
+
+        self.mgmt_net_interface_xml = self.INTERFACE_XML_MGMT.format(**kwargs)
+        try:
+            self.domain.attachDevice(self.mgmt_net_interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not attach the management interface to node %s. Error: %s\n" %
+                  (self.domain_name, e))
+            raise Exception("Error while attaching the management interface.")
+
+    def detach_management_network(self):
+        """Detaches the previously attached management interface."""
+        info("LibvirtHost.detach_management_network: Detaching the management interface for domain %s.\n" %
+             self.domain_name)
+        try:
+            self.domain.detachDevice(self.mgmt_net_interface_xml)
+        except libvirt.libvirtError as e:
+            error("Could not detach the management interface from domain %s. Error: %s\n" %
+                  (self.domain_name, e))
+
+    def terminate( self ):
+        """ Stop libvirt host """
+        # write data from VM to host if private directories are "mounted"
+        self.unmountPrivateDirs()
+
+        if not self.use_existing_vm:
+            # just delete temporary VMs and remove their snapshot
+            try:
+                self.domain.destroy()
+            except libvirt.libvirtError as e:
+                warn("LibvirtHost.terminate: Could not terminate the domain %s, maybe it is already destroyed? %s" %
+                     (self.domain_name, e))
+            if self.params['snapshot']:
+                self.remove_snapshot_file()
+        else:
+            # remove the mgmt network so snapshot restore can work
+            if not self.params['mgmt_net_attached']:
+                self.detach_management_network()
+            if self.params['snapshot']:
+                if self.params['restore_snapshot']:
+                    try:
+                        # reverting to the snapshot, contains the previous state
+                        # this needs fixing in corner cases, running VMs do not like to be snapshot multiple
+                        # times...
+                        info("LibvirtHost.terminate: Reverting to earlier snapshot.\n")
+                        self.domain.revertToSnapshot(self.lv_domain_snapshot, libvirt.VIR_DOMAIN_SNAPSHOT_REVERT_FORCE)
+                        debug("LibvirtHost.terminate: Deleting earlier snapshot.\n")
+                        self.domain.snapshotCurrent().delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
+                        #self.lv_domain_snapshot.delete(libvirt.VIR_DOMAIN_SNAPSHOT_DELETE_CHILDREN)
+                    except libvirt.libvirtError as e:
+                        error("LibvirtHost.terminate: Could not restore the snapshot for domain %s. %s" %
+                              (self.domain_name, e))
+            else:
+                if not self.params['keep_running']:
+                    try:
+                        info("LibvirtHost.terminate: Shutting down domain %s.\n" % self.domain_name)
+                        self.domain.shutdown()
+                    except libvirt.libvirtError as e:
+                        warn("LibvirtHost.terminate: Could not shutdown the domain %s, maybe it is already offline? %s" %
+                             (self.domain_name, e))
+
+        self.cleanup()
+
+    def update_resources(self, **kwargs):
+        """
+        Update the libvirt host's resources using libvirt
+        :return:
+        """
+
+        self.resources.update(kwargs)
+        # filter out None values to avoid errors
+        resources_filtered = {res:self.resources[res] for res in self.resources if self.resources[res] is not None}
+        info("{1}: update resources {0}\n".format(resources_filtered, self.domain_name))
+        self.updateCpuLimit(**kwargs)
+        self.updateMemoryLimit(**kwargs)
+
+    def updateCpuLimit(self, cpu_quota=-1, cpu_period=-1, cpu_shares=-1,
+                       emulator_period=-1, emulator_quota=-1, cores=None,
+                       emulator_cores=None, use_libvirt=True, **kwargs):
+        """
+        Update CPU resource limitations.
+        This method allows to update resource limitations at runtime in the same fashion as docker containers.
+        For more control use libvirt directly.
+        You can not disable the first core on a running VM!
+        Args:
+            cpu_quota: cfs quota us, time in microseconds a cgroup can access cpus during one cfs_cpu_period
+            cpu_period: cfs period us, time in microseconds when quota should be refreshed
+            cpu_shares: cpu shares
+            emulator_period: cfs_quota_us assigned to emulator
+            emulator_quota: cfs_period_us assigned to emulator
+            use_libvirt: boolean. If False, containernet will try to manipulate the cgroups directly and not through
+                    libvirt. Sets the limit for the VM as a whole!
+                    Only supports cpu_quota, cpu_period, cpu_shares and cores. Default: True
+            cores: maps vcpus to physical cores, e.g. {0: "1", 1: "2-3"} maps vcpu 0 to cpu 1 and vcpu 1 to cpu 2 and 3.
+                    Offline cores will be brought online. Cores not specified will be set offline.
+                    if just a string is used, vcpus will be pinned to their physical counterparts e.g. 0 -> 0, 1 -> 1.
+            emulator_cores: tuple. maps emulator to physical cores, (0,1,0,1) maps the emulator to cores 1 and 3.
+                    Default: None
+        """
+        if not use_libvirt:
+            def cgroupSet(param, value, resource='cpu'):
+                # this one is a hack
+                # if we want to change the resource limits for the parent we have to set them for the children as well
+                # the problem is that when we restrict the resources we have to do this bottom up
+                # when we increase the limits we have to do this top down
+                # evaluating if we actually increase or decrease the limits is finicky
+                # so just do the brute force approach
+                def apply_children():
+                    # set limits for all children first!
+                    parent = "/sys/fs/cgroup/%s/machine/%s.libvirt-qemu" % (resource, self.domain_name)
+                    for d in os.listdir(parent):
+                        if os.path.isdir("%s/%s" % (parent, d)):
+                            try:
+                                check_output('cgset -r %s.%s=%s machine/%s.libvirt-qemu/%s' % (
+                                resource, param, value, self.domain_name, d), shell=True)
+                            except:
+                                pass
+
+                # bottom up for decreasing limits. will fail silently
+                apply_children()
+                # set limits for parent process
+                cmd = 'cgset -r %s.%s=%s machine/%s.libvirt-qemu' % (resource, param, value, self.domain_name)
+                debug(cmd + "\n")
+                # top down for increasing limits. will fail silently
+                try:
+                    check_output(cmd, shell=True)
+                except:
+                    error("Problem writing cgroup setting %r\n" % cmd)
+                    return -1
+                apply_children()
+                return value
+
+            if isinstance(cpu_quota, (int, long)) and cpu_quota > 1000:
+                self.resources['cpu_quota'] = cgroupSet("cfs_quota_us", cpu_quota)
+            if cpu_period >= 0:
+                self.resources['cpu_period'] = cgroupSet("cfs_period_us", cpu_period)
+            if cpu_shares >= 0:
+                self.resources['cpu_shares'] = cgroupSet("shares", cpu_shares)
+            if cores:
+                self.resources['cores'] = cgroupSet("cpus", cores, resource="cpuset")
+            return True
+
+
+        # use libvirt to set the limits
+        params = {}
+        if cpu_quota != -1:
+            params['vcpu_quota'] = int(cpu_quota)
+        if cpu_period != -1:
+            params['vcpu_period'] = int(cpu_period)
+        if cpu_shares != -1:
+            params['cpu_shares'] = int(cpu_shares)
+        if emulator_period != -1:
+            params['emulator_period'] = int(emulator_period)
+        if emulator_quota != -1:
+            params['emulator_quota'] = int(emulator_quota)
+
+        if emulator_cores:
+            try:
+                debug("LibvirtHost.updateCpuLimit: Pinning the emulator to cores %s.\n" % str(emulator_cores))
+                self.domain.pinEmulator(emulator_cores)
+            except libvirt.libvirtError:
+                error("LibvirtHost.updateCpuLimit: Could not pin the emulator to %s.\n" % str(emulator_cores))
+                return False
+
+        try:
+            if len(params) > 0:
+                self.domain.setSchedulerParameters(params)
+                info("LibvirtHost.updateCpuLimit: Set scheduler parameters to %s.\n" % params)
+            if cores is not None:
+                # if someone is calling this method like the docker version
+                if isinstance(cores, basestring):
+                    warn("LibvirtHost.updateCpuLimit: "
+                         "This method does not behave the same way as with docker containers.\n")
+                    cores_dict = {}
+                    if "-" in cores:
+                        start, end = cores.split("-")
+                        for cpu in range(int(start), int(end) + 1):
+                            cores_dict[cpu] = str(cpu)
+                    else:
+                        cores_dict = {int(cores): str(cores)}
+                    cores = cores_dict
+
+                # check if set_vcpu method is avaiable
+                set_vcpu = getattr(self.domain, "setVcpu", None)
+                if not set_vcpu:
+                    info("LibvirtHost.updateCpuLimit: You cannot bring up specific cores with this version of libvirt. "
+                         "Upgrade to a newer version if you need this feature. "
+                         "Setting number of Vcpus instead of managing specific cores.\n")
+                    info("LibvirtHost.updateCpuLimit: Setting number of Vcpus to %d\n" % len(cores))
+                    try:
+                        self.domain.setVcpusFlags(len(cores), libvirt.VIR_DOMAIN_AFFECT_LIVE)
+                    except:
+                        warn("Could not change the amount of vcpus. Maybe this version of Qemu / libvirt does not "
+                             "allow reducing vcpus.\n")
+                        return False
+                else:
+                    if 0 not in cores:
+                        info("LibvirtHost.updateCpuLimit: Do not try to bring down the first vcpu of a domain! "
+                             "This will not work! Keeping it online.\n")
+                        cores[0] = "0-%d" % (int(self.maxCpus) - 1)
+
+                mapping = []
+                # calculate the mapping and if available bring up the vcpu
+                for vcpu_nr, vcpu_map in cores.items():
+                    mapping = [0] * self.maxCpus
+
+                    for inp in vcpu_map.split(","):
+                        if "-" in inp:
+                            start, end = inp.split("-")
+                            for cpu in range(int(start), int(end) + 1):
+                                mapping[cpu] = 1
+                        else:
+                            mapping[int(inp)] = 1
+
+                    if set_vcpu:
+                        try:
+                            info("LibvirtHost.updateCpuLimit: Setting core %d state to running.\n" % vcpu_nr)
+                            set_vcpu(str(vcpu_nr), libvirt.VIR_VCPU_RUNNING)
+                        except libvirt.libvirtError:
+                            error("LibvirtHost.updateCpuLimit: Could not change state of vcpu %d.\n" % (int(vcpu_nr)))
+                            return False
+
+                    try:
+                        info("LibvirtHost.updateCpuLimit: Setting vcpu %d pinning to %s.\n" % (int(vcpu_nr),
+                                                                                               str(mapping)))
+                        self.domain.pinVcpu(vcpu_nr, tuple(mapping))
+                    except libvirt.libvirtError:
+                        error("LibvirtHost.updateCpuLimit: Could not pin vcpu %d to %s.\n" % (int(vcpu_nr),
+                                                                                              str(mapping)))
+                        return False
+
+                # bring down the not mentioned cores, but only if set_vcpu is available
+                # if set_vcpu is unavailable this was already done by setVcpus
+                if set_vcpu:
+                    # reverse the mapping to get the offline cores
+                    offlinecores = [0 if x == 1 else 1 for x in mapping]
+                    for vcpu_nr in offlinecores:
+                        try:
+                            debug("LibvirtHost.updateCpuLimit: Setting core %d state to offline.\n" % vcpu_nr)
+                            self.domain.setVcpu(str(vcpu_nr), libvirt.VIR_VCPU_OFFLINE)
+                        except libvirt.libvirtError:
+                            error("LibvirtHost.updateCpuLimit: Could not change state of vcpu %d to offline.\n" %
+                                  (int(vcpu_nr)))
+                            return False
+
+                params['cores'] = cores
+
+            self.resources.update(params)
+            return True
+        except libvirt.libvirtError as e:
+            error("LibvirtHost.updateCpuLimit: Error setting CPU limits. Error: %s\n" % e)
+            return False
+
+    def updateMemoryLimit(self, mem_limit=-1, memswap_limit=-1, **kwargs):
+        """
+        Update Memory resource limitations.
+        This method allows to update resource limitations at runtime
+
+        Args:
+            mem_limit: memory limit in MiB
+            memswap_limit: swap limit in megabytes
+            force: force mem_limits less than 512MiB
+
+        """
+        try:
+            if mem_limit != -1:
+                if mem_limit < 512 and 'force' not in kwargs:
+                    error("Refusing to set memory_limit to less than 512MiB. Use force=True if you desire to do so.\n")
+                    return
+
+                # libvirt seems to default to KiB
+                mem_limit = mem_limit * 1024
+                self.domain.setMemoryFlags(mem_limit, libvirt.VIR_DOMAIN_AFFECT_LIVE)
+                self.resources['mem_limit'] = mem_limit
+                info("LibvirtHost.updateMemoryLimit: Set max memory for node %s to %d KiB.\n" % (self.name, mem_limit))
+
+            if memswap_limit != -1:
+                error("LibvirtHost.updateMemoryLimit: Setting swap is not yet implemented.\n")
+            return True
+        except libvirt.libvirtError as e:
+            error("LibvirtHost.updateMemoryLimit: Error setting memory limits. Error: %s\n" % e)
+            return False
+
+
 class CPULimitedHost( Host ):
 
     "CPU limited host"
@@ -1126,7 +2150,7 @@ class CPULimitedHost( Host ):
         _out, _err, exitcode = errRun( 'cgdelete -r ' + self.cgroup )
         # Sometimes cgdelete returns a resource busy error but still
         # deletes the group; next attempt will give "no such file"
-        return exitcode == 0  or ( 'no such file' in _err.lower() )
+        return exitcode == 0 or ( 'no such file' in _err.lower() )
 
     def popen( self, *args, **kwargs ):
         """Return a Popen() object in node's namespace

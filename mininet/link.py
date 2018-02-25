@@ -24,10 +24,20 @@ TCIntf: interface with bandwidth limiting and delay via tc
 Link: basic link class for creating veth pairs
 """
 
-from mininet.log import info, error, debug
-from mininet.util import makeIntfPair
+from mininet.log import info, error, debug, warn
+from mininet.util import makeIntfPair, quietRun
+import time
 import mininet.node
 import re
+
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    from xml.etree import ElementTree as etree
+    import xml.dom.minidom as minidom
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 
 class Intf( object ):
 
@@ -86,6 +96,10 @@ class Intf( object ):
         """Set the MAC address for an interface.
            macstr: MAC address as string"""
         self.mac = macstr
+
+        if isinstance(self.node, mininet.node.LibvirtHost) and not self.node.isQemu:
+            warn("Intf.setMac: Trying to set MAC on a non qemu LibvirtHost will not work correctly.\n")
+
         return ( self.ifconfig( 'down' ) +
                  self.ifconfig( 'hw', 'ether', macstr ) +
                  self.ifconfig( 'up' ) )
@@ -105,6 +119,8 @@ class Intf( object ):
 
     def updateMAC( self ):
         "Return updated MAC address based on ifconfig"
+        if isinstance(self.node, mininet.node.LibvirtHost) and not self.node.isQemu:
+            warn("Intf.setMac: Trying to set MAC on a non qemu LibvirtHost will not work correctly.\n")
         ifconfig = self.ifconfig()
         macs = self._macMatchRegex.findall( ifconfig )
         self.mac = macs[ 0 ] if macs else None
@@ -144,6 +160,14 @@ class Intf( object ):
                 return True
         else:
             return "UP" in self.ifconfig()
+
+    def getInterfaceXML(self):
+        dom_xml = minidom.parseString(self.node.getDomainXML())
+        for interface in dom_xml.getElementsByTagName("interface"):
+            source = interface.getElementsByTagName("source")
+            source[0].getAttribute("dev")
+            if source and source[0].getAttribute("dev") == self.name:
+                return interface.toxml()
 
     def rename( self, newname ):
         "Rename interface"
@@ -198,7 +222,21 @@ class Intf( object ):
 
     def delete( self ):
         "Delete interface"
-        self.cmd( 'ip link del ' + self.name )
+
+        if not isinstance(self.node, mininet.node.LibvirtHost):
+            self.cmd( 'ip link del ' + self.name )
+        else:
+            try:
+                xml = self.getInterfaceXML()
+                if xml is not None:
+                    self.node.domain.detachDeviceFlags(xml, libvirt.VIR_DOMAIN_AFFECT_CURRENT)
+                    debug("Intf.delete: Removing interface described by:\n%s\n" % xml)
+            except libvirt.libvirtError as e:
+                error("Intf.delete: Could not remove interface %s from node %s. Error: %s.\n" %
+                      (self.node.name, self.name, e))
+            # this is needed if the VMs don't terminate after a run!
+            debug("Intf.delete: If an error is thrown here, this is normal behavior!\n")
+            quietRun('ip link del ' + self.name)
         # We used to do this, but it slows us down:
         # if self.node.inNamespace:
         # Link may have been dumped into root NS
@@ -313,19 +351,51 @@ class TCIntf( Intf ):
         "Execute tc command for our interface"
         c = cmd % (tc, self)  # Add in tc command and our name
         debug(" *** executing command: %s\n" % c)
-        return self.cmd( c )
+
+        # do not configure the link in the vm, but outside instead
+        if isinstance(self.node, mininet.node.LibvirtHost):
+            return quietRun(c, shell=True)
+        else:
+            return self.cmd( c )
 
     def config( self, bw=None, delay=None, jitter=None, loss=None,
-                disable_gro=True, speedup=0, use_hfsc=False, use_tbf=False,
+                gro=False, txo=True, rxo=True,
+                speedup=0, use_hfsc=False, use_tbf=False,
                 latency_ms=None, enable_ecn=False, enable_red=False,
                 max_queue_size=None, **params ):
-        "Configure the port and set its properties."
+        """Configure the port and set its properties.
+           bw: bandwidth in b/s (e.g. '10m')
+           delay: transmit delay (e.g. '1ms' )
+           jitter: jitter (e.g. '1ms')
+           loss: loss (e.g. '1%' )
+           gro: enable GRO (False)
+           txo: enable transmit checksum offload (True)
+           rxo: enable receive checksum offload (True)
+           speedup: experimental switch-side bw option
+           use_hfsc: use HFSC scheduling
+           use_tbf: use TBF scheduling
+           latency_ms: TBF latency parameter
+           enable_ecn: enable ECN (False)
+           enable_red: enable RED (False)
+           max_queue_size: queue limit parameter for netem"""
+
+        # Support old names for parameters
+        gro = not params.pop( 'disable_gro', not gro )
+
 
         result = Intf.config( self, **params)
 
-        # Disable GRO
-        if disable_gro:
-            self.cmd( 'ethtool -K %s gro off' % self )
+        def on( isOn ):
+            "Helper method: bool -> 'on'/'off'"
+            return 'on' if isOn else 'off'
+
+        # Set offload parameters with ethool
+        cmd = 'ethtool -K', str(self), 'gro', on( gro ), 'tx', on( txo ), 'rx', on( rxo )
+        # configure the interface on the host as well as the VM
+        if isinstance(self.node, mininet.node.LibvirtHost):
+            quietRun(" ".join(cmd))
+        else:
+            self.cmd(" ".join(cmd))
 
         # Optimization: return if nothing else to configure
         # Question: what happens if we want to reset things?
@@ -335,7 +405,7 @@ class TCIntf( Intf ):
 
         # Clear existing configuration
         tcoutput = self.tc( '%s qdisc show dev %s' )
-        if "priomap" not in tcoutput:
+        if "priomap" not in tcoutput and "noqueue" not in tcoutput:
             cmds = [ '%s qdisc del dev %s root' ]
         else:
             cmds = []
@@ -478,6 +548,7 @@ class Link( object ):
         self.intf1.delete()
         self.intf2.delete()
 
+
     def stop( self ):
         "Override to stop and clean up link as needed"
         self.delete()
@@ -536,3 +607,18 @@ class TCLink( Link ):
                        addr1=addr1, addr2=addr2,
                        params1=params,
                        params2=params )
+
+
+class TCULink( TCLink ):
+    """TCLink with default settings optimized for UserSwitch
+       (txo=rxo=0/False).  Unfortunately with recent Linux kernels,
+       enabling TX and RX checksum offload on veth pairs doesn't work
+       well with UserSwitch: either it gets terrible performance or
+       TCP packets with bad checksums are generated, forwarded, and
+       *dropped* due to having bad checksums! OVS and LinuxBridge seem
+       to cope with this somehow, but it is likely to be an issue with
+       many software Ethernet bridges."""
+
+    def __init__( self, *args, **kwargs ):
+        kwargs.update( txo=False, rxo=False )
+        TCLink.__init__( self, *args, **kwargs )
