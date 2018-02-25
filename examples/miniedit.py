@@ -728,10 +728,10 @@ class LibvirtDialog(CustomDialog):
 
         # Field for Docker image
         Label(self.propFrame, text="VM image path:").grid(row=1, sticky=E)
-        self.dimageEntry = Entry(self.propFrame)
-        self.dimageEntry.grid(row=1, column=1)
-        if 'dimage' in self.prefValues:
-            self.dimageEntry.insert(0, self.prefValues['dimage'])
+        self.vmimageEntry = Entry(self.propFrame)
+        self.vmimageEntry.grid(row=1, column=1)
+        if 'vmimage' in self.prefValues:
+            self.vmimageEntry.insert(0, self.prefValues['vmimage'])
 
         # Field for Switch IP
         Label(self.propFrame, text="IP Address:").grid(row=2, sticky=E)
@@ -746,6 +746,25 @@ class LibvirtDialog(CustomDialog):
         self.startEntry.grid(row=3, column=1, sticky='nswe', columnspan=3)
         if 'startCommand' in self.prefValues:
             self.startEntry.insert(0, str(self.prefValues['startCommand']))
+
+        # Field
+        Label(self.propFrame, text="VM SSH username:").grid(row=4, sticky=E)
+        self.vmusernameEntry = Entry(self.propFrame)
+        self.vmusernameEntry.grid(row=4, column=1)
+        if 'vmusername' in self.prefValues:
+            self.vmusernameEntry.insert(0, self.prefValues['vmusername'])
+
+        Label(self.propFrame, text="VM SSH password:").grid(row=5, sticky=E)
+        self.vmpasswordEntry = Entry(self.propFrame)
+        self.vmpasswordEntry.grid(row=5, column=1)
+        if 'vmpassword' in self.prefValues:
+            self.vmpasswordEntry.insert(0, self.prefValues['vmpassword'])
+
+        Label(self.propFrame, text="VM type:").grid(row=6, sticky=E)
+        self.vmtypeEntry = Entry(self.propFrame)
+        self.vmtypeEntry.grid(row=6, column=1)
+        if 'vmtype' in self.prefValues:
+            self.vmtypeEntry.insert(0, self.prefValues['vmtype'])
 
         # Field for default route
         #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
@@ -783,10 +802,13 @@ class LibvirtDialog(CustomDialog):
                 row > 0):
                 multiInterfaces.append(self.ifaceTableFrame.get(row, 0))
         results = {'hostname':self.hostnameEntry.get(),
-                   'dimage':self.dimageEntry.get(),
+                   'vmimage':self.vmimageEntry.get(),
                    'ip':self.ipEntry.get(),
                    #'defaultRoute':self.routeEntry.get(),
                    'startCommand':self.startEntry.get(),
+                   'vmusername':self.vmusernameEntry.get(),
+                   'vmpassword':self.vmpasswordEntry.get(),
+                   'vmtype':self.vmtypeEntry.get(),
                    'multiInterfaces':multiInterfaces}
         self.result = results
 
@@ -1293,7 +1315,7 @@ class MiniEdit( Frame ):
 
         Frame.__init__( self, parent )
         self.action = None
-        self.appName = 'MiniEdit'
+        self.appName = 'MiniEdit (Containernet)'
         self.fixedFont = tkFont.Font ( family="DejaVu Sans Mono", size="14" )
 
         # Style
@@ -1702,6 +1724,8 @@ class MiniEdit( Frame ):
             y = host['y']
             if host['opts'].get('nodeType') == 'Docker':
                 self.addNode('Docker', nodeNum, float(x), float(y), name=hostname)
+            elif host['opts'].get('nodeType') == 'Libvirt':
+                self.addNode('Libvirt', nodeNum, float(x), float(y), name=hostname)
             else:
                 self.addNode('Host', nodeNum, float(x), float(y), name=hostname)
 
@@ -1718,6 +1742,8 @@ class MiniEdit( Frame ):
             icon = self.findWidgetByName(hostname)
             if host['opts'].get('nodeType') == 'Docker':
                 icon.bind('<Button-3>', self.do_dockerPopup )
+            elif host['opts'].get('nodeType') == 'Libvirt':
+                icon.bind('<Button-3>', self.do_libvirtPopup )
             else:
                 icon.bind('<Button-3>', self.do_hostPopup )
 
@@ -1854,7 +1880,7 @@ class MiniEdit( Frame ):
                                   'y':str(y1),
                                   'opts':self.switchOpts[name] }
                     switchesToSave.append(nodeToSave)
-                elif 'Host' in tags or 'Docker' in tags:
+                elif 'Host' in tags or 'Docker' in tags or 'Libvirt' in tags:
                     nodeNum = self.hostOpts[name]['nodeNum']
                     nodeToSave = {'number':str(nodeNum),
                                   'x':str(x1),
@@ -2672,9 +2698,9 @@ class MiniEdit( Frame ):
             about = Toplevel( bg='white' )
             about.title( 'About' )
             desc = self.appName + ': a simple network editor for MiniNet'
-            version = 'MiniEdit '+MINIEDIT_VERSION
+            version = 'MiniEdit (Containernet Version) '+MINIEDIT_VERSION
             author = 'Originally by: Bob Lantz <rlantz@cs>, April 2010'
-            enhancements = 'Enhancements by: Gregory Gee, Since July 2013'
+            enhancements = 'Enhancements by: Gregory Gee, Since July 2013, Manuel Peuster 2018'
             www = 'http://gregorygee.wordpress.com/category/miniedit/'
             line1 = Label( about, text=desc, font='Helvetica 10 bold', bg=bg )
             line2 = Label( about, text=version, font='Helvetica 9', bg=bg )
@@ -2791,7 +2817,6 @@ class MiniEdit( Frame ):
             print 'New host details for ' + name + ' = ' + str(self.hostOpts[name])
 
     def libvirtDetails( self, _ignore=None ):
-        # TODO libvirt
         if ( self.selection is None or
              self.net is not None or
              self.selection not in self.itemToWidget ):
@@ -2803,27 +2828,33 @@ class MiniEdit( Frame ):
             return
 
         prefDefaults = self.hostOpts[name]
-        dockerBox = LibvirtDialog(self, title='Libvirt Details', prefDefaults=prefDefaults)
-        self.master.wait_window(dockerBox.top)
-        if dockerBox.result:
-            newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
-            newDockerOpts['nodeType'] = "Docker"
-            if len(dockerBox.result['startCommand']) > 0:
-                newDockerOpts['startCommand'] = dockerBox.result['startCommand']
-            if len(dockerBox.result['dimage']) > 0:
-                newDockerOpts['dimage'] = dockerBox.result['dimage']
-            if len(dockerBox.result['hostname']) > 0:
-                newDockerOpts['hostname'] = dockerBox.result['hostname']
-                name = dockerBox.result['hostname']
+        libvirtBox = LibvirtDialog(self, title='Libvirt Details', prefDefaults=prefDefaults)
+        self.master.wait_window(libvirtBox.top)
+        if libvirtBox.result:
+            newLibvirtOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newLibvirtOpts['nodeType'] = "Libvirt"
+            if len(libvirtBox.result['startCommand']) > 0:
+                newLibvirtOpts['startCommand'] = libvirtBox.result['startCommand']
+            if len(libvirtBox.result['vmimage']) > 0:
+                newLibvirtOpts['vmimage'] = libvirtBox.result['vmimage']
+            if len(libvirtBox.result['vmusername']) > 0:
+                newLibvirtOpts['vmusername'] = libvirtBox.result['vmusername']
+            if len(libvirtBox.result['vmpassword']) > 0:
+                newLibvirtOpts['vmpassword'] = libvirtBox.result['vmpassword']
+            if len(libvirtBox.result['vmtype']) > 0:
+                newLibvirtOpts['vmtype'] = libvirtBox.result['vmtype']
+            if len(libvirtBox.result['hostname']) > 0:
+                newLibvirtOpts['hostname'] = libvirtBox.result['hostname']
+                name = libvirtBox.result['hostname']
                 widget[ 'text' ] = name
-            #if len(dockerBox.result['defaultRoute']) > 0:
-            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
-            if len(dockerBox.result['ip']) > 0:
-                newDockerOpts['ip'] = dockerBox.result['ip']
+            #if len(libvirtBox.result['defaultRoute']) > 0:
+            #    newLibvirtOpts['defaultRoute'] = libvirtBox.result['defaultRoute']
+            if len(libvirtBox.result['ip']) > 0:
+                newLibvirtOpts['ip'] = libvirtBox.result['ip']
             # TODO apply the IPs to the right interfaces
-            if len(dockerBox.result['multiInterfaces']) > 0:
-                newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
-            self.hostOpts[name] = newDockerOpts
+            if len(libvirtBox.result['multiInterfaces']) > 0:
+                newLibvirtOpts['multiInterfaces'] = libvirtBox.result['multiInterfaces']
+            self.hostOpts[name] = newLibvirtOpts
             print 'New host details for ' + name + ' = ' + str(self.hostOpts[name])
 
     def switchDetails( self, _ignore=None ):
