@@ -3210,7 +3210,28 @@ class MiniEdit( Frame ):
                                          dcmd=startCommand
                                         )
             elif 'Libvirt' in tags:
-                pass  # TODO libvirt
+                # start Libvirt host
+                opts = self.hostOpts[name]
+                #print str(opts)
+                ip = None
+                if 'ip' in opts and len(opts['ip']) > 0:
+                    ip = opts['ip']
+                else:
+                    nodeNum = self.hostOpts[name]['nodeNum']
+                    ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
+                    ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
+                disk_image = "/var/lib/libvirt/images/ubuntu16.04.qcow2"
+                if 'disk_image' in opts and len(opts['disk_image']) > 0:
+                    disk_image = opts['disk_image']
+                startCommand = "/bin/bash"
+                if 'startCommand' in opts and len(opts['startCommand']) > 0:
+                    startCommand = opts['startCommand']
+                print("Starting Libvirt host with opts={}".format(opts))
+                newHost = net.addLibvirthost( name,
+                                              ip=ip,
+                                              disk_image=disk_image
+                                              #dcmd=startCommand
+                                            )
             elif 'Controller' in tags:
                 opts = self.controllers[name]
 
