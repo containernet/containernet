@@ -1166,7 +1166,7 @@ class LibvirtHost( Host ):
             self.INTERFACE_XML = """
                     <interface type='direct' trustGuestRxFilters='yes'>
                         <model type='virtio'/>
-                        <source dev='{intfname}' mode='private'/>
+                        <source dev='{intfname}' mode='passthrough'/>
                     </interface>
                     """
 
