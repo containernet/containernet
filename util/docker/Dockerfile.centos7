@@ -1,33 +1,29 @@
-FROM ubuntu:xenial
+FROM centos:7
 
 # install required packages
-RUN apt-get clean
-RUN apt-get update \
-    && apt-get install -y  git \
+RUN yum update -y
+RUN yum install -y  git \
     net-tools \
-    aptitude \
-    build-essential \
     python-setuptools \
-    python-dev \
+    python-devel \
     python-pip \
-    software-properties-common \
     ansible \
     curl \
     iptables \
     iputils-ping \
-    sudo
+    sudo \
+    initscripts
 
 # install containernet (using its Ansible playbook)
 COPY . /containernet
 WORKDIR /containernet/ansible
-RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install.yml
+RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install_centos.yml
 WORKDIR /containernet
 RUN python setup.py develop
 
 # tell containernet that it runs in a container
 ENV CONTAINERNET_NESTED 1
 
-# Important: This entrypoint is required to start the OVS service
-ENTRYPOINT ["util/docker/entrypoint.sh"]
+# Important: This entrypoint is required to start the Docker and OVS service
+ENTRYPOINT ["util/docker/entrypoint_centos.sh"]
 CMD ["python", "examples/containernet_example.py"]
-

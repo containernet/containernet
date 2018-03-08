@@ -705,8 +705,10 @@ class Docker ( Host ):
                      'memswap_limit': None,
                      'environment': {},
                      'volumes': [],  # use ["/home/user1/:/mnt/vol2:rw"]
+                     'network_mode': None,
                      'publish_all_ports': True,
                      'port_bindings': {},
+                     'ports': [],
                      'dns': [],
                      }
 
@@ -726,6 +728,7 @@ class Docker ( Host ):
         self.environment = {} if defaults['environment'] is None else defaults['environment']
         # setting PS1 at "docker run" may break the python docker api (update_container hangs...)
         # self.environment.update({"PS1": chr(127)})  # CLI support
+        self.network_mode = defaults['network_mode']
         self.publish_all_ports = defaults['publish_all_ports']
         self.port_bindings = defaults['port_bindings']
         self.dns = defaults['dns']
@@ -741,12 +744,12 @@ class Docker ( Host ):
         debug("Created docker container object %s\n" % name)
         debug("image: %s\n" % str(self.dimage))
         debug("dcmd: %s\n" % str(self.dcmd))
-        debug("kwargs: %s\n" % str(kwargs))
+        info("%s: kwargs %s\n" % (name, str(kwargs)))
 
         # creats host config for container
         # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
         hc = self.dcli.create_host_config(
-            network_mode=None,
+            network_mode=self.network_mode,
             privileged=True,  # we need this to allow mininet network setup
             binds=self.volumes,
             publish_all_ports=self.publish_all_ports,
@@ -766,6 +769,7 @@ class Docker ( Host ):
             environment=self.environment,
             #network_disabled=True,  # docker stats breaks if we disable the default network
             host_config=hc,
+            ports=defaults['ports'],
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
             hostname=name
