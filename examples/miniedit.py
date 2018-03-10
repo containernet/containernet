@@ -1656,7 +1656,7 @@ class MiniEdit( Frame ):
         else:
             return text
 
-    def loadTopology( self ):
+    def loadTopology( self, path=None ):
         "Load command."
         c = self.canvas
 
@@ -1664,7 +1664,10 @@ class MiniEdit( Frame ):
             ('Mininet Topology','*.mn'),
             ('All Files','*'),
         ]
-        f = tkFileDialog.askopenfile(filetypes=myFormats, mode='rb')
+        if path == None:
+            f = tkFileDialog.askopenfile(filetypes=myFormats, mode='rb')
+        else:
+            f = open(path, mode='rb')
         if f == None:
             return
         self.newTopology()
@@ -3216,17 +3219,17 @@ class MiniEdit( Frame ):
                 ip = None
                 if 'ip' in opts and len(opts['ip']) > 0:
                     ip = opts['ip']
-                else:
-                    nodeNum = self.hostOpts[name]['nodeNum']
-                    ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
-                    ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
+                #else: # no auto IPs for VMs (hardcoded for demo)
+                #    nodeNum = self.hostOpts[name]['nodeNum']
+                #    ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
+                #    ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
                 disk_image = "/var/lib/libvirt/images/ubuntu16.04.qcow2"
-                if 'disk_image' in opts and len(opts['disk_image']) > 0:
-                    disk_image = opts['disk_image']
+                if 'vmimage' in opts and len(opts['vmimage']) > 0:
+                    disk_image = opts['vmimage']
                 startCommand = "/bin/bash"
                 if 'startCommand' in opts and len(opts['startCommand']) > 0:
                     startCommand = opts['startCommand']
-                print("Starting Libvirt host with opts={}".format(opts))
+                print("Starting Libvirt host with opts={}".format([name, ip, disk_image, opts]))
                 newHost = net.addLibvirthost( name,
                                               ip=ip,
                                               disk_image=disk_image
@@ -3666,6 +3669,8 @@ class MiniEdit( Frame ):
         opts.add_option( '--custom', type='string', default=None,
                          help='read custom topo and node params from .py' +
                          'file' )
+        opts.add_option( '--file', type='string', default=None,
+                         help='open *.mn file' )
 
         self.options, self.args = opts.parse_args()
         # We don't accept extra arguments after the options
@@ -4171,5 +4176,7 @@ if __name__ == '__main__':
     ### import topology if specified ###
     app.parseArgs()
     app.importTopo()
+    if app.options.file is not None:
+        app.loadTopology(path=app.options.file)
 
     app.mainloop()
