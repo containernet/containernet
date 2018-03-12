@@ -80,6 +80,42 @@ def makeTerm( node, title='Node', term='xterm', display=None, cmd='bash'):
         #      host, port ) ], stdout=PIPE, stdin=PIPE, stderr=PIPE )
         # return [ pipe, term ] if pipe else [ term ]
         return []
+    from mininet.node import LibvirtHost
+    if isinstance( node, LibvirtHost):
+        if display is None:
+            cmds[ term ] = cmds[ term ][:-1]
+        else:
+            cmds[ term ].append(display)
+
+        # remove a call to a shell because ssh will enter a shell by itself
+        if cmd == "bash":
+            cmd = ""
+        sshpass = []
+
+        # some options so ssh works in every environment
+        ssh_opts = ["-o", "UserKnownHostsFile=/dev/null", "-o", "GlobalKnownHostsFile=/dev/null"
+                    , "-o", "StrictHostKeyChecking=accept-new", "-o", "PubkeyAuthentication=yes"]
+
+        # turn on passwordauth if it is set
+        if not node.params['login']['credentials'].get("key_filename") and\
+                not node.params['login']['credentials'].get("pkey"):
+            # input the password through sshpass
+            sshpass = ["sshpass", "-p", node.params['login']['credentials']['password']]
+            ssh_opts.extend(["-o", "PasswordAuthentication=yes"])
+
+        # build ssh commandstring
+        ssh = ["ssh", node.params['mgmt_ip'], "-l", node.params['login']['credentials'].get('username', "root")]\
+              + ssh_opts + [cmd]
+        from subprocess import Popen, PIPE
+
+        # build full terminal tring
+        cmdstring = cmds[ term ] + ["-e", "env", "TERM=ansi"] + sshpass + ssh
+        
+        term = Popen(cmdstring, stdout=PIPE, stdin=PIPE, stderr=PIPE )
+        if term:
+            return [ term ]
+        else:
+            return []
     display, tunnel = tunnelX11( node, display )
     if display is None:
         return []
