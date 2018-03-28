@@ -17,17 +17,8 @@
        - iptables
        - software-properties-common
 
-   - name: install Docker CE repos (1/3)
-     shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-
-   - name: install Docker CE repos (2/3)
-     shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-
-   - name: install Docker CE repos (3/3)
-     shell: apt-get -qq update
-
    - name: install Docker CE
-     apt: name=docker-ce state=installed
+     shell: curl -sS https://get.docker.com | sh
 
    - name: install pytest
      pip: name=pytest state=latest
