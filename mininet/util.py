@@ -12,6 +12,12 @@ from os import O_NONBLOCK
 import os
 from functools import partial
 
+LIBVIRT_AVAILABLE = False
+try:
+    import libvirt
+    LIBVIRT_AVAILABLE = True
+except ImportError:
+    pass
 # Command execution support
 
 def run( cmd ):
@@ -159,7 +165,7 @@ isShellBuiltin.builtIns = None
 
 def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
                   deleteIntfs=True, runCmd=None ):
-    """Make a veth pair connnecting new interfaces intf1 and intf2
+    """Make a veth pair connecting new interfaces intf1 and intf2
        intf1: name for interface 1
        intf2: name for interface 2
        addr1: MAC address for interface 1 (optional)
@@ -628,3 +634,9 @@ def waitListening( client=None, server='127.0.0.1', port=80, timeout=None ):
         time += .5
         result = runCmd( cmd )
     return True
+
+def libvirtErrorHandler(ignore, err):
+    """Libvirt will print errors to the screen.
+       To suppress the messages we add this callback."""
+    if err[3] != libvirt.VIR_ERR_ERROR:
+        warn("Non-error from libvirt: '%s'" % err[2])
