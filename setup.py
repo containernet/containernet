@@ -8,7 +8,7 @@ from os.path import join
 # Get version number from source tree
 import sys
 sys.path.append( '.' )
-from mininet.net import VERSION
+from mininet.net import CONTAINERNET_VERSION
 
 scripts = [ join( 'bin', filename ) for filename in [ 'mn' ] ]
 
@@ -16,16 +16,21 @@ modname = distname = 'mininet'
 
 setup(
     name=distname,
-    version=VERSION.replace("d", ""),
-    description='Process-based OpenFlow emulator',
-    author='Bob Lantz',
-    author_email='rlantz@cs.stanford.edu',
+    version=CONTAINERNET_VERSION,
+    description='Mininet fork that add Container support.',
+    author='Manuel Peuster',
+    author_email='manuel.peuster@upb.de',
     packages=[ 'mininet', 'mininet.examples' ],
     long_description="""
         Mininet is a network emulator which uses lightweight
         virtualization to create virtual networks for rapid
         prototyping of Software-Defined Network (SDN) designs
         using OpenFlow. http://mininet.org
+        Mininet author: Bob Lantz (rlantz@cs.stanford.edu)
+ 
+        Containernet is a fork of Mininet that allows
+        to use Docker containers as hosts in emulated
+        networks.
         """,
     classifiers=[
           "License :: OSI Approved :: BSD License",
