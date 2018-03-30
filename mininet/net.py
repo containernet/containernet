@@ -122,6 +122,7 @@ except ImportError:
 
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0d1"
+CONTAINERNET_VERSION = "2.0"
 
 # If an external SAP (Service Access Point) is made, it is deployed with this prefix in the name,
 # so it can be removed at a later time
