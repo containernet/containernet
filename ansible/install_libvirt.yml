@@ -21,6 +21,7 @@
        - libvirt-dev
        - python-paramiko
        - python-libvirt
+       - sshpass
 
    - name: disable apparmor libvirt profile (to allow attaching of interfaces to running vms)
      file: src=/etc/apparmor.d/usr.sbin.libvirtd dest=/etc/apparmor.d/disable/usr.sbin.libvirtd state=link
