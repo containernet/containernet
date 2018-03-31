@@ -29,10 +29,10 @@
        - python-pip
        - iptables
 
-   - name: install Docker CE repos (1/3)
+   - name: install Docker CE repos (1/2)
      shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
-   - name: install Docker CE repos (2/3)
+   - name: install Docker CE repos (2/2)
      yum:
        name: docker-ce
        state: latest 
