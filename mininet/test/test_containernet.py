@@ -1,3 +1,4 @@
+import pytest
 import unittest
 import os
 import time
@@ -396,10 +397,11 @@ class testContainernetTCLinks( simpleTestTopology ):
         self.assertTrue(len(self.net.hosts) == 3)
         # check connectivity by using ping: default link
         _, _, res = self.net.pingFull([self.d[0]], manualdestip="10.0.0.2")[0]
-        self.assertTrue(res[3] <= 20)
+        self.assertLessEqual(res[3], 100)
         # check connectivity by using ping: delayed TCLink
         _, _, res = self.net.pingFull([self.d[0]], manualdestip="10.0.0.3")[0]
-        self.assertTrue(res[3] > 200 and res[3] < 500)
+        self.assertGreaterEqual(res[3], 200)
+        self.assertLessEqual(res[3], 500)
         # stop Mininet network
         self.stopNet()
 
@@ -508,6 +510,8 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
     def testRuntimeCPULimitUpdate(self):
         """
         Test CPU limit update at runtime
@@ -539,6 +543,8 @@ class testContainernetContainerResourceLimitAPI( simpleTestTopology ):
         # stop Mininet network
         self.stopNet()
 
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
     def testRuntimeMemoryLimitUpdate(self):
         """
         Test mem limit update at runtime
