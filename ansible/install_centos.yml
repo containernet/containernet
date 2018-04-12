@@ -18,7 +18,13 @@
    - name: install basic packages
      yum: name={{item}} state=latest
      with_items:
-       - gcc
+       - net-tools
+       - python-setuptools
+       - python-devel
+       - python-pip
+       - curl
+       - iptables
+       - initscripts
        - yum-utils
        - device-mapper-persistent-data
        - lvm2
@@ -28,14 +34,16 @@
        - python-devel
        - python-pip
        - iptables
+       - gcc
+       - sudo
 
    - name: install Docker CE (1/3)
      shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
    - name: install Docker CE (2/3)
      yum:
-     name: docker-ce
-     state: latest
+       name: docker-ce
+       state: latest
 
    - name: install Docker CE (3/3)
      systemd: name=docker state=started
