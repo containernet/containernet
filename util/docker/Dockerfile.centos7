@@ -1,18 +1,9 @@
 FROM centos:7
 
 # install required packages
-RUN yum update -y
-RUN yum install -y  git \
-    net-tools \
-    python-setuptools \
-    python-devel \
-    python-pip \
-    ansible \
-    curl \
-    iptables \
-    iputils-ping \
-    sudo \
-    initscripts
+RUN yum install -y epel-release \
+    && yum update -y \
+    && yum install -y  ansible
 
 # install containernet (using its Ansible playbook)
 COPY . /containernet
