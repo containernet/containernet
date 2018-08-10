@@ -13,8 +13,8 @@ Vagrant.configure(2) do |config|
     end
     config.trigger.before :provision do |trigger|
         if !Dir.exists?('ansible')
-            `wget https://raw.githubusercontent.com/jonwrede/containernet/master/ansible/install_vagrant.yml -P ansible -v`
-            `wget https://raw.githubusercontent.com/jonwrede/containernet/master/ansible/tasks.yml -P ansible -v`
+            `wget https://raw.githubusercontent.com/containernet/containernet/master/ansible/install_vagrant.yml -P ansible -v`
+            `wget https://raw.githubusercontent.com/containernet/containernet/master/ansible/tasks.yml -P ansible -v`
             downloaded = true
         end
     end
