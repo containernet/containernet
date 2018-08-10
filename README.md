@@ -76,8 +76,7 @@ docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/do
 ```
 
 #### Option 3: Vagrant-based VM creation
-Using the provided Vagrantfile is the another way to run and test Containernet:
-
+Download the Vagrantfile to your your projectfolder and run Containernet. The Vagrantfile will download all missing files.
 ```bash
 vagrant up
 vagrant ssh

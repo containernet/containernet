@@ -1,0 +1,24 @@
+- hosts: all
+  become: yes
+  vars:
+     path: /var/containernet
+  tasks:
+    - name: Ansible copy file to remote server
+      copy:
+        src: /home/vagrant/.ssh/authorized_keys
+        dest: /root/.ssh/authorized_keys
+
+    - name: Replace username in key file
+      replace:
+        dest: /etc/hosts
+        regexp: '^vagrant'
+        replace: 'root'
+
+    - name: Clone repo
+      git:
+        repo: https://github.com/containernet/containernet.git
+        dest: "{{ path }}"
+        version: master
+      when:
+
+    - include_tasks: tasks.yml

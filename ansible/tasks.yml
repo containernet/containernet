@@ -1,0 +1,58 @@
+- name: Update and upgrade apt packages
+  become: true
+  apt:
+    upgrade: yes
+    update_cache: yes
+    cache_valid_time: 86400
+
+- name: install basic packages
+  apt: name={{item}} state=present
+  with_items:
+  - aptitude
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - python-setuptools
+  - python-dev
+  - build-essential
+  - python-pip
+  - iptables
+  - software-properties-common
+
+- name: install Docker CE repos (1/3)
+  shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+  warn: False
+
+- name: install Docker CE repos (2/3)
+  shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+- name: install Docker CE repos (3/3)
+  shell: apt-get -qq update
+  warn: False
+
+- name: install Docker CE
+  apt: name=docker-ce state=present
+
+- name: install pytest
+  pip: name=pytest state=latest
+
+- name: install docker-py
+  pip: name=docker version=2.0.2
+
+- name: install python-iptables
+  pip: name=python-iptables state=latest
+
+- name: built and install Containernet
+  shell: util/install.sh
+  args:
+    chdir: "{{ path }}"
+
+- name: install Containernet Python egg etc.
+  shell: make develop
+  args:
+    chdir: "{{ path }}"
+
+- name: download 'ubuntu' docker image for Containernet example
+  shell: docker pull ubuntu:trusty
+  tags:
+    - notindocker
