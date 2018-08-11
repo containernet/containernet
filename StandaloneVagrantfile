@@ -13,7 +13,7 @@ Vagrant.configure(2) do |config|
     end
     config.trigger.before :provision, :up, :reload do |trigger|
         if !Dir.exists?('ansible') and !File.exists?('install_vagrant.yml')
-            trigger.run = {inline: "curl https://raw.githubusercontent.com/jonwrede/containernet/master/ansible/install_vagrant.yml -o install_vagrant.yml -s"}
+            trigger.run = {inline: "curl https://raw.githubusercontent.com/containernet/containernet/master/ansible/install_vagrant.yml -o install_vagrant.yml -s"}
         end
     end
     config.trigger.after :provision, :up, :reload do |trigger|
