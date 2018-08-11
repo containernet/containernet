@@ -76,7 +76,11 @@ docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/do
 ```
 
 #### Option 3: Vagrant-based VM creation
-Download the Vagrantfile to your your projectfolder and run Containernet. The Vagrantfile will download all missing files.
+Download the Vagrantfile to your your projectfolder and run Containernet using:
+```bash
+curl https://raw.githubusercontent.com/jonwrede/containernet/master/ProjectVagrantfile --output Vagrantfile
+```
+After the file is downloaded, or if you are working in the cloned Containernet repository start the VM using: 
 ```bash
 vagrant up
 vagrant ssh

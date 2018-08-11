@@ -12,13 +12,12 @@ Vagrant.configure(2) do |config|
         vb.memory = "1024"
     end
     config.trigger.before :provision do |trigger|
-        if !Dir.exists?('ansible')
-            `wget https://raw.githubusercontent.com/containernet/containernet/master/ansible/install_vagrant.yml`
-            downloaded = true
+        if !Dir.exists?('ansible') and !File.exists?('install_vagrant.yml')
+            trigger.run = {inline: "wget https://raw.githubusercontent.com/jonwrede/containernet/master/ansible/install_vagrant.yml"}
         end
     end
     config.trigger.after :provision do |trigger|
-        if downloaded
+        if File.exists?('install_vagrant.yml')
             trigger.run = {inline: "rm -f install_vagrant.yml"}
         end
     end
