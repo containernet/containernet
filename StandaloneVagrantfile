@@ -1,0 +1,29 @@
+VAGRANT_COMMAND = ARGV[0]
+downloaded = false
+Vagrant.configure(2) do |config|
+    config.vm.box = "ubuntu/xenial64"
+    config.ssh.username = 'root'
+    if VAGRANT_COMMAND == "provision" || VAGRANT_COMMAND == "up"
+      config.ssh.username = 'vagrant'
+    end
+    config.ssh.insert_key = 'false'
+    config.vm.provider "virtualbox" do |vb|
+        vb.customize [ "modifyvm", :id, "--uartmode1", "disconnected" ]
+        vb.memory = "1024"
+    end
+    config.trigger.before :provision, :up, :reload do |trigger|
+        if !Dir.exists?('ansible') and !File.exists?('install_vagrant.yml')
+            trigger.run = {inline: "curl https://raw.githubusercontent.com/containernet/containernet/master/ansible/install_vagrant.yml -o install_vagrant.yml -s"}
+        end
+    end
+    config.trigger.after :provision, :up, :reload do |trigger|
+        trigger.run = {inline: "rm -f install_vagrant.yml"}
+    end
+    config.vm.provision "ansible_local" do |a|
+        if !Dir.exists?('ansible')
+            a.playbook = "install_vagrant.yml"
+        else
+            a.playbook = "ansible/install_vagrant.yml"
+        end
+    end
+end

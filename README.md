@@ -76,13 +76,35 @@ docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/do
 ```
 
 #### Option 3: Vagrant-based VM creation
-Using the provided Vagrantfile is the another way to run and test Containernet:
-
+##### There are to diffrent ways to use Vagrant.
+##### 1. in the Containernet directory
+If you run:
 ```bash
 vagrant up
 vagrant ssh
 ```
+in the cloned repository. You will get a VM that has the full directory structure sync with 
+`
+/home/ubuntu/containernet
+`
+If you want to contribute to the Containernet project. This is probably what you want.
 
+#### 2. in a seprate directory
+If you want to use Containernet as a dependancy in your own project. You can use:
+```bash
+curl https://raw.githubusercontent.com/containernet/containernet/master/StandaloneVagrantfile -o Vagrantfile
+```
+to download the `StandaloneVagrantfile`, which is automatically renamed to `Vagrantfile` by the curl command. This `Vagrantfile` will download all nessarry parts needed to get up and running. This means your project structure stays slim.
+
+To start the VM just run
+```bash
+vagrant up
+```
+After the VM has started, you can use:
+```bash
+vagrant ssh
+```
+to login as `root`. This is needed because mininet needs full access. If you use PyCharm Professional you can use the created VM as a remote interpreter.
 ### Usage / Run
 Start example topology with some empty Docker containers connected to the network.
 
