@@ -1,0 +1,74 @@
+- hosts: all
+  become: yes
+  tasks:
+  - name: Ansible copy file to remote server
+    copy:
+      src: /home/vagrant/.ssh/authorized_keys
+      dest: /root/.ssh/authorized_keys
+
+  - name: Replace username in key file
+    replace:
+      dest: /etc/hosts
+      regexp: '^vagrant'
+      replace: 'root'
+
+  - name: Clone repo
+    git:
+      repo: https://github.com/containernet/containernet.git
+      dest: /var/containernet
+      version: master
+    when:
+
+  - name: updates apt
+    shell: apt-get -qq update
+
+  - name: install basic packages
+    apt: name={{item}} state=installed
+    with_items:
+      - aptitude
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - python-setuptools
+      - python-dev
+      - build-essential
+      - python-pip
+      - iptables
+      - software-properties-common
+
+  - name: install Docker CE repos (1/3)
+    shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+
+  - name: install Docker CE repos (2/3)
+    shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+
+  - name: install Docker CE repos (3/3)
+    shell: apt-get -qq update
+
+  - name: install Docker CE
+    apt: name=docker-ce state=installed
+
+  - name: install pytest
+    pip: name=pytest state=latest
+
+  - name: install docker-py
+    pip: name=docker version=2.0.2
+
+  - name: install python-iptables
+    pip: name=python-iptables state=latest
+
+  - name: built and install Containernet (using Mininet installer)
+    shell: containernet/util/install.sh
+    args:
+      chdir: /var
+
+  - name: install Containernet Python egg etc.
+    shell: make develop
+    args:
+      chdir: /var/containernet
+
+  - name: download 'ubuntu' docker image for Containernet example
+    shell: docker pull ubuntu:trusty
+    tags:
+      - notindocker
+
