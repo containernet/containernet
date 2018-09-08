@@ -72,7 +72,7 @@ docker pull containernet/containernet
 
 ```bash
 # run the container
-docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet /bin/bash
+docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet /bin/bash
 ```
 
 #### Option 3: Vagrant-based VM creation
