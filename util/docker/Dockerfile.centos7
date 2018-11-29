@@ -8,7 +8,7 @@ RUN yum install -y epel-release \
 # install containernet (using its Ansible playbook)
 COPY . /containernet
 WORKDIR /containernet/ansible
-RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install_centos.yml
+RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" -v install_centos.yml
 WORKDIR /containernet
 RUN python setup.py develop
 
