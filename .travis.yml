@@ -23,7 +23,7 @@ before_install:
 
 # bare metal installation
 install:
-  - travis_wait 30 cd ansible; sudo ansible-playbook -i "localhost," -c local -v install.yml; cd ..
+  - travis_wait 30 sudo ansible-playbook -i "localhost," -c local -v ansible/install.yml
 
 # run tests
 script:
