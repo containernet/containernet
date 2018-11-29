@@ -20,7 +20,7 @@ RUN apt-get update \
 # install containernet (using its Ansible playbook)
 COPY . /containernet
 WORKDIR /containernet/ansible
-RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" -v install.yml
+RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install.yml
 WORKDIR /containernet
 RUN python setup.py develop
 
