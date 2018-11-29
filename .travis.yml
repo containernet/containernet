@@ -26,6 +26,8 @@ before_install:
 install:
   - travis_wait 30 sudo ansible-playbook -i "localhost," -c local -v install.yml
 
+before_script:
+  - cd ..
 # run tests
 script:
   # run unit tests (bare metal)
