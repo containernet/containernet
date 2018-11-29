@@ -20,10 +20,11 @@ virtualenv:
 before_install:
   - sudo apt-get -qq update
   - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ansible libffi-dev libssl-dev
+  - cd ansible
 
 # bare metal installation
 install:
-  - travis_wait 30 sudo ansible-playbook -i "localhost," -c local -v ansible/install.yml
+  - travis_wait 30 sudo ansible-playbook -i "localhost," -c local -v install.yml
 
 # run tests
 script:
