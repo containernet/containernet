@@ -656,7 +656,7 @@ class Docker ( Host ):
     """
 
     def __init__(
-            self, name, dimage, dcmd=None, **kwargs):
+            self, name, dimage, dcmd=None, rm=False, **kwargs):
         """
         Creates a Docker container as Mininet host.
 
@@ -727,6 +727,9 @@ class Docker ( Host ):
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
 
+        # TODO: remove existing containers like CLI's -rm option
+        self.rm = rm
+
         # for DEBUG
         debug("Created docker container object %s\n" % name)
         debug("image: %s\n" % str(self.dimage))
@@ -745,6 +748,15 @@ class Docker ( Host ):
             cpuset_cpus=self.resources.get('cpuset_cpus'),
             dns=self.dns,
         )
+
+        # TODO: remove docker before creating it -- Jinwoo Kim
+        container_list = self.dcli.containers(all=True)
+
+        for container in container_list:
+            for container_name in container["Names"]:
+                if "%s.%s" % (self.dnameprefix, name) in container_name:
+                    self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
+                    break
 
         # create new docker container
         self.dc = self.dcli.create_container(
