@@ -656,7 +656,7 @@ class Docker ( Host ):
     """
 
     def __init__(
-            self, name, dimage, dcmd=None, rm=False, **kwargs):
+            self, name, dimage, dcmd=None, **kwargs):
         """
         Creates a Docker container as Mininet host.
 
