@@ -749,7 +749,8 @@ class Docker ( Host ):
             dns=self.dns,
         )
 
-        # TODO: remove docker before creating it -- Jinwoo Kim
+        if kwargs.get("rm", False):
+            # do the remove code here
         container_list = self.dcli.containers(all=True)
 
         for container in container_list:
