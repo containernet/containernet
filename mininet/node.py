@@ -746,6 +746,14 @@ class Docker ( Host ):
             dns=self.dns,
         )
 
+        if kwargs.get("rm", False):
+            container_list = self.dcli.containers(all=True)
+            for container in container_list:
+                for container_name in container.get("Names", []):
+                    if "%s.%s" % (self.dnameprefix, name) in container_name:
+                        self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
+                        break
+
         # create new docker container
         self.dc = self.dcli.create_container(
             name="%s.%s" % (self.dnameprefix, name),
