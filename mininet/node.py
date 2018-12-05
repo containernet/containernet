@@ -754,7 +754,7 @@ class Docker ( Host ):
         container_list = self.dcli.containers(all=True)
 
         for container in container_list:
-            for container_name in container["Names"]:
+            for container_name in container.get("Names", []):
                 if "%s.%s" % (self.dnameprefix, name) in container_name:
                     self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
                     break
