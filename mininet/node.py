@@ -917,7 +917,10 @@ class Docker ( Host ):
     def _check_image_exists(self, imagename, pullImage=False):
         # split tag from repository if a tag is specified
         if ":" in imagename:
-            repo, tag = imagename.split(":")
+            #If two :, then the first is to specify a port. Otherwise, it must be a tag
+            slices = imagename.split(":")
+            repo = ":".join(slices[0:-1])
+            tag = slices[-1]
         else:
             repo = imagename
             tag = "latest"
