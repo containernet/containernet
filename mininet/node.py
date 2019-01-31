@@ -783,14 +783,37 @@ class Docker ( Host ):
 
         # let's initially set our resource limits
         self.update_resources(**self.resources)
-        # self.updateCpuLimit(cpu_quota=self.resources.get('cpu_quota'),
-        #                     cpu_period=self.resources.get('cpu_period'),
-        #                     cpu_shares=self.resources.get('cpu_shares'),
-        #                     )
-        # self.updateMemoryLimit(mem_limit=self.resources.get('mem_limit'),
-        #                        memswap_limit=self.resources.get('memswap_limit')
-        #                        )
 
+        # Containernet ignores the CMD field of the Dockerfile.
+        # Lets try to load it here and manually execute it once the
+        # container is started and configured by Containernet:
+        if not kwargs.get("no_cmd_field_execution", False):
+            cmd_field = self.get_cmd_field(self.dimage)
+            if cmd_field is not None:
+                cmd_field.append("&")  # put to background (works, but not nice)
+                info("{}: running CMD: {}\n".format(name, cmd_field))
+                self.cmd(" ".join(cmd_field))
+
+    def get_cmd_field(self, imagename):
+        """
+        Try to find the original CMD command of the Dockerfile
+        by inspecting the Docker image.
+        Returns list from CMD field if it is different from
+        a single /bin/bash command which Containernet executes
+        anyhow.
+        """
+        try:
+            imgd = self.dcli.inspect_image(imagename)
+            cmd = imgd.get("Config", {}).get("Cmd")
+            assert isinstance(cmd, list)
+            # filter the default case: a single "/bin/bash"
+            if "/bin/bash" in cmd and len(cmd) == 1:
+                return None
+            return cmd
+        except BaseException as ex:
+            error("Error during image inspection of {}:{}"
+                  .format(imagename, ex)) 
+        return None
 
     # Command support via shell process in namespace
     def startShell( self, *args, **kwargs ):
