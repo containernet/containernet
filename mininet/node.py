@@ -759,6 +759,7 @@ class Docker ( Host ):
             name="%s.%s" % (self.dnameprefix, name),
             image=self.dimage,
             command=self.dcmd,
+            entrypoint=list(),  # overwrite (will be executed manually at the end)
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
             environment=self.environment,
@@ -789,6 +790,18 @@ class Docker ( Host ):
         # container is started and configured by Containernet:
         if not kwargs.get("no_cmd_field_execution", False):
             cmd_field = self.get_cmd_field(self.dimage)
+            entryp_field = self.get_entrypoint_field(self.dimage)
+            if entryp_field is not None:
+                if cmd_field is None:
+                    cmd_field = list()
+                # clean up cmd_field
+                try:
+                    cmd_field.remove(u'/bin/sh')
+                    cmd_field.remove(u'-c')
+                except ValueError as ex:
+                    pass
+                # we just add the entryp. commands to the beginning:
+                cmd_field = entryp_field + cmd_field
             if cmd_field is not None:
                 cmd_field.append("&")  # put to background (works, but not nice)
                 info("{}: running CMD: {}\n".format(name, cmd_field))
@@ -812,7 +825,24 @@ class Docker ( Host ):
             return cmd
         except BaseException as ex:
             error("Error during image inspection of {}:{}"
-                  .format(imagename, ex)) 
+                  .format(imagename, ex))
+        return None
+
+    def get_entrypoint_field(self, imagename):
+        """
+        Try to find the original ENTRYPOINT command of the Dockerfile
+        by inspecting the Docker image.
+        Returns list or None.
+        """
+        try:
+            imgd = self.dcli.inspect_image(imagename)
+            ep = imgd.get("Config", {}).get("Entrypoint")
+            if isinstance(ep, list) and len(ep) < 1:
+                return None
+            return ep
+        except BaseException as ex:
+            error("Error during image inspection of {}:{}"
+                  .format(imagename, ex))
         return None
 
     # Command support via shell process in namespace
