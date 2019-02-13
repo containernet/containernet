@@ -24,6 +24,9 @@ RUN ansible-playbook -i "localhost," -c local --skip-tags "notindocker" install.
 WORKDIR /containernet
 RUN python setup.py develop
 
+# Hotfix: https://github.com/pytest-dev/pytest/issues/4770
+RUN pip2 install "more-itertools<=5.0.0"
+
 # tell containernet that it runs in a container
 ENV CONTAINERNET_NESTED 1
 
