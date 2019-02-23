@@ -998,7 +998,7 @@ class Containernet( Mininet ):
         """
         return self.addHost( name, cls=cls, **params)
 
-    def addDockerFromFile( self, name, path, cls=DockerFromFile, **params ):
+    def addDockerFromFile( self, name, cls=DockerFromFile, **params ):
         """
         Wrapper for addHost method that adds a
         Docker container as a host.
