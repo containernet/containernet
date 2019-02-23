@@ -100,7 +100,7 @@ from math import ceil
 
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
-from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
+from mininet.node import ( Node, Docker, DockerFromFile, Host, OVSKernelSwitch,
                            DefaultController, Controller, OVSSwitch, OVSBridge )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
@@ -992,6 +992,13 @@ class Containernet( Mininet ):
         self.SAPswitches = dict()
 
     def addDocker( self, name, cls=Docker, **params ):
+        """
+        Wrapper for addHost method that adds a
+        Docker container as a host.
+        """
+        return self.addHost( name, cls=cls, **params)
+
+    def addDockerFromFile( self, name, path, cls=DockerFromFile, **params ):
         """
         Wrapper for addHost method that adds a
         Docker container as a host.
