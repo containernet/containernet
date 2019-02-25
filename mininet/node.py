@@ -1233,7 +1233,7 @@ class DockerFromFile ( Host ):
         self.dcli = docker.from_env().api
 
         # pull image if it does not exist
-        self._check_image_exists(dimage, True)
+        self._check_image_exists(self.dimage, True)
 
         # for DEBUG
         debug("Created docker container object %s\n" % name)
@@ -1245,13 +1245,14 @@ class DockerFromFile ( Host ):
         f = open(path)
         dockerstr = f.read().encode('utf-8')
         dockerbytes = BytesIO(dockerstr)
-        dcli.build(fileobj=dockerbytes, tag=name)
+	response = self.dcli.build(fileobj=dockerbytes, tag=name)
+	print list(response)
 
         # don't need volumes, networking, etc since we've directly built
         # the image from a Dockerfile
         # Here we are saying exec and -d should work, I think...
         self.dc = self.dcli.create_container(
-            image=name,
+            image="d1",
             entrypoint=list(),  # overwrite (will be executed manually at the end)
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
@@ -1263,16 +1264,20 @@ class DockerFromFile ( Host ):
         # start the container
         self.dcli.start(self.dc)
         debug("Docker container %s started\n" % name)
+	print "Started container"
 
         # fetch information about new container
         self.dcinfo = self.dcli.inspect_container(self.dc)
         self.did = self.dcinfo.get("Id")
+	print "Self.did: " + str(self.did)
 
         # call original Node.__init__
         Host.__init__(self, name, **kwargs)
+	print "After host constructor"
 
         # let's initially set our resource limits
         self.update_resources(**self.resources)
+	print "After update_resources"
 
         # Containernet ignores the CMD field of the Dockerfile.
         # Lets try to load it here and manually execute it once the
@@ -1295,6 +1300,8 @@ class DockerFromFile ( Host ):
                 cmd_field.append("&")  # put to background (works, but not nice)
                 info("{}: running CMD: {}\n".format(name, cmd_field))
                 self.cmd(" ".join(cmd_field))
+	print "End of init"
+
 
     def get_cmd_field(self, imagename):
         """
