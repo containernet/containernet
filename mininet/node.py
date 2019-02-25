@@ -1248,11 +1248,20 @@ class DockerFromFile ( Host ):
 	response = self.dcli.build(fileobj=dockerbytes, tag=name)
 	print list(response)
 
+        if kwargs.get("rm", False):
+            container_list = self.dcli.containers(all=True)
+            for container in container_list:
+                for container_name in container.get("Names", []):
+                    if "%s.%s" % (self.dnameprefix, name) in container_name:
+                        self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
+                        break
+
         # don't need volumes, networking, etc since we've directly built
         # the image from a Dockerfile
         # Here we are saying exec and -d should work, I think...
         self.dc = self.dcli.create_container(
-            image="d1",
+            name="%s.%s" % (self.dnameprefix, name),
+            image=self.dimage,
             entrypoint=list(),  # overwrite (will be executed manually at the end)
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
