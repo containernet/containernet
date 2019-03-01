@@ -803,6 +803,7 @@ class Docker ( Host ):
                 # we just add the entryp. commands to the beginning:
                 cmd_field = entryp_field + cmd_field
             if cmd_field is not None:
+                cmd_field.append("> /dev/pts/0 2>&1") # make output available to docker logs
                 cmd_field.append("&")  # put to background (works, but not nice)
                 info("{}: running CMD: {}\n".format(name, cmd_field))
                 self.cmd(" ".join(cmd_field))
