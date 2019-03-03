@@ -785,28 +785,28 @@ class Docker ( Host ):
         # let's initially set our resource limits
         self.update_resources(**self.resources)
 
+    def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
         # Lets try to load it here and manually execute it once the
         # container is started and configured by Containernet:
-        if not kwargs.get("no_cmd_field_execution", False):
-            cmd_field = self.get_cmd_field(self.dimage)
-            entryp_field = self.get_entrypoint_field(self.dimage)
-            if entryp_field is not None:
-                if cmd_field is None:
-                    cmd_field = list()
-                # clean up cmd_field
-                try:
-                    cmd_field.remove(u'/bin/sh')
-                    cmd_field.remove(u'-c')
-                except ValueError as ex:
-                    pass
-                # we just add the entryp. commands to the beginning:
-                cmd_field = entryp_field + cmd_field
-            if cmd_field is not None:
-                cmd_field.append("> /dev/pts/0 2>&1") # make output available to docker logs
-                cmd_field.append("&")  # put to background (works, but not nice)
-                info("{}: running CMD: {}\n".format(name, cmd_field))
-                self.cmd(" ".join(cmd_field))
+        cmd_field = self.get_cmd_field(self.dimage)
+        entryp_field = self.get_entrypoint_field(self.dimage)
+        if entryp_field is not None:
+            if cmd_field is None:
+                cmd_field = list()
+            # clean up cmd_field
+            try:
+                cmd_field.remove(u'/bin/sh')
+                cmd_field.remove(u'-c')
+            except ValueError as ex:
+                pass
+            # we just add the entryp. commands to the beginning:
+            cmd_field = entryp_field + cmd_field
+        if cmd_field is not None:
+            cmd_field.append("> /dev/pts/0 2>&1")  # make output available to docker logs
+            cmd_field.append("&")  # put to background (works, but not nice)
+            info("{}: running CMD: {}\n".format(self.name, cmd_field))
+            self.cmd(" ".join(cmd_field))
 
     def get_cmd_field(self, imagename):
         """
