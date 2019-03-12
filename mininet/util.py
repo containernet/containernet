@@ -115,6 +115,12 @@ def errRun( *cmd, **kwargs ):
                 poller.unregister( fd )
 
     returncode = popen.wait()
+    if popen.stdout:
+        popen.stdout.close()
+    if popen.stdin:
+        popen.stdin.close()
+    if popen.stderr:
+        popen.stderr.close()
     debug( out, err, returncode )
     return out, err, returncode
 # pylint: enable=too-many-branches
