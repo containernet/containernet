@@ -51,7 +51,7 @@ Future enhancements:
 
 - Create proxy objects for remote nodes (Mininet: Cluster Edition)
 """
-
+import errno
 import os
 import pty
 import re
@@ -1777,7 +1777,16 @@ class OVSSwitch( Switch ):
              ' -- '.join( delcmd % s.deployed_name for s in switches ), shell=True )
         # Next, shut down all of the processes
         pids = ' '.join( str( switch.pid ) for switch in switches )
-        run( 'kill -HUP ' + pids )
+
+        success = False
+        while not success:
+            try:
+                run( 'kill -HUP ' + pids )
+                success = True
+            except select.error as e:
+                # retry on interrupt
+                if e[0] != errno.EINTR:
+                    raise
         for switch in switches:
             switch.shell = None
         return switches
