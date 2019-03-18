@@ -1430,6 +1430,7 @@ class Switch( Node ):
            deleteIntfs: delete interfaces? (True)"""
         if deleteIntfs:
             self.deleteIntfs()
+        self.terminate()
 
     def __repr__( self ):
         "More informative string representation"
