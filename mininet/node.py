@@ -141,10 +141,10 @@ class Node( object ):
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
-        master, slave = pty.openpty()
-        self.shell = self._popen( cmd, stdin=slave, stdout=slave, stderr=slave,
+        self.master, self.slave = pty.openpty()
+        self.shell = self._popen( cmd, stdin=self.slave, stdout=self.slave, stderr=self.slave,
                                   close_fds=False )
-        self.stdin = os.fdopen( master, 'rw' )
+        self.stdin = os.fdopen( self.master, 'rw' )
         self.stdout = self.stdin
         self.pid = self.shell.pid
         self.pollOut = select.poll()
@@ -210,6 +210,14 @@ class Node( object ):
         # if self.name in intfName:
         # quietRun( 'ip link del ' + intfName )
         self.shell = None
+        if self.master:
+            self.stdin.close()
+            self.master = None
+            self.stdin = None
+            self.stdout = None
+        if self.slave:
+            os.close(self.slave)
+            self.slave = None
 
     # Subshell I/O, commands and control
 
@@ -785,6 +793,9 @@ class Docker ( Host ):
         # let's initially set our resource limits
         self.update_resources(**self.resources)
 
+        self.master = None
+        self.slave = None
+
     def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
         # Lets try to load it here and manually execute it once the
@@ -865,10 +876,10 @@ class Docker ( Host ):
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
-        master, slave = pty.openpty()
-        self.shell = self._popen( cmd, stdin=slave, stdout=slave, stderr=slave,
+        self.master, self.slave = pty.openpty()
+        self.shell = self._popen( cmd, stdin=self.slave, stdout=self.slave, stderr=self.slave,
                                   close_fds=False )
-        self.stdin = os.fdopen( master, 'rw' )
+        self.stdin = os.fdopen( self.master, 'rw' )
         self.stdout = self.stdin
         self.pid = self._get_pid()
         self.pollOut = select.poll()
@@ -907,6 +918,7 @@ class Docker ( Host ):
             self.dcli.remove_container(self.dc, force=True, v=True)
         except docker.errors.APIError as e:
             warn("Warning: API error during container removal.\n")
+
         self.cleanup()
 
     def sendCmd( self, *args, **kwargs ):
@@ -1418,6 +1430,7 @@ class Switch( Node ):
            deleteIntfs: delete interfaces? (True)"""
         if deleteIntfs:
             self.deleteIntfs()
+        self.terminate()
 
     def __repr__( self ):
         "More informative string representation"
