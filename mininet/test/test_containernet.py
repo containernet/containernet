@@ -57,6 +57,9 @@ class simpleTestTopology( unittest.TestCase ):
 
     def stopNet(self):
         self.net.stop()
+        self.s = []
+        self.h = []
+        self.d = []
 
     def getDockerCli(self):
         """
