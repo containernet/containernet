@@ -68,10 +68,16 @@ class Intf( object ):
         "Configure ourselves using ifconfig"
         return self.cmd( 'ifconfig', self.name, *args )
 
-    def setIP( self, ipstr, prefixLen=None ):
+    def setIP( self, ipstr, prefixLen=None, overwrite=True ):
         """Set our IP address"""
         # This is a sign that we should perhaps rethink our prefix
         # mechanism and/or the way we specify IP addresses
+
+        # remove all old adresses (to remove side effects)
+        # this is needed after the swtich from "ifconfig" to "ip"
+        if overwrite:
+            self.cmd("ip", "address", "flush", "dev", self.name)
+        # add the new address
         if '/' in ipstr:
             self.ip, self.prefixLen = ipstr.split( '/' )
             return self.cmd('ip', 'address', 'add', ipstr, 'dev', self.name)
