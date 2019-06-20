@@ -64,7 +64,8 @@ from time import sleep
 
 from mininet.log import info, error, warn, debug
 from mininet.util import ( quietRun, errRun, errFail, moveIntf, isShellBuiltin,
-                           numCores, retry, mountCgroups )
+                           numCores, retry, mountCgroups, BaseString, decode,
+                           encode, Python3, which )
 from mininet.moduledeps import moduleDeps, pathCheck, TUN
 from mininet.link import Link, Intf, TCIntf, OVSIntf
 from re import findall
@@ -89,6 +90,9 @@ class Node( object ):
         self.privateDirs = params.get( 'privateDirs', [] )
         self.inNamespace = params.get( 'inNamespace', inNamespace )
 
+        # Python 3 complains if we don't wait for shell exit
+        self.waitExited = params.get( 'waitExited', Python3 )
+
         # Stash configuration parameters for future reference
         self.params = params
 
@@ -105,6 +109,7 @@ class Node( object ):
         self.readbuf = ''
 
         # Start command interpreter shell
+        self.master, self.slave = None, None  # pylint
         self.startShell()
         self.mountPrivateDirs()
 
@@ -137,14 +142,18 @@ class Node( object ):
         # -s: pass $* to shell, and make process easy to find in ps
         # prompt is set to sentinel chr( 127 )
         cmd = [ 'mnexec', opts, 'env', 'PS1=' + chr( 127 ),
-                'bash', '--norc', '-is', 'mininet:' + self.name ]
+                'bash', '--norc', '--noediting',
+                '-is', 'mininet:' + self.name ]
+
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
         self.master, self.slave = pty.openpty()
-        self.shell = self._popen( cmd, stdin=self.slave, stdout=self.slave, stderr=self.slave,
-                                  close_fds=False )
-        self.stdin = os.fdopen( self.master, 'rw' )
+        self.shell = self._popen( cmd, stdin=self.slave, stdout=self.slave,
+                                  stderr=self.slave, close_fds=False )
+        # XXX BL: This doesn't seem right, and we should also probably
+        # close our files when we exit...
+        self.stdin = os.fdopen( self.master, 'r' )
         self.stdout = self.stdin
         self.pid = self.shell.pid
         self.pollOut = select.poll()
@@ -171,7 +180,7 @@ class Node( object ):
     def mountPrivateDirs( self ):
         "mount private directories"
         # Avoid expanding a string into a list of chars
-        assert not isinstance( self.privateDirs, basestring )
+        assert not isinstance( self.privateDirs, BaseString )
         for directory in self.privateDirs:
             if isinstance( directory, tuple ):
                 # mount given private directory
@@ -200,7 +209,9 @@ class Node( object ):
             params: parameters to Popen()"""
         # Leave this is as an instance method for now
         assert self
-        return Popen( cmd, **params )
+        popen = Popen( cmd, **params )
+        debug( '_popen', cmd, popen.pid )
+        return popen
 
     def cleanup( self ):
         "Help python collect its garbage."
@@ -209,6 +220,13 @@ class Node( object ):
         # for intfName in self.intfNames():
         # if self.name in intfName:
         # quietRun( 'ip link del ' + intfName )
+        if self.shell:
+            # Close ptys
+            self.stdin.close()
+            os.close(self.slave)
+            if self.waitExited:
+                debug( 'waiting for', self.pid, 'to terminate\n' )
+                self.shell.wait()
         self.shell = None
         if self.master:
             self.stdin.close()
@@ -226,7 +244,7 @@ class Node( object ):
            maxbytes: maximum number of bytes to return"""
         count = len( self.readbuf )
         if count < maxbytes:
-            data = os.read( self.stdout.fileno(), maxbytes - count )
+            data = decode( os.read( self.stdout.fileno(), maxbytes - count ) )
             self.readbuf += data
         if maxbytes >= len( self.readbuf ):
             result = self.readbuf
@@ -250,7 +268,7 @@ class Node( object ):
     def write( self, data ):
         """Write data to node.
            data: string"""
-        os.write( self.stdin.fileno(), data )
+        os.write( self.stdin.fileno(), encode( data ) )
 
     def terminate( self ):
         "Send kill signal to Node and clean up after it."
@@ -279,7 +297,7 @@ class Node( object ):
            and return without waiting for the command to complete.
            args: command and arguments, or string
            printPid: print command's PID? (False)"""
-        assert self.shell# and not self.waiting
+        assert self.shell and not self.waiting
         printPid = kwargs.get( 'printPid', False )
         # Allow sendCmd( [ list ] )
         if len( args ) == 1 and isinstance( args[ 0 ], list ):
@@ -390,19 +408,21 @@ class Node( object ):
             if isinstance( args[ 0 ], list ):
                 # popen([cmd, arg1, arg2...])
                 cmd = args[ 0 ]
-            elif isinstance( args[ 0 ], basestring ):
+            elif isinstance( args[ 0 ], BaseString ):
                 # popen("cmd arg1 arg2...")
-                cmd = args[ 0 ].split()
+                cmd = [ args[ 0 ] ] if shell else args[ 0 ].split()
             else:
                 raise Exception( 'popen() requires a string or list' )
         elif len( args ) > 0:
             # popen( cmd, arg1, arg2... )
             cmd = list( args )
+        if shell:
+            cmd = [ os.environ[ 'SHELL' ], '-c' ] + [ ' '.join( cmd ) ]
         # Attach to our namespace  using mnexec -a
         cmd = defaults.pop( 'mncmd' ) + cmd
-        # Shell requires a string, not a list!
-        if defaults.get( 'shell', False ):
-            cmd = ' '.join( cmd )
+        ### Shell requires a string, not a list!
+        # if defaults.get( 'shell', False ):
+        #     cmd = ' '.join( cmd )
         popen = self._popen( cmd, **defaults )
         return popen
 
@@ -413,8 +433,8 @@ class Node( object ):
                             **kwargs )
         # Warning: this can fail with large numbers of fds!
         out, err = popen.communicate()
-        exitcode = popen.returncode
-        return out, err, exitcode
+        exitcode = popen.wait()
+        return decode( out ), decode( err ), exitcode
 
     # Interface management, configuration, and routing
 
@@ -447,6 +467,15 @@ class Node( object ):
             debug( 'moving', intf, 'into namespace for', self.name, '\n' )
             moveIntfFn( intf.name, self  )
 
+    def delIntf( self, intf ):
+        """Remove interface from Node's known interfaces
+           Note: to fully delete interface, call intf.delete() instead"""
+        port = self.ports.get( intf )
+        if port is not None:
+            del self.intfs[ port ]
+            del self.ports[ intf ]
+            del self.nameToIntf[ intf.name ]
+
     def defaultIntf( self ):
         "Return interface for lowest port"
         ports = self.intfs.keys()
@@ -467,8 +496,8 @@ class Node( object ):
         """
         if not intf:
             return self.defaultIntf()
-        elif isinstance( intf, basestring):
-            return self.nameToIntf.get(intf)
+        elif isinstance( intf, BaseString):
+            return self.nameToIntf[ intf ]
         else:
             return intf
 
@@ -494,7 +523,7 @@ class Node( object ):
         # explicitly so that we won't get errors if we run before they
         # have been removed by the kernel. Unfortunately this is very slow,
         # at least with Linux kernels before 2.6.33
-        for intf in self.intfs.values():
+        for intf in list( self.intfs.values() ):
             # Protect against deleting hardware interfaces
             if ( self.name in intf.name ) or ( not checkName ):
                 intf.delete()
@@ -519,7 +548,7 @@ class Node( object ):
         """Set the default route to go through intf.
            intf: Intf or {dev <intfname> via <gw-ip> ...}"""
         # Note setParam won't call us if intf is none
-        if isinstance( intf, basestring ) and ' ' in intf:
+        if isinstance( intf, BaseString ) and ' ' in intf:
             params = intf
         else:
             params = 'dev %s' % intf
@@ -566,7 +595,7 @@ class Node( object ):
            method: config method name
            param: arg=value (ignore if value=None)
            value may also be list or dict"""
-        name, value = param.items()[ 0 ]
+        name, value = list( param.items() )[ 0 ]
         if value is None:
             return
         f = getattr( self, method, None )
@@ -615,7 +644,7 @@ class Node( object ):
 
     def intfList( self ):
         "List of our interfaces sorted by port number"
-        return [ self.intfs[ p ] for p in sorted( self.intfs.iterkeys() ) ]
+        return [ self.intfs[ p ] for p in sorted( self.intfs.keys() ) ]
 
     def intfNames( self ):
         "The names of our interfaces sorted by port number"
@@ -1203,15 +1232,15 @@ class CPULimitedHost( Host ):
         _out, _err, exitcode = errRun( 'cgdelete -r ' + self.cgroup )
         # Sometimes cgdelete returns a resource busy error but still
         # deletes the group; next attempt will give "no such file"
-        return exitcode == 0  or ( 'no such file' in _err.lower() )
+        return exitcode == 0 or ( 'no such file' in _err.lower() )
 
     def popen( self, *args, **kwargs ):
         """Return a Popen() object in node's namespace
            args: Popen() args, single list, or string
            kwargs: Popen() keyword args"""
         # Tell mnexec to execute command in our cgroup
-        mncmd = [ 'mnexec', '-g', self.name,
-                  '-da', str( self.pid ) ]
+        mncmd = kwargs.pop( 'mncmd', [ 'mnexec', '-g', self.name,
+                                       '-da', str( self.pid ) ] )
         # if our cgroup is not given any cpu time,
         # we cannot assign the RR Scheduler.
         if self.sched == 'rt':
@@ -1387,7 +1416,7 @@ class Switch( Node ):
         "Return correctly formatted dpid from dpid or switch name (s1 -> 1)"
         if dpid:
             # Remove any colons and make sure it's a good hex number
-            dpid = dpid.translate( None, ':' )
+            dpid = dpid.replace( ':', '' )
             assert len( dpid ) <= self.dpidLen and int( dpid, 16 ) >= 0
         else:
             # Use hex of the first number in the switch name
@@ -1395,6 +1424,7 @@ class Switch( Node ):
             if nums:
                 dpid = hex( int( nums[ 0 ] ) )[ 2: ]
             else:
+                self.terminate()  # Python 3.6 crash workaround
                 raise Exception( 'Unable to derive default datapath ID - '
                                  'please either specify a dpid or use a '
                                  'canonical switch name such as s23.' )
@@ -1684,6 +1714,7 @@ class OVSSwitch( Switch ):
             opts += ' protocols=%s' % self.protocols
         if self.stp and self.failMode == 'standalone':
             opts += ' stp_enable=true'
+        opts += ' other-config:dp-desc=%s' % self.name
         return opts
 
     def start( self, controllers ):
@@ -1753,7 +1784,7 @@ class OVSSwitch( Switch ):
             run( cmds, shell=True )
         # Reapply link config if necessary...
         for switch in switches:
-            for intf in switch.intfs.itervalues():
+            for intf in switch.intfs.values():
                 if isinstance( intf, TCIntf ):
                     intf.config( **intf.params )
         return switches
@@ -1788,6 +1819,7 @@ class OVSSwitch( Switch ):
                 if e[0] != errno.EINTR:
                     raise
         for switch in switches:
+            switch.terminate()
             switch.shell = None
         return switches
 
@@ -1807,7 +1839,7 @@ class OVSBridge( OVSSwitch ):
         # ip address of this bridge (eg. 10.10.0.1/24)
         self.ip = kwargs.get('ip')
 
-    def start( self ):
+    def start( self, controllers ):
         "Start bridge, ignoring controllers argument"
         OVSSwitch.start( self, controllers=[] )
 
@@ -1968,21 +2000,21 @@ class Controller( Node ):
     @classmethod
     def isAvailable( cls ):
         "Is controller available?"
-        return quietRun( 'which controller' )
+        return which( 'controller' )
 
 
 class OVSController( Controller ):
     "Open vSwitch controller"
-    def __init__( self, name, command='ovs-controller', **kwargs ):
-        if quietRun( 'which test-controller' ):
-            command = 'test-controller'
-        Controller.__init__( self, name, command=command, **kwargs )
+    def __init__( self, name, **kwargs ):
+        kwargs.setdefault( 'command', self.isAvailable() or
+                           'ovs-controller' )
+        Controller.__init__( self, name, **kwargs )
 
     @classmethod
     def isAvailable( cls ):
-        return ( quietRun( 'which ovs-controller' ) or
-                 quietRun( 'which test-controller' ) or
-                 quietRun( 'which ovs-testcontroller' ) )
+        return (which( 'ovs-controller' ) or
+                which( 'test-controller' ) or
+                which( 'ovs-testcontroller' ))
 
 class NOX( Controller ):
     "Controller to run a NOX application."

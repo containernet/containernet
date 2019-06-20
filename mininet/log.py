@@ -160,7 +160,7 @@ def makeListCompatible( fn ):
         "Generated function. Closure-ish."
         if len( args ) == 1:
             return fn( *args )
-        args = ' '.join( [ str( arg ) for arg in args ] )
+        args = ' '.join( str( arg ) for arg in args )
         return fn( args )
 
     # Fix newfn's name and docstring
@@ -168,9 +168,10 @@ def makeListCompatible( fn ):
     setattr( newfn, '__doc__', fn.__doc__ )
     return newfn
 
-info, output, warn, error, debug = (
-    lg.info, lg.output, lg.warn, lg.error, lg.debug ) = [
-        makeListCompatible( f ) for f in
-            lg.info, lg.output, lg.warn, lg.error, lg.debug ]
+_loggers = lg.info, lg.output, lg.warn, lg.error, lg.debug
+_loggers = tuple( makeListCompatible( logger )
+                  for logger in _loggers )
+lg.info, lg.output, lg.warn, lg.error, lg.debug = _loggers
+info, output, warn, error, debug = _loggers
 
 setLogLevel = lg.setLogLevel
