@@ -168,10 +168,10 @@ def makeListCompatible( fn ):
     setattr( newfn, '__doc__', fn.__doc__ )
     return newfn
 
-_loggers = lg.info, lg.output, lg.warn, lg.error, lg.debug
+_loggers = lg.info, lg.output, lg.warning, lg.error, lg.debug
 _loggers = tuple( makeListCompatible( logger )
                   for logger in _loggers )
-lg.info, lg.output, lg.warn, lg.error, lg.debug = _loggers
+lg.info, lg.output, lg.warning, lg.error, lg.debug = _loggers
 info, output, warn, error, debug = _loggers
 
 setLogLevel = lg.setLogLevel

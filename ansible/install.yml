@@ -30,6 +30,9 @@
    - name: install Docker CE
      apt: name=docker-ce state=installed
 
+   - name: install pip
+     pip: name=pip state=latest
+
    - name: install pytest
      pip: name=pytest state=latest
 

@@ -223,7 +223,7 @@ class Node( object ):
         if self.shell:
             # Close ptys
             self.stdin.close()
-            os.close(self.slave)
+            # os.close(self.slave)
             if self.waitExited:
                 debug( 'waiting for', self.pid, 'to terminate\n' )
                 self.shell.wait()
@@ -908,7 +908,7 @@ class Docker ( Host ):
         self.master, self.slave = pty.openpty()
         self.shell = self._popen( cmd, stdin=self.slave, stdout=self.slave, stderr=self.slave,
                                   close_fds=False )
-        self.stdin = os.fdopen( self.master, 'rw' )
+        self.stdin = os.fdopen( self.master, 'r' )
         self.stdout = self.stdin
         self.pid = self._get_pid()
         self.pollOut = select.poll()
@@ -1112,7 +1112,7 @@ class Docker ( Host ):
 
         # also negative values can be set for cpu_quota (uncontrained setting)
         # just check if value is a valid integer
-        if isinstance(cpu_quota, (int, long)):
+        if isinstance(cpu_quota, int):
             self.resources['cpu_quota'] = self.cgroupSet("cfs_quota_us", cpu_quota)
         if cpu_period >= 0:
             self.resources['cpu_period'] = self.cgroupSet("cfs_period_us", cpu_period)

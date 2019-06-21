@@ -1,14 +1,22 @@
 language: python
 sudo: required
-python: 2.7
 
 matrix:
   include:
     #- dist: trusty
+    #  python: 2.7
     #  env: dist="14.04 LTS trusty"
     - dist: xenial
+      python: 2.7
+      env: dist="16.04 LTS xenial"
+    - dist: xenial
+      python: 3.5
       env: dist="16.04 LTS xenial"
     - dist: bionic
+      python: 2.7
+      env: dist="18.04 LTS bionic" 
+    - dist: bionic
+      python: 3.5
       env: dist="18.04 LTS bionic" 
 
 env:
@@ -19,7 +27,9 @@ virtualenv:
   system_site_packages: true
 
 before_install:
-  - sudo apt-get -qq update
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq vlan
+  - PYTHON=`which python` util/install.sh -n
   - sudo DEBIAN_FRONTEND=noninteractive apt-get -y install ansible libffi-dev libssl-dev
   - cd ansible
 

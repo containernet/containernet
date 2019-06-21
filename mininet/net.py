@@ -248,7 +248,7 @@ class Mininet( object ):
         """
         Remove a host from the network at runtime.
         """
-        if not isinstance( name, basestring ) and name is not None:
+        if not isinstance( name, BaseString ) and name is not None:
             name = name.name  # if we get a host object
         try:
             h = self.get(name)
@@ -452,8 +452,8 @@ class Mininet( object ):
         or the nodes the link connects.
         """
         if link is None:
-            if (isinstance( node1, basestring )
-                    and isinstance( node2, basestring )):
+            if (isinstance( node1, BaseString )
+                    and isinstance( node2, BaseString )):
                 try:
                     node1 = self.get(node1)
                 except:
