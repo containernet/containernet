@@ -15,7 +15,6 @@ try:
 	from builtins import str
 except ImportError:
 	pass
-
 from subprocess import ( Popen, PIPE, check_output as co,
                          CalledProcessError )
 from subprocess import call
@@ -140,7 +139,7 @@ class Cleanup( object ):
 
         for rule in chain.rules:
             if SAP_PREFIX in str(rule.out_interface):
-                src_CIDR = str(ipaddress.IPv4Network(str(rule.src)))
+                src_CIDR = str(ipaddress.IPv4Network(u'{}'.format(str(rule.src))))
                 rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".\
                     format(rule.out_interface.strip('!'), src_CIDR)
                 p = Popen(shlex.split(rule0_))
@@ -151,7 +150,7 @@ class Cleanup( object ):
         table = iptc.Table(iptc.Table.FILTER)
         chain = iptc.Chain(table, 'FORWARD')
         for rule in chain.rules:
-            src_CIDR = str(ipaddress.IPv4Network(str(rule.src)))
+            src_CIDR = str(ipaddress.IPv4Network(u'{}'.format(str(rule.src))))
             if SAP_PREFIX in str(rule.out_interface):
                 rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(rule.out_interface)
                 p = Popen(shlex.split(rule1_))
