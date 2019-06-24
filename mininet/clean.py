@@ -10,6 +10,12 @@ It may also get rid of 'false positives', but hopefully
 nothing irreplaceable!
 """
 
+from __future__ import unicode_literals
+try:
+	from builtins import str
+except ImportError:
+	pass
+
 from subprocess import ( Popen, PIPE, check_output as co,
                          CalledProcessError )
 from subprocess import call
