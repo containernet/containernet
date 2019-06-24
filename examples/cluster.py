@@ -126,7 +126,7 @@ class ClusterCleanup( object ):
     def cleanup( cls ):
         "Clean up"
         info( '*** Cleaning up cluster\n' )
-        for server, user in cls.serveruser.items():
+        for server, user in list(cls.serveruser.items()):
             if server == 'localhost':
                 # Handled by mininet.clean.cleanup()
                 continue
@@ -611,7 +611,7 @@ class RoundRobinPlacer( Placer ):
             nodename: node name"""
         assert nodename  # please pylint
         # This may be slow with lots of servers
-        server = self.servers[ self.next ]
+        server = self.servers[ self.__next__ ]
         self.next = ( self.next + 1 ) % len( self.servers )
         return server
 
@@ -828,7 +828,7 @@ class MininetCluster( Mininet ):
         for node in nodes:
             config = self.topo.nodeInfo( node )
             # keep local server name consistent accross nodes
-            if 'server' in config.keys() and config[ 'server' ] is None:
+            if 'server' in list(config.keys()) and config[ 'server' ] is None:
                 config[ 'server' ] = 'localhost'
             server = config.setdefault( 'server', placer.place( node ) )
             if server:
@@ -848,7 +848,7 @@ class MininetCluster( Mininet ):
              controller.IP() != loopback ):
             return
         # Find route to a different server IP address
-        serverIPs = [ ip for ip in self.serverIP.values()
+        serverIPs = [ ip for ip in list(self.serverIP.values())
                       if ip is not controller.IP() ]
         if not serverIPs:
             return  # no remote servers - loopback is fine

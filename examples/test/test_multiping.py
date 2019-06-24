@@ -41,7 +41,7 @@ class testMultiPing( unittest.TestCase ):
             else:
                 break
         self.assertTrue( len( pings ) > 0 )
-        for t in pings.values():
+        for t in list(pings.values()):
             self.assertEqual( len( t ), 0 )
 
 if __name__ == '__main__':

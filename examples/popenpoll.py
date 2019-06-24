@@ -14,18 +14,18 @@ def pmonitorTest( N=3, seconds=10 ):
     net = Mininet( topo )
     net.start()
     hosts = net.hosts
-    print "Starting test..."
+    print("Starting test...")
     server = hosts[ 0 ]
     popens = {}
     for h in hosts:
         popens[ h ] = h.popen('ping', server.IP() )
-    print "Monitoring output for", seconds, "seconds"
+    print("Monitoring output for", seconds, "seconds")
     endTime = time() + seconds
     for h, line in pmonitor( popens, timeoutms=500 ):
         if h:
-            print '<%s>: %s' % ( h.name, line ),
+            print('<%s>: %s' % ( h.name, line ), end=' ')
         if time() >= endTime:
-            for p in popens.values():
+            for p in list(popens.values()):
                 p.send_signal( SIGINT )
     net.stop()
 

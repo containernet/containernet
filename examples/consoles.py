@@ -27,7 +27,7 @@ Bob Lantz, April 2010
 
 import re
 
-from Tkinter import Frame, Button, Label, Text, Scrollbar, Canvas, Wm, READABLE
+from tkinter import Frame, Button, Label, Text, Scrollbar, Canvas, Wm, READABLE
 
 from mininet.log import setLogLevel
 from mininet.topolib import TreeNet
