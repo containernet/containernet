@@ -16,8 +16,9 @@
        state: latest
 
    - name: install basic packages
-     yum: name={{item}} state=latest
-     with_items:
+     yum:
+       state: latest
+       name: 
        - net-tools
        - python-setuptools
        - python-devel

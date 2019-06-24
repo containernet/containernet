@@ -31,7 +31,7 @@ class testMultiPoll( unittest.TestCase ):
                 break
         self.assertTrue( len( pings ) > 0 )
         # make sure we have received at least one ping per second
-        for count in pings.values():
+        for count in list(pings.values()):
             self.assertTrue( count >= seconds )
 
 if __name__ == '__main__':

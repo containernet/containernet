@@ -27,7 +27,7 @@ def monitorhosts( hosts=5, sched='cfs' ):
     # Monitor them and print output
     for host, line in pmonitor( popens ):
         if host:
-            print "<%s>: %s" % ( host.name, line.strip() )
+            print(("<%s>: %s" % ( host.name, line.strip() )))
     # Done
     net.stop()
 

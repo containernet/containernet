@@ -17,7 +17,7 @@ def monitorFiles( outfiles, seconds, timeoutms ):
     "Monitor set of files and return [(host, line)...]"
     devnull = open( '/dev/null', 'w' )
     tails, fdToFile, fdToHost = {}, {}, {}
-    for h, outfile in outfiles.iteritems():
+    for h, outfile in list(outfiles.items()):
         tail = Popen( [ 'tail', '-f', outfile ],
                       stdout=PIPE, stderr=devnull )
         fd = tail.stdout.fileno()
@@ -26,7 +26,7 @@ def monitorFiles( outfiles, seconds, timeoutms ):
         fdToHost[ fd ] = h
     # Prepare to poll output files
     readable = poll()
-    for t in tails.values():
+    for t in list(tails.values()):
         readable.register( t.stdout.fileno(), POLLIN )
     # Run until a set number of seconds have elapsed
     endTime = time() + seconds
@@ -42,7 +42,7 @@ def monitorFiles( outfiles, seconds, timeoutms ):
         else:
             # If we timed out, return nothing
             yield None, ''
-    for t in tails.values():
+    for t in list(tails.values()):
         t.terminate()
     devnull.close()  # Not really necessary
 
@@ -53,7 +53,7 @@ def monitorTest( N=3, seconds=3 ):
     net = Mininet( topo )
     net.start()
     hosts = net.hosts
-    print "Starting test..."
+    print("Starting test...")
     server = hosts[ 0 ]
     outfiles, errfiles = {}, {}
     for h in hosts:
@@ -67,10 +67,10 @@ def monitorTest( N=3, seconds=3 ):
                    '>', outfiles[ h ],
                    '2>', errfiles[ h ],
                    '&' )
-    print "Monitoring output for", seconds, "seconds"
+    print(("Monitoring output for", seconds, "seconds"))
     for h, line in monitorFiles( outfiles, seconds, timeoutms=500 ):
         if h:
-            print '%s: %s' % ( h.name, line )
+            print(('%s: %s' % ( h.name, line )))
     for h in hosts:
         h.cmd('kill %ping')
     net.stop()
