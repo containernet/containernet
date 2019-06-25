@@ -404,6 +404,7 @@ class Node( object ):
                      'mncmd':
                      [ 'mnexec', '-da', str( self.pid ) ] }
         defaults.update( kwargs )
+        shell = defaults.pop( 'shell', False )
         if len( args ) == 1:
             if isinstance( args[ 0 ], list ):
                 # popen([cmd, arg1, arg2...])
