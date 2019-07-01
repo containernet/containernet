@@ -51,7 +51,7 @@
         - notindocker
 
    - name: install pytest
-     pip: name=pytest state=latest
+     pip: name=pytest version=4.6.4
 
    - name: install docker-py
      pip: name=docker version=2.0.2
