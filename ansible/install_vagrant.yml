@@ -57,7 +57,7 @@
   - name: install python-iptables
     pip: name=python-iptables state=latest
 
-  - name: built and install Containernet (using Mininet installer)
+  - name: build and install Containernet (using Mininet installer)
     shell: containernet/util/install.sh
     args:
       chdir: /var
