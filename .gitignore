@@ -1,3 +1,5 @@
+venv/
+venv3/
 mnexec
 .cache/
 *.log
