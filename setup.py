@@ -48,7 +48,7 @@ setup(
         'python-iptables',
         'pytest',
         # fixes: https://github.com/pytest-dev/pytest/issues/4770
-        'more-itertools<=5.0.0'
+        'more-itertools'
     ],
     scripts=scripts,
 )
