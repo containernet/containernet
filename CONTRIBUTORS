@@ -56,7 +56,8 @@ mailing list!
 Containernet Contributors
 
 Containernet is a fork of Mininet that allows to use Docker containers
-as Mininet hosts.
+as Mininet hosts. We thank all Mininet contributors for providing this great
+open source platform!
 
 Containernet contributors include:
 
@@ -66,6 +67,8 @@ Malte Splietker
 Dennis Sehring
 Johannes Kampmeyer
 Marco De Benedictis
+Erik Schilling
+Zohar Lorberbaum
 
 
 
