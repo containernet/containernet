@@ -34,8 +34,8 @@ def startpings( host, targetips ):
             ' done; '
             'done &' )
 
-    print ( '*** Host %s (%s) will be pinging ips: %s' %
-            ( host.name, host.IP(), targetips ) )
+    print(( '*** Host %s (%s) will be pinging ips: %s' %
+            ( host.name, host.IP(), targetips ) ))
 
     host.cmd( cmd )
 
@@ -69,7 +69,7 @@ def multiping( netsize, chunksize, seconds):
         readable = poller.poll(1000)
         for fd, _mask in readable:
             node = Node.outToNode[ fd ]
-            print '%s:' % node.name, node.monitor().strip()
+            print(('%s:' % node.name, node.monitor().strip()))
 
     # Stop pings
     for host in hosts:

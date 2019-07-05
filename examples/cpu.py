@@ -20,7 +20,7 @@ def bwtest( cpuLimits, period_us=100000, seconds=5 ):
     results = {}
 
     for sched in 'rt', 'cfs':
-        print '*** Testing with', sched, 'bandwidth limiting'
+        print(('*** Testing with', sched, 'bandwidth limiting'))
         for cpu in cpuLimits:
             host = custom( CPULimitedHost, sched=sched,
                            period_us=period_us,
@@ -54,16 +54,16 @@ def dump( results ):
 
     fmt = '%s\t%s\t%s'
 
-    print
-    print fmt % ( 'sched', 'cpu', 'client MB/s' )
-    print
+    print()
+    print((fmt % ( 'sched', 'cpu', 'client MB/s' )))
+    print()
 
     for sched in sorted( results.keys() ):
         entries = results[ sched ]
         for cpu, bps in entries:
             pct = '%.2f%%' % ( cpu * 100 )
             mbps = bps / 1e6
-            print fmt % ( sched, pct, mbps )
+            print((fmt % ( sched, pct, mbps )))
 
 
 if __name__ == '__main__':

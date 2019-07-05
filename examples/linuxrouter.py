@@ -54,7 +54,7 @@ class NetworkTopo( Topo ):
         defaultIP = '192.168.1.1/24'  # IP address for r0-eth1
         router = self.addNode( 'r0', cls=LinuxRouter, ip=defaultIP )
 
-        s1, s2, s3 = [ self.addSwitch( s ) for s in 's1', 's2', 's3' ]
+        s1, s2, s3 = [ self.addSwitch( s ) for s in ('s1', 's2', 's3') ]
 
         self.addLink( s1, router, intfName2='r0-eth1',
                       params2={ 'ip' : defaultIP } )  # for clarity
@@ -80,7 +80,7 @@ def run():
     net = Mininet( topo=topo )  # controller is used by s1-s3
     net.start()
     info( '*** Routing Table on Router:\n' )
-    print net[ 'r0' ].cmd( 'route' )
+    print((net[ 'r0' ].cmd( 'route' )))
     CLI( net )
     net.stop()
 

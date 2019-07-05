@@ -29,6 +29,8 @@ from subprocess import call
 from cmd import Cmd
 from os import isatty
 from select import poll, POLLIN
+import select
+import errno
 import sys
 import time
 import os
@@ -80,13 +82,15 @@ class CLI( Cmd ):
             return
         cls.readlineInited = True
         try:
-            from readline import read_history_file, write_history_file
+            from readline import ( read_history_file, write_history_file,
+                                   set_history_length )
         except ImportError:
             pass
         else:
             history_path = os.path.expanduser( '~/.mininet_history' )
             if os.path.isfile( history_path ):
                 read_history_file( history_path )
+                set_history_length( 1000 )
             atexit.register( lambda: write_history_file( history_path ) )
 
     def run( self ):
@@ -179,7 +183,7 @@ class CLI( Cmd ):
                 output( result + '\n' )
             else:
                 output( repr( result ) + '\n' )
-        except Exception, e:
+        except Exception as e:
             output( str( e ) + '\n' )
 
     # We are in fact using the exec() pseudo-function
@@ -190,7 +194,7 @@ class CLI( Cmd ):
             Node names may be used, e.g.: px print h1.cmd('ls')"""
         try:
             exec( line, globals(), self.getLocals() )
-        except Exception, e:
+        except Exception as e:
             output( str( e ) + '\n' )
 
     # pylint: enable=broad-except,exec-used
@@ -374,7 +378,7 @@ class CLI( Cmd ):
     def do_links( self, _line ):
         "Report on links"
         for link in self.mn.links:
-            print link, link.status()
+            output( link, link.status(), '\n' )
 
     def do_switch( self, line ):
         "Starts or stops a switch"
@@ -400,15 +404,16 @@ class CLI( Cmd ):
 
     def default( self, line ):
         """Called on an input line when the command prefix is not recognized.
-        Overridden to run shell commands when a node is the first CLI argument.
-        Past the first CLI argument, node names are automatically replaced with
-        corresponding IP addrs."""
+           Overridden to run shell commands when a node is the first
+           CLI argument.  Past the first CLI argument, node names are
+           automatically replaced with corresponding IP addrs."""
 
         first, args, line = self.parseline( line )
 
         if first in self.mn:
             if not args:
-                print "*** Enter a command for node: %s <cmd>" % first
+                error( '*** Please enter a command for node: %s <cmd>\n'
+                       % first )
                 return
             node = self.mn[ first ]
             rest = args.split( ' ' )
@@ -460,6 +465,13 @@ class CLI( Cmd ):
                 # it's possible to interrupt ourselves after we've
                 # read data but before it has been printed.
                 node.sendInt()
+            except select.error as e:
+                # pylint: disable=unpacking-non-sequence
+                errno_, errmsg = e.args
+                # pylint: enable=unpacking-non-sequence
+                if errno_ != errno.EINTR:
+                    error( "select.error: %d, %s" % (errno_, errmsg) )
+                    node.sendInt()
 
     def precmd( self, line ):
         "allow for comments in the cli"

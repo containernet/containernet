@@ -53,7 +53,7 @@ class ClusterCLI( CLI ):
         g.add_edges_from( links )
         # Pick some shapes and colors
         # shapes = hlen * [ 's' ] + slen * [ 'o' ]
-        color = dict( zip( servers, self.colorsFor( servers ) ) )
+        color = dict( list(zip( servers, self.colorsFor( servers ) )) )
         # Plot it!
         pos = nx.graphviz_layout( g )
         opts = { 'ax': None, 'font_weight': 'bold',

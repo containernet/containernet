@@ -65,11 +65,11 @@ def testPortNumbering():
                    'is actually on port', s1.ports[intfs], '... ' )
             if validatePort( s1, intfs ):
                 info( 'Validated.\n' )
-    print '\n'
+    print('\n')
 
     # test the network with pingall
     net.pingAll()
-    print '\n'
+    print('\n')
 
     info( '*** Stopping network' )
     net.stop()

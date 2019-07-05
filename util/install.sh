@@ -40,6 +40,7 @@ if [ "$DIST" = "Ubuntu" ] || [ "$DIST" = "Debian" ]; then
     install='sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q install'
     remove='sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q remove'
     pkginst='sudo dpkg -i'
+    update='sudo apt-get'
     # Prereqs for this script
     if ! which lsb_release &> /dev/null; then
         $install lsb-release
@@ -53,9 +54,20 @@ if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "Cent
     install='sudo yum -y install'
     remove='sudo yum -y erase'
     pkginst='sudo rpm -ivh'
+    update='sudo yum'
     # Prereqs for this script
     if ! which lsb_release &> /dev/null; then
         $install redhat-lsb-core
+    fi
+fi
+test -e /etc/SuSE-release && DIST="SUSE Linux"
+if [ "$DIST" = "SUSE Linux" ]; then
+    install='sudo zypper --non-interactive install '
+    remove='sudo zypper --non-interactive  remove '
+    pkginst='sudo rpm -ivh'
+    # Prereqs for this script
+    if ! which lsb_release &> /dev/null; then
+		$install openSUSE-release
     fi
 fi
 if which lsb_release &> /dev/null; then
@@ -70,8 +82,12 @@ echo "Detected Linux distribution: $DIST $RELEASE $CODENAME $ARCH"
 KERNEL_NAME=`uname -r`
 KERNEL_HEADERS=kernel-headers-${KERNEL_NAME}
 
-if ! echo $DIST | egrep 'Ubuntu|Debian|Fedora|RedHatEnterpriseServer|CentOS'; then
-    echo "Install.sh currently only supports Ubuntu, Debian, RedHat, Fedora and CentOS."
+# Treat Raspbian as Debian
+[ "$DIST" = 'Raspbian' ] && DIST='Debian'
+
+DISTS='Ubuntu|Debian|Fedora|RedHatEnterpriseServer|SUSE LINUX|CentOS'
+if ! echo $DIST | egrep "$DISTS" >/dev/null; then
+    echo "Install.sh currently only supports $DISTS."
     exit 1
 fi
 
@@ -88,6 +104,14 @@ function version_ge {
     [ "$1" == "$latest" ]
 }
 
+# Attempt to identify Python version
+PYTHON=${PYTHON:-python}
+if $PYTHON --version |& grep 'Python 2' > /dev/null; then
+    PYTHON_VERSION=2; PYPKG=python
+else
+    PYTHON_VERSION=3; PYPKG=python3
+fi
+echo "${PYTHON} is version ${PYTHON_VERSION}"
 
 # Kernel Deb pkg to be removed:
 KERNEL_IMAGE_OLD=linux-image-2.6.26-33-generic
@@ -109,13 +133,14 @@ function pre_build {
 
 function kernel {
     echo "Install Mininet-compatible kernel if necessary"
-    yum_update='sudo yum -y update'
-    apt_update='sudo apt-get update'
-    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
-        $yum_update
-    else
-        $apt_update
-    fi
+    # yum_update='sudo yum -y update'
+    # apt_update='sudo apt-get update'
+    # if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
+    #     $yum_update
+    # else
+    #     $apt_update
+    # fi
+    $update update
     if ! $install linux-image-$KERNEL_NAME; then
         echo "Could not install linux-image-$KERNEL_NAME"
         echo "Skipping - assuming installed kernel is OK."
@@ -141,15 +166,21 @@ function mn_deps {
         $install gcc make socat psmisc xterm openssh-clients iperf \
             iproute telnet python-setuptools libcgroup-tools \
             ethtool help2man pyflakes pylint python-pep8 python-pexpect
-    else
-        $install gcc make socat psmisc xterm ssh iperf iproute2 telnet \
-            python-setuptools cgroup-bin ethtool help2man \
-            pyflakes pylint pep8 python-pexpect
+    elif [ "$DIST" = "SUSE LINUX"  ]; then
+		$install gcc make socat psmisc xterm openssh iperf \
+			iproute telnet ${PYPKG}-setuptools libcgroup-tools \
+			ethtool help2man python-pyflakes python3-pylint \
+                        python-pep8 ${PYPKG}-pexpect ${PYPKG}-tk
+    else  # Debian/Ubuntu
+        $install gcc make socat psmisc xterm ssh iperf telnet \
+                 cgroup-bin ethtool help2man pyflakes pylint pep8 \
+                 ${PYPKG}-setuptools ${PYPKG}-pexpect ${PYPKG}-tk
+        $install iproute2 || $install iproute
     fi
 
     echo "Installing Mininet core"
     pushd $MININET_DIR/containernet
-    sudo make install
+    sudo PYTHON=${PYTHON} make install
     popd
 }
 
@@ -172,12 +203,14 @@ function of {
     $install autoconf automake libtool make gcc
     if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install git pkgconfig glibc-devel
+	elif [ "$DIST" = "SUSE LINUX"  ]; then
+       $install git pkgconfig glibc-devel
     else
         $install git-core autotools-dev pkg-config libc6-dev
     fi
     # was: git clone git://openflowswitch.org/openflow.git
     # Use our own fork on github for now:
-    git clone https://github.com/mininet/openflow
+    git clone git://github.com/mininet/openflow
     cd $BUILD_DIR/openflow
 
     # Patch controller to handle more than 16 switches
@@ -240,6 +273,8 @@ function install_wireshark {
         echo "Installing Wireshark"
         if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
             $install wireshark wireshark-gnome
+		elif [ "$DIST" = "SUSE LINUX"  ]; then
+			$install wireshark
         else
             $install wireshark tshark
         fi
@@ -322,30 +357,36 @@ function ubuntuOvs {
     fi
 
     # Remove any old packages
-    $remove openvswitch-common openvswitch-datapath-dkms openvswitch-controller \
-            openvswitch-pki openvswitch-switch
+
+    $remove openvswitch-common openvswitch-datapath-dkms openvswitch-pki openvswitch-switch \
+            openvswitch-controller || true
 
     # Get build deps
     $install build-essential fakeroot debhelper autoconf automake libssl-dev \
              pkg-config bzip2 openssl python-all procps python-qt4 \
-             python-zopeinterface python-twisted-conch dkms
+             python-zopeinterface python-twisted-conch dkms dh-python dh-autoreconf \
+             uuid-runtime
 
     # Build OVS
+    parallel=`grep processor /proc/cpuinfo | wc -l`
     cd $BUILD_DIR/openvswitch/openvswitch-$OVS_RELEASE
-            DEB_BUILD_OPTIONS='parallel=2 nocheck' fakeroot debian/rules binary
+            DEB_BUILD_OPTIONS='parallel=$parallel nocheck' fakeroot debian/rules binary
     cd ..
-    $pkginst openvswitch-common_$OVS_RELEASE*.deb openvswitch-datapath-dkms_$OVS_RELEASE*.deb \
-             openvswitch-pki_$OVS_RELEASE*.deb openvswitch-switch_$OVS_RELEASE*.deb
-    if $pkginst openvswitch-controller_$OVS_RELEASE*.deb; then
+    for pkg in common datapath-dkms pki switch; do
+        pkg=openvswitch-${pkg}_$OVS_RELEASE*.deb
+        echo "Installing $pkg"
+        $pkginst $pkg
+    done
+    if $pkginst openvswitch-controller_$OVS_RELEASE*.deb 2>/dev/null; then
         echo "Ignoring error installing openvswitch-controller"
     fi
 
-    modinfo openvswitch
+    /sbin/modinfo openvswitch
     sudo ovs-vsctl show
     # Switch can run on its own, but
     # Mininet should control the controller
     # This appears to only be an issue on Ubuntu/Debian
-    if sudo service openvswitch-controller stop; then
+    if sudo service openvswitch-controller stop 2>/dev/null; then
         echo "Stopped running controller"
     fi
     if [ -e /etc/init.d/openvswitch-controller ]; then
@@ -393,7 +434,7 @@ function ovs {
         # Switch can run on its own, but
         # Mininet should control the controller
         # This appears to only be an issue on Ubuntu/Debian
-        if sudo service $OVSC stop; then
+        if sudo service $OVSC stop 2>/dev/null; then
             echo "Stopped running controller"
         fi
         if [ -e /etc/init.d/$OVSC ]; then
@@ -429,12 +470,19 @@ function ivs {
     IVS_SRC=$BUILD_DIR/ivs
 
     # Install dependencies
-    $install git pkg-config gcc make libnl-3-dev libnl-route-3-dev libnl-genl-3-dev
+    $install gcc make
+    if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" ]; then
+        $install git pkgconfig libnl3-devel libcap-devel openssl-devel
+    else
+        $install git-core pkg-config libnl-3-dev libnl-route-3-dev \
+            libnl-genl-3-dev
+    fi
 
     # Install IVS from source
     cd $BUILD_DIR
-    git clone https://github.com/floodlight/ivs $IVS_SRC --recursive
+    git clone git://github.com/floodlight/ivs $IVS_SRC
     cd $IVS_SRC
+    git submodule update --init
     make
     sudo make install
 }
@@ -446,7 +494,8 @@ function ryu {
     # install Ryu dependencies"
     $install autoconf automake g++ libtool python make
     if [ "$DIST" = "Ubuntu" -o "$DIST" = "Debian" ]; then
-        $install libxml2 libxslt-dev python-pip python-dev
+        $install gcc python-pip python-dev libffi-dev libssl-dev \
+            libxml2-dev libxslt1-dev zlib1g-dev
         sudo pip install --upgrade gevent pbr webob routes paramiko \\
             oslo.config
     fi
@@ -459,11 +508,13 @@ function ryu {
     fi
     # fetch RYU
     cd $BUILD_DIR/
-    git clone https://github.com/osrg/ryu.git ryu
+    git clone git://github.com/osrg/ryu.git ryu
     cd ryu
 
     # install ryu
-    sudo python ./setup.py install
+    sudo pip install -r tools/pip-requires -r tools/optional-requires \
+        -r tools/test-requires
+    sudo python setup.py install
 
     # Add symbolic link to /usr/bin
     sudo ln -s ./bin/ryu-manager /usr/local/bin/ryu-manager
@@ -567,7 +618,7 @@ function oftest {
 
     # Install oftest:
     cd $BUILD_DIR/
-    git clone https://github.com/floodlight/oftest
+    git clone git://github.com/floodlight/oftest
 }
 
 # Install cbench
@@ -576,13 +627,15 @@ function cbench {
 
     if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install net-snmp-devel libpcap-devel libconfig-devel
+	elif [ "$DIST" = "SUSE LINUX"  ]; then
+		$install net-snmp-devel libpcap-devel libconfig-devel
     else
         $install libsnmp-dev libpcap-dev libconfig-dev
     fi
     cd $BUILD_DIR/
     # was:  git clone git://gitosis.stanford.edu/oflops.git
     # Use our own fork on github for now:
-    git clone https://github.com/mininet/oflops
+    git clone git://github.com/mininet/oflops
     cd oflops
     sh boot.sh || true # possible error in autoreconf, so run twice
     sh boot.sh
