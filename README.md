@@ -38,7 +38,7 @@ Bibtex:
 ---
 ## NFV multi-PoP Extension
 
-There is an extension of Containernet called [son-emu](https://github.com/sonata-nfv/son-emu) which is a full-featured multi-PoP emulation platform for NFV scenarios which is developed as part of the [SONATA](http://www.sonata-nfv.eu) project.
+There is an extension of Containernet called [vim-emu](https://osm.etsi.org/wikipub/index.php/VIM_emulator) which is a full-featured multi-PoP emulation platform for NFV scenarios that was developed as part of the [SONATA-NFV](http://www.sonata-nfv.eu) project and is now hosted by the [OpenSource MANO project](https://osm.etsi.org/).
 
 ---
 ## Features
@@ -46,7 +46,7 @@ There is an extension of Containernet called [son-emu](https://github.com/sonata
 * Add, remove Docker containers to Mininet topologies
 * Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts)
 * Execute commands inside Docker containers by using the Mininet CLI
-* Dynamic topology changes (lets behave like a small cloud ;-))
+* Dynamic topology changes
    * Add Hosts/Docker containers to a *running* Mininet topology
    * Connect Hosts/Docker containers to a *running* Mininet topology
    * Remove Hosts/Docker containers/Links from a *running* Mininet topology
@@ -55,8 +55,8 @@ There is an extension of Containernet called [son-emu](https://github.com/sonata
    * CPU limitation with Docker CFS period/quota options
    * Memory/swap limitation
    * Change CPU/mem limitations at runtime!
+* Expose container ports and set environment variables of containers through Python API
 * Traffic control links (delay, bw, loss, jitter)
-   * (missing: TCLink support for dynamically added containers/hosts)
 * Automated unit tests for all new features
 * Automated installation based on Ansible playbook
 

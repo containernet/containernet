@@ -17,7 +17,7 @@ modname = distname = 'mininet'
 setup(
     name=distname,
     version=CONTAINERNET_VERSION,
-    description='Mininet fork that add Container support.',
+    description='Mininet fork that adds Container support.',
     author='Manuel Peuster',
     author_email='manuel.peuster@upb.de',
     packages=[ 'mininet', 'mininet.examples' ],
