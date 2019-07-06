@@ -22,17 +22,17 @@ MINIEDIT_VERSION = '2.2.0.1'
 
 from optparse import OptionParser
 # from Tkinter import *
-from tkinter import ( Frame, Label, LabelFrame, Entry, OptionMenu, Checkbutton,
+from Tkinter import ( Frame, Label, LabelFrame, Entry, OptionMenu, Checkbutton,
                       Menu, Toplevel, Button, BitmapImage, PhotoImage, Canvas,
                       Scrollbar, Wm, TclError, StringVar, IntVar,
                       E, W, EW, NW, Y, VERTICAL, SOLID, CENTER,
                       RIGHT, LEFT, BOTH, TRUE, FALSE )
-from tkinter.ttk import Notebook
-from tkinter.messagebox import showerror
+from ttk import Notebook
+from tkMessageBox import showerror
 from subprocess import call
-import tkinter.font
-import tkinter.filedialog
-import tkinter.simpledialog
+import tkFont
+import tkFileDialog
+import tkSimpleDialog
 import re
 import json
 from distutils.version import StrictVersion
@@ -160,14 +160,14 @@ class customOvs(OVSSwitch):
         if self.switchIP is not None:
             self.cmd( 'ifconfig', self, self.switchIP )
 
-class PrefsDialog(tkinter.simpledialog.Dialog):
+class PrefsDialog(tkSimpleDialog.Dialog):
     "Preferences dialog"
 
     def __init__(self, parent, title, prefDefaults):
 
         self.prefValues = prefDefaults
 
-        tkinter.simpledialog.Dialog.__init__(self, parent, title)
+        tkSimpleDialog.Dialog.__init__(self, parent, title)
 
     def body(self, master):
         "Create dialog body"
@@ -973,13 +973,13 @@ class TableFrame(Frame):
         self.update_idletasks()
         self.rows += 1
 
-class LinkDialog(tkinter.simpledialog.Dialog):
+class LinkDialog(tkSimpleDialog.Dialog):
 
     def __init__(self, parent, title, linkDefaults):
 
         self.linkValues = linkDefaults
 
-        tkinter.simpledialog.Dialog.__init__(self, parent, title)
+        tkSimpleDialog.Dialog.__init__(self, parent, title)
 
     def body(self, master):
 
@@ -1039,14 +1039,14 @@ class LinkDialog(tkinter.simpledialog.Dialog):
         if len(self.e6.get()) > 0:
             self.result['speedup'] = int(self.e6.get())
 
-class ControllerDialog(tkinter.simpledialog.Dialog):
+class ControllerDialog(tkSimpleDialog.Dialog):
 
     def __init__(self, parent, title, ctrlrDefaults=None):
 
         if ctrlrDefaults:
             self.ctrlrValues = ctrlrDefaults
 
-        tkinter.simpledialog.Dialog.__init__(self, parent, title)
+        tkSimpleDialog.Dialog.__init__(self, parent, title)
 
     def body(self, master):
 
@@ -1203,7 +1203,7 @@ class MiniEdit( Frame ):
         Frame.__init__( self, parent )
         self.action = None
         self.appName = 'MiniEdit'
-        self.fixedFont = tkinter.font.Font ( family="DejaVu Sans Mono", size="14" )
+        self.fixedFont = tkFont.Font ( family="DejaVu Sans Mono", size="14" )
 
         # Style
         self.font = ( 'Geneva', 9 )
@@ -1537,7 +1537,7 @@ class MiniEdit( Frame ):
             ('Mininet Topology','*.mn'),
             ('All Files','*'),
         ]
-        f = tkinter.filedialog.askopenfile(filetypes=myFormats, mode='rb')
+        f = tkFileDialog.askopenfile(filetypes=myFormats, mode='rb')
         if f == None:
             return
         self.newTopology()
@@ -1729,7 +1729,7 @@ class MiniEdit( Frame ):
         ]
 
         savingDictionary = {}
-        fileName = tkinter.filedialog.asksaveasfilename(filetypes=myFormats ,title="Save the topology as...")
+        fileName = tkFileDialog.asksaveasfilename(filetypes=myFormats ,title="Save the topology as...")
         if len(fileName ) > 0:
             # Save Application preferences
             savingDictionary['version'] = '2'
@@ -1802,7 +1802,7 @@ class MiniEdit( Frame ):
             ('All Files','*'),
         ]
 
-        fileName = tkinter.filedialog.asksaveasfilename(filetypes=myFormats ,title="Export the topology as...")
+        fileName = tkFileDialog.asksaveasfilename(filetypes=myFormats ,title="Export the topology as...")
         if len(fileName ) > 0:
             #print "Now saving under %s" % fileName
             f = open(fileName, 'wb')
