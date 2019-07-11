@@ -59,6 +59,7 @@ import signal
 import select
 import docker
 import json
+import time
 from subprocess import Popen, PIPE, check_output
 from time import sleep
 
@@ -297,6 +298,14 @@ class Node( object ):
            and return without waiting for the command to complete.
            args: command and arguments, or string
            printPid: print command's PID? (False)"""
+        # be a bit more relaxed here and allow to wait 2s for the shell
+        cnt = 0
+        while (self.waiting and cnt < 20):
+            debug("Waiting for shell to unblock...")
+            time.sleep(.1)
+            cnt += 1
+        if cnt > 0:
+            debug("Shell unblocked.")
         assert self.shell and not self.waiting
         printPid = kwargs.get( 'printPid', False )
         # Allow sendCmd( [ list ] )
