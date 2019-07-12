@@ -298,9 +298,9 @@ class Node( object ):
            and return without waiting for the command to complete.
            args: command and arguments, or string
            printPid: print command's PID? (False)"""
-        # be a bit more relaxed here and allow to wait 2s for the shell
+        # be a bit more relaxed here and allow to wait 30s for the shell
         cnt = 0
-        while (self.waiting and cnt < 20):
+        while (self.waiting and cnt < 300):
             debug("Waiting for shell to unblock...")
             time.sleep(.1)
             cnt += 1
