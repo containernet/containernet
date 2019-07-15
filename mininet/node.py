@@ -298,14 +298,15 @@ class Node( object ):
            and return without waiting for the command to complete.
            args: command and arguments, or string
            printPid: print command's PID? (False)"""
-        # be a bit more relaxed here and allow to wait 30s for the shell
+        # be a bit more relaxed here and allow to wait 120s for the shell
         cnt = 0
-        while (self.waiting and cnt < 300):
+        while (self.waiting and cnt < 5 * 120):
             debug("Waiting for shell to unblock...")
-            time.sleep(.1)
+            time.sleep(.2)
             cnt += 1
         if cnt > 0:
-            debug("Shell unblocked.")
+            warn("Shell unblocked after {:.2f}s"
+                 .format(float(cnt)/5))
         assert self.shell and not self.waiting
         printPid = kwargs.get( 'printPid', False )
         # Allow sendCmd( [ list ] )
