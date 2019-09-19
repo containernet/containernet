@@ -7,7 +7,7 @@
 
    - name: openstack repo (for OVS)
      yum:
-       name: centos-release-openstack-pike
+       name: centos-release-openstack-rocky
        state: latest
    
    - name: updates yum
