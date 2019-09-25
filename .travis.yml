@@ -34,7 +34,7 @@ before_install:
 
 # bare metal installation
 install:
-  - travis_wait 30 sudo ansible-playbook -i "localhost," -c local install.yml
+  - travis_wait 60 sudo ansible-playbook -i "localhost," -c local install.yml
 
 before_script:
   - cd ..
@@ -43,11 +43,11 @@ script:
   # run unit tests (bare metal)
   - sudo py.test -v mininet/test/test_containernet.py
   # build ubuntu-based docker container
-  - travis_wait 30 docker build -t containernet/containernet:ubuntu .
+  - travis_wait 60 docker build -t containernet/containernet:ubuntu .
   # run unit tests on ubuntu:xenial-based docker container
   - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:ubuntu  py.test -v mininet/test/test_containernet.py
   # build centos-based docker container
-  - travis_wait 30 docker build -t containernet/containernet:centos7 -f Dockerfile.centos .
+  - travis_wait 60 docker build -t containernet/containernet:centos7 -f Dockerfile.centos .
   # run unit tests on centos7-based docker container
   - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:centos7  py.test -v mininet/test/test_containernet.py
 
