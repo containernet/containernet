@@ -747,7 +747,8 @@ class Docker ( Host ):
                      'port_bindings': {},
                      'ports': [],
                      'dns': [],
-                     'ipc_mode': None
+                     'ipc_mode': None,
+                     'devices': []
                      }
         defaults.update( kwargs )
 
@@ -771,6 +772,7 @@ class Docker ( Host ):
         self.port_bindings = defaults['port_bindings']
         self.dns = defaults['dns']
         self.ipc_mode = defaults['ipc_mode']
+        self.devices = defaults['devices']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -786,7 +788,7 @@ class Docker ( Host ):
         info("%s: kwargs %s\n" % (name, str(kwargs)))
 
         # creats host config for container
-        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+        # see: https://docker-py.readthedocs.io/en/2.0.2/api.html#module-docker.api.container
         hc = self.dcli.create_host_config(
             network_mode=self.network_mode,
             privileged=True,  # we need this to allow mininet network setup
@@ -797,7 +799,8 @@ class Docker ( Host ):
             mem_limit=self.resources.get('mem_limit'),
             cpuset_cpus=self.resources.get('cpuset_cpus'),
             dns=self.dns,
-            ipc_mode=self.ipc_mode  # string
+            ipc_mode=self.ipc_mode,  # string
+            devices=self.devices  # see docker-py docu
         )
 
         if kwargs.get("rm", False):

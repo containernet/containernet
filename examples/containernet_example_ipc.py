@@ -14,8 +14,8 @@ info('*** Adding controller\n')
 net.addController('c0')
 info('*** Adding docker containers\n')
 # IPC see: https://docs.docker.com/engine/reference/run/#ipc-settings---ipc
-d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty", ipc_mode="shareable")  # share IPC
-d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", ipc_mode="container:mn.d1")  # container:<name_or_id>
+d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty", ipc_mode="shareable", devices=["/dev/net/tun"])  # share IPC
+d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", ipc_mode="container:mn.d1", devices=["/dev/net/tun"])  # container:<name_or_id>
 info('*** Adding switches\n')
 s1 = net.addSwitch('s1')
 s2 = net.addSwitch('s2')
