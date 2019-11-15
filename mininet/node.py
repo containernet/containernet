@@ -1078,13 +1078,13 @@ class Docker ( Host ):
                 # Collect output of the log for enhanced error feedback
                 message = message + json.dumps(json.loads(line), indent=4)
 
-        except:
+        except BaseException as ex:
             error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
                   + message)
-        if not self._image_exists(repository, tag):
-            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
-                  + message)
-            return False
+        #if not self._image_exists(repository, tag):
+        #    error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+        #          + message)
+        #    return False
         return True
 
     def update_resources(self, **kwargs):
