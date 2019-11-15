@@ -747,6 +747,7 @@ class Docker ( Host ):
                      'port_bindings': {},
                      'ports': [],
                      'dns': [],
+                     'ipc_mode': None
                      }
         defaults.update( kwargs )
 
@@ -769,6 +770,7 @@ class Docker ( Host ):
         self.publish_all_ports = defaults['publish_all_ports']
         self.port_bindings = defaults['port_bindings']
         self.dns = defaults['dns']
+        self.ipc_mode = defaults['ipc_mode']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -795,6 +797,7 @@ class Docker ( Host ):
             mem_limit=self.resources.get('mem_limit'),
             cpuset_cpus=self.resources.get('cpuset_cpus'),
             dns=self.dns,
+            ipc_mode=self.ipc_mode  # string
         )
 
         if kwargs.get("rm", False):
