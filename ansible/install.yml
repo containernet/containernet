@@ -10,10 +10,10 @@
        - apt-transport-https
        - ca-certificates
        - curl
-       - python-setuptools
-       - python-dev
+       - python3-setuptools
+       - python3-dev
        - build-essential
-       - python-pip
+       - python3-pip
        - iptables
        - software-properties-common
        - python-backports.ssl-match-hostname
@@ -30,14 +30,21 @@
    - name: install Docker CE
      apt: name=docker-ce state=installed
 
-   - name: install pytest
-     pip: name=pytest version=4.6.4
+   - name: find pip executable
+     shell: "which pip"
+     register: pip_path     
 
-   - name: install docker-py
-     pip: name=docker version=2.0.2
+   - name: install pytest
+     pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
+
+   - name: install docker py
+     pip: name=docker version=2.0.2 executable={{pip_path.stdout}}
 
    - name: install python-iptables
-     pip: name=python-iptables state=latest
+     pip: name=python-iptables state=latest executable={{pip_path.stdout}}
+
+   - name: install pexpect
+     pip: name=pexpect executable={{pip_path.stdout}}
 
    - name: build and install Containernet (using Mininet installer)
      shell: containernet/util/install.sh
