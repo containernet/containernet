@@ -10,10 +10,10 @@
        - apt-transport-https
        - ca-certificates
        - curl
-       - python-setuptools
-       - python-dev
+       - python3-setuptools
+       - python3-dev
        - build-essential
-       - python-pip
+       - python3-pip
        - iptables
        - software-properties-common
        - python-backports.ssl-match-hostname
@@ -31,7 +31,7 @@
      apt: name=docker-ce state=installed
 
    - name: find pip executable
-     shell: "which pip"
+     shell: "which pip3"
      register: pip_path     
 
    - name: install pytest
