@@ -47,12 +47,12 @@
      pip: name=pexpect executable={{pip_path.stdout}}
 
    - name: build and install Containernet (using Mininet installer)
-     shell: containernet/util/install.sh
+     shell: containernet/util/install_py3.sh
      args:
        chdir: ../../
 
    - name: install Containernet Python egg etc.
-     shell: make develop
+     shell: make -f Makefile_py3 develop
      args:
        chdir: ../
 
