@@ -34,7 +34,7 @@
      register: pip_path     
 
    - name: install python-backports.ssl-match-hostname
-     pip: name=python-backports.ssl-match-hostname executable={{pip_path.stdout}}
+     pip: name=backports.ssl-match-hostname executable={{pip_path.stdout}}
 
    - name: install pytest
      pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
