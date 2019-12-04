@@ -16,7 +16,6 @@
        - python3-pip
        - iptables
        - software-properties-common
-       - python-backports.ssl-match-hostname
 
    - name: install Docker CE repos (1/3)
      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
