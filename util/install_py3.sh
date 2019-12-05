@@ -106,7 +106,6 @@ function version_ge {
 
 # Attempt to identify Python version
 PYTHON=${PYTHON:-python3}
-MAKEFILE=Makefile_py3
 if $PYTHON --version |& grep 'Python 2' > /dev/null; then
     PYTHON_VERSION=2; PYPKG=python; PIP=pip
 else
@@ -181,7 +180,7 @@ function mn_deps {
 
     echo "Installing Mininet core"
     pushd $MININET_DIR/containernet
-    sudo PYTHON=${PYTHON} make -f $MAKEFILE install
+    sudo PYTHON=${PYTHON} make install
     popd
 }
 
@@ -220,8 +219,8 @@ function of {
     # Resume the install:
     ./boot.sh
     ./configure
-    make -f $MAKEFILE
-    sudo make -f $MAKEFILE install
+    make
+    sudo make install
     cd $BUILD_DIR
 }
 
@@ -252,7 +251,7 @@ function of13 {
     fi
     cd netbee/src
     cmake .
-    make -f $MAKEFILE
+    make
 
     cd $BUILD_DIR
     sudo cp netbee/bin/libn*.so /usr/local/lib
@@ -263,8 +262,8 @@ function of13 {
     cd $BUILD_DIR/ofsoftswitch13
     ./boot.sh
     ./configure
-    make -f $MAKEFILE
-    sudo make -f $MAKEFILE install
+    make
+    sudo make install
     cd $BUILD_DIR
 }
 
@@ -297,7 +296,7 @@ function install_wireshark {
     cd $BUILD_DIR
     git clone https://github.com/floodlight/loxigen.git
     cd loxigen
-    make -f $MAKEFILE wireshark
+    make wireshark
 
     # Copy into plugin directory
     # libwireshark0/ on 11.04; libwireshark1/ on later
@@ -484,8 +483,8 @@ function ivs {
     git clone git://github.com/floodlight/ivs $IVS_SRC
     cd $IVS_SRC
     git submodule update --init
-    make -f $MAKEFILE
-    sudo make -f $MAKEFILE install
+    make
+    sudo make install
 }
 
 # Install RYU
@@ -497,15 +496,15 @@ function ryu {
     if [ "$DIST" = "Ubuntu" -o "$DIST" = "Debian" ]; then
         $install gcc python-pip python-dev libffi-dev libssl-dev \
             libxml2-dev libxslt1-dev zlib1g-dev
-        sudo pip install --upgrade gevent pbr webob routes paramiko \\
+        sudo $PIP install --upgrade gevent pbr webob routes paramiko \\
             oslo.config
     fi
 
     # if needed, update python-six
-    SIX_VER=`pip show six | grep Version | awk '{print $2}'`
+    SIX_VER=`$PIP show six | grep Version | awk '{print $2}'`
     if version_ge 1.7.0 $SIX_VER; then
         echo "Installing python-six version 1.7.0..."
-        sudo pip install -I six==1.7.0
+        sudo $PIP install -I six==1.7.0
     fi
     # fetch RYU
     cd $BUILD_DIR/
@@ -558,7 +557,7 @@ function nox {
     mkdir build
     cd build
     ../configure
-    make -f $MAKEFILE -j3
+    make -j3
     #make check
 
     # Add NOX_CORE_DIR env var:
@@ -594,7 +593,7 @@ function nox13 {
     mkdir build
     cd build
     ../configure
-    make -f $MAKEFILE -j3
+    make -j3
     #make check
 
     # To verify this install:
@@ -641,8 +640,8 @@ function cbench {
     sh boot.sh || true # possible error in autoreconf, so run twice
     sh boot.sh
     ./configure --with-openflow-src-dir=$BUILD_DIR/openflow
-    make -f $MAKEFILE
-    sudo make -f $MAKEFILE install || true # make install fails; force past this
+    make
+    sudo make install || true # make install fails; force past this
 }
 
 function vm_other {
