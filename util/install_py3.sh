@@ -106,10 +106,11 @@ function version_ge {
 
 # Attempt to identify Python version
 PYTHON=${PYTHON:-python3}
+MAKEFILE=Makefile_py3
 if $PYTHON --version |& grep 'Python 2' > /dev/null; then
-    PYTHON_VERSION=2; PYPKG=python
+    PYTHON_VERSION=2; PYPKG=python; PIP=pip
 else
-    PYTHON_VERSION=3; PYPKG=python3
+    PYTHON_VERSION=3; PYPKG=python3; PIP=pip3
 fi
 echo "${PYTHON} is version ${PYTHON_VERSION}"
 
@@ -164,13 +165,13 @@ function mn_deps {
     echo "Installing Mininet dependencies"
     if [ "$DIST" = "Fedora" -o "$DIST" = "RedHatEnterpriseServer" -o "$DIST" = "CentOS" ]; then
         $install gcc make socat psmisc xterm openssh-clients iperf \
-            iproute telnet python3-setuptools libcgroup-tools \
-            ethtool help2man pyflakes pylint python3-pep8 python3-pexpect
+            iproute telnet python-setuptools libcgroup-tools \
+            ethtool help2man pyflakes pylint python-pep8 python-pexpect
     elif [ "$DIST" = "SUSE LINUX"  ]; then
 		$install gcc make socat psmisc xterm openssh iperf \
 			iproute telnet ${PYPKG}-setuptools libcgroup-tools \
-			ethtool help2man python3-pyflakes python3-pylint \
-                        python3-pep8 ${PYPKG}-pexpect ${PYPKG}-tk
+			ethtool help2man python-pyflakes python3-pylint \
+                        python-pep8 ${PYPKG}-pexpect ${PYPKG}-tk
     else  # Debian/Ubuntu
         $install gcc make socat psmisc xterm ssh iperf telnet \
                  cgroup-bin ethtool help2man pyflakes pylint pep8 \
@@ -180,7 +181,7 @@ function mn_deps {
 
     echo "Installing Mininet core"
     pushd $MININET_DIR/containernet
-    sudo PYTHON=${PYTHON} make install
+    sudo PYTHON=${PYTHON} make -f $MAKEFILE install
     popd
 }
 
@@ -219,8 +220,8 @@ function of {
     # Resume the install:
     ./boot.sh
     ./configure
-    make
-    sudo make install
+    make -f $MAKEFILE
+    sudo make -f $MAKEFILE install
     cd $BUILD_DIR
 }
 
@@ -251,7 +252,7 @@ function of13 {
     fi
     cd netbee/src
     cmake .
-    make
+    make -f $MAKEFILE
 
     cd $BUILD_DIR
     sudo cp netbee/bin/libn*.so /usr/local/lib
@@ -262,8 +263,8 @@ function of13 {
     cd $BUILD_DIR/ofsoftswitch13
     ./boot.sh
     ./configure
-    make
-    sudo make install
+    make -f $MAKEFILE
+    sudo make -f $MAKEFILE install
     cd $BUILD_DIR
 }
 
@@ -296,7 +297,7 @@ function install_wireshark {
     cd $BUILD_DIR
     git clone https://github.com/floodlight/loxigen.git
     cd loxigen
-    make wireshark
+    make -f $MAKEFILE wireshark
 
     # Copy into plugin directory
     # libwireshark0/ on 11.04; libwireshark1/ on later
@@ -363,7 +364,7 @@ function ubuntuOvs {
 
     # Get build deps
     $install build-essential fakeroot debhelper autoconf automake libssl-dev \
-             pkg-config bzip2 openssl python3-all procps python-qt4 \
+             pkg-config bzip2 openssl python-all procps python-qt4 \
              python-zopeinterface python-twisted-conch dkms dh-python dh-autoreconf \
              uuid-runtime
 
@@ -483,8 +484,8 @@ function ivs {
     git clone git://github.com/floodlight/ivs $IVS_SRC
     cd $IVS_SRC
     git submodule update --init
-    make
-    sudo make install
+    make -f $MAKEFILE
+    sudo make -f $MAKEFILE install
 }
 
 # Install RYU
@@ -492,19 +493,19 @@ function ryu {
     echo "Installing RYU..."
 
     # install Ryu dependencies"
-    $install autoconf automake g++ libtool $PYTHON make
+    $install autoconf automake g++ libtool python make
     if [ "$DIST" = "Ubuntu" -o "$DIST" = "Debian" ]; then
-        $install gcc python3-pip python3-dev libffi-dev libssl-dev \
+        $install gcc python-pip python-dev libffi-dev libssl-dev \
             libxml2-dev libxslt1-dev zlib1g-dev
-        sudo pip3 install --upgrade gevent pbr webob routes paramiko \\
+        sudo pip install --upgrade gevent pbr webob routes paramiko \\
             oslo.config
     fi
 
     # if needed, update python-six
-    SIX_VER=`pip3 show six | grep Version | awk '{print $2}'`
+    SIX_VER=`pip show six | grep Version | awk '{print $2}'`
     if version_ge 1.7.0 $SIX_VER; then
         echo "Installing python-six version 1.7.0..."
-        sudo pip3 install -I six==1.7.0
+        sudo pip install -I six==1.7.0
     fi
     # fetch RYU
     cd $BUILD_DIR/
@@ -512,7 +513,7 @@ function ryu {
     cd ryu
 
     # install ryu
-    sudo pip3 install -r tools/pip-requires -r tools/optional-requires \
+    sudo $PIP install -r tools/pip-requires -r tools/optional-requires \
         -r tools/test-requires
     sudo $PYTHON setup.py install
 
@@ -525,17 +526,17 @@ function nox {
     echo "Installing NOX w/tutorial files..."
 
     # Install NOX deps:
-    $install autoconf automake g++ libtool python python3-twisted \
+    $install autoconf automake g++ libtool python python-twisted \
 		swig libssl-dev make
     if [ "$DIST" = "Debian" ]; then
         $install libboost1.35-dev
     elif [ "$DIST" = "Ubuntu" ]; then
-        $install python3-dev libboost-dev
+        $install python-dev libboost-dev
         $install libboost-filesystem-dev
         $install libboost-test-dev
     fi
     # Install NOX optional deps:
-    $install libsqlite3-dev python3-simplejson
+    $install libsqlite3-dev python-simplejson
 
     # Fetch NOX destiny
     cd $BUILD_DIR/
@@ -557,7 +558,7 @@ function nox {
     mkdir build
     cd build
     ../configure
-    make -j3
+    make -f $MAKEFILE -j3
     #make check
 
     # Add NOX_CORE_DIR env var:
@@ -573,12 +574,12 @@ function nox13 {
     echo "Installing NOX w/tutorial files..."
 
     # Install NOX deps:
-    $install autoconf automake g++ libtool python3 python3-twisted \
+    $install autoconf automake g++ libtool python python-twisted \
         swig libssl-dev make
     if [ "$DIST" = "Debian" ]; then
         $install libboost1.35-dev
     elif [ "$DIST" = "Ubuntu" ]; then
-        $install python3-dev libboost-dev
+        $install python-dev libboost-dev
         $install libboost-filesystem-dev
         $install libboost-test-dev
     fi
@@ -593,7 +594,7 @@ function nox13 {
     mkdir build
     cd build
     ../configure
-    make -j3
+    make -f $MAKEFILE -j3
     #make check
 
     # To verify this install:
@@ -614,7 +615,7 @@ function oftest {
     echo "Installing oftest..."
 
     # Install deps:
-    $install tcpdump python3-scapy
+    $install tcpdump python-scapy
 
     # Install oftest:
     cd $BUILD_DIR/
@@ -640,8 +641,8 @@ function cbench {
     sh boot.sh || true # possible error in autoreconf, so run twice
     sh boot.sh
     ./configure --with-openflow-src-dir=$BUILD_DIR/openflow
-    make
-    sudo make install || true # make install fails; force past this
+    make -f $MAKEFILE
+    sudo make -f $MAKEFILE install || true # make install fails; force past this
 }
 
 function vm_other {
