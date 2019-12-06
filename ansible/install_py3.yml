@@ -10,13 +10,12 @@
        - apt-transport-https
        - ca-certificates
        - curl
-       - python-setuptools
-       - python-dev
+       - python3-setuptools
+       - python3-dev
        - build-essential
-       - python-pip
+       - python3-pip
        - iptables
        - software-properties-common
-       - python-backports.ssl-match-hostname
 
    - name: install Docker CE repos (1/3)
      shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
@@ -31,8 +30,11 @@
      apt: name=docker-ce state=installed
 
    - name: find pip executable
-     shell: "which pip"
+     shell: "which pip3"
      register: pip_path     
+
+   - name: install python-backports.ssl-match-hostname
+     pip: name=backports.ssl-match-hostname executable={{pip_path.stdout}}
 
    - name: install pytest
      pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
@@ -47,12 +49,12 @@
      pip: name=pexpect executable={{pip_path.stdout}}
 
    - name: build and install Containernet (using Mininet installer)
-     shell: containernet/util/install.sh
+     shell: containernet/util/install_py3.sh
      args:
        chdir: ../../
 
    - name: install Containernet Python egg etc.
-     shell: make develop
+     shell: make -f Makefile_py3 develop
      args:
        chdir: ../
 
