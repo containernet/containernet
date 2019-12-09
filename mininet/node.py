@@ -1059,15 +1059,12 @@ class Docker ( Host ):
         Checks if the repo:tag image exists locally
         :return: True if the image exists locally. Else false.
         """
-        # filter by repository
-        images = self.dcli.images(repo)
-        imageName = "%s:%s" % (repo, tag)
-
+        images = self.dcli.images()
+        imageTag = "%s:%s" % (repo, tag)
         for image in images:
-            if 'RepoTags' in image:
-                if image['RepoTags'] is None:
-                    return False
-                if imageName in image['RepoTags']:
+            if image.get("RepoTags"):
+                if imageTag in image.get("RepoTags", []):
+                    debug("Image '{}' exists.\n".format(imageTag))
                     return True
         return False
 
