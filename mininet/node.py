@@ -704,7 +704,8 @@ class Docker ( Host ):
     """
 
     def __init__(
-            self, name, dimage, dcmd=None, **kwargs):
+            self, name, dimage=None, dcmd=None, path=None, build_params={},
+            **kwargs):
         """
         Creates a Docker container as Mininet host.
 
@@ -780,6 +781,14 @@ class Docker ( Host ):
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
         self.dcli = docker.from_env().api
 
+        if path is not None:
+            if not build_params.get("tag", None):
+                if dimage:
+                    build_params["tag"] = dimage
+            output = self.build(path, **build_params)
+            info(output)
+            # dimage = find_image_id(output)
+
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
 
@@ -847,6 +856,10 @@ class Docker ( Host ):
 
         self.master = None
         self.slave = None
+
+    def build(self, path, **kwargs):
+        output = self.dcli.build(path=path, **kwargs)
+        return list(output)
 
     def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
@@ -2149,3 +2162,6 @@ def DefaultController( name, controllers=DefaultControllers, **kwargs ):
 def NullController( *_args, **_kwargs ):
     "Nonexistent controller - simply returns None"
     return None
+
+def find_image_id(output):
+    pass
