@@ -67,6 +67,9 @@ def topology():
     #d4.defaultIntf().ifconfig("10.0.0.254 up")
     #d4.setIP("10.0.0.254")
 
+    # if this ping keeps failing, use some waiting
+    # time.sleep(2)
+
     net.ping([d1], manualdestip="10.0.0.254")
 
     info('*** Running CLI\n')

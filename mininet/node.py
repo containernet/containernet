@@ -747,6 +747,9 @@ class Docker ( Host ):
                      'port_bindings': {},
                      'ports': [],
                      'dns': [],
+                     'ipc_mode': None,
+                     'devices': [],
+                     'cap_add': []
                      }
         defaults.update( kwargs )
 
@@ -769,6 +772,9 @@ class Docker ( Host ):
         self.publish_all_ports = defaults['publish_all_ports']
         self.port_bindings = defaults['port_bindings']
         self.dns = defaults['dns']
+        self.ipc_mode = defaults['ipc_mode']
+        self.devices = defaults['devices']
+        self.cap_add = defaults['cap_add']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -784,7 +790,7 @@ class Docker ( Host ):
         info("%s: kwargs %s\n" % (name, str(kwargs)))
 
         # creats host config for container
-        # see: https://docker-py.readthedocs.org/en/latest/hostconfig/
+        # see: https://docker-py.readthedocs.io/en/2.0.2/api.html#module-docker.api.container
         hc = self.dcli.create_host_config(
             network_mode=self.network_mode,
             privileged=True,  # we need this to allow mininet network setup
@@ -795,6 +801,9 @@ class Docker ( Host ):
             mem_limit=self.resources.get('mem_limit'),
             cpuset_cpus=self.resources.get('cpuset_cpus'),
             dns=self.dns,
+            ipc_mode=self.ipc_mode,  # string
+            devices=self.devices,  # see docker-py docu
+            cap_add=self.cap_add  # see docker-py docu
         )
 
         if kwargs.get("rm", False):
@@ -1050,15 +1059,12 @@ class Docker ( Host ):
         Checks if the repo:tag image exists locally
         :return: True if the image exists locally. Else false.
         """
-        # filter by repository
-        images = self.dcli.images(repo)
-        imageName = "%s:%s" % (repo, tag)
-
+        images = self.dcli.images()
+        imageTag = "%s:%s" % (repo, tag)
         for image in images:
-            if 'RepoTags' in image:
-                if image['RepoTags'] is None:
-                    return False
-                if imageName in image['RepoTags']:
+            if image.get("RepoTags"):
+                if imageTag in image.get("RepoTags", []):
+                    debug("Image '{}' exists.\n".format(imageTag))
                     return True
         return False
 
@@ -1075,13 +1081,13 @@ class Docker ( Host ):
                 # Collect output of the log for enhanced error feedback
                 message = message + json.dumps(json.loads(line), indent=4)
 
-        except:
+        except BaseException as ex:
             error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
                   + message)
-        if not self._image_exists(repository, tag):
-            error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
-                  + message)
-            return False
+        #if not self._image_exists(repository, tag):
+        #    error('*** error: _pull_image: %s:%s failed.' % (repository, tag)
+        #          + message)
+        #    return False
         return True
 
     def update_resources(self, **kwargs):
