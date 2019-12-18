@@ -749,7 +749,8 @@ class Docker ( Host ):
                      'dns': [],
                      'ipc_mode': None,
                      'devices': [],
-                     'cap_add': []
+                     'cap_add': [],
+                     'sysctls': {}
                      }
         defaults.update( kwargs )
 
@@ -775,6 +776,7 @@ class Docker ( Host ):
         self.ipc_mode = defaults['ipc_mode']
         self.devices = defaults['devices']
         self.cap_add = defaults['cap_add']
+        self.sysctls = defaults['sysctls']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -803,7 +805,9 @@ class Docker ( Host ):
             dns=self.dns,
             ipc_mode=self.ipc_mode,  # string
             devices=self.devices,  # see docker-py docu
-            cap_add=self.cap_add  # see docker-py docu
+            cap_add=self.cap_add,  # see docker-py docu
+            sysctls=self.sysctls   # see docker-py docu
+            
         )
 
         if kwargs.get("rm", False):
