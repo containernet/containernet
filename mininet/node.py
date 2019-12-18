@@ -750,7 +750,7 @@ class Docker ( Host ):
                      'ipc_mode': None,
                      'devices': [],
                      'cap_add': [],
-                     'cap_add': {}
+                     'sysctls': {}
                      }
         defaults.update( kwargs )
 
@@ -2142,7 +2142,6 @@ def findController( controllers=DefaultControllers ):
         if controller.isAvailable():
             return controller
 
-def DefaultController( name, controllers=DefaultControllers, **kwargs ):
     "Find a controller that is available and instantiate it"
     controller = findController( controllers )
     if not controller:
