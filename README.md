@@ -166,5 +166,6 @@ Your contributions are very welcome! Please fork the GitHub repository and creat
 
 Manuel Peuster
 * Mail: <manuel (at) peuster (dot) de>
+* Twitter: [@ManuelPeuster](https://twitter.com/ManuelPeuster)
 * GitHub: [@mpeuster](https://github.com/mpeuster)
-* Website: [Peuster.de](https://peuster.de)
+* Website: [https://peuster.de](https://peuster.de)
