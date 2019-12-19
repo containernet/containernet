@@ -105,11 +105,11 @@ function version_ge {
 }
 
 # Attempt to identify Python version
-PYTHON=${PYTHON:-python}
+PYTHON=${PYTHON:-python3}
 if $PYTHON --version |& grep 'Python 2' > /dev/null; then
-    PYTHON_VERSION=2; PYPKG=python
+    PYTHON_VERSION=2; PYPKG=python; PIP=pip
 else
-    PYTHON_VERSION=3; PYPKG=python3
+    PYTHON_VERSION=3; PYPKG=python3; PIP=pip3
 fi
 echo "${PYTHON} is version ${PYTHON_VERSION}"
 
@@ -494,17 +494,17 @@ function ryu {
     # install Ryu dependencies"
     $install autoconf automake g++ libtool python make
     if [ "$DIST" = "Ubuntu" -o "$DIST" = "Debian" ]; then
-        $install gcc python-pip python-dev libffi-dev libssl-dev \
+        $install gcc python3-pip python3-dev libffi-dev libssl-dev \
             libxml2-dev libxslt1-dev zlib1g-dev
-        sudo pip install --upgrade gevent pbr webob routes paramiko \\
+        sudo $PIP install --upgrade gevent pbr webob routes paramiko \\
             oslo.config
     fi
 
     # if needed, update python-six
-    SIX_VER=`pip show six | grep Version | awk '{print $2}'`
+    SIX_VER=`$PIP show six | grep Version | awk '{print $2}'`
     if version_ge 1.7.0 $SIX_VER; then
-        echo "Installing python-six version 1.7.0..."
-        sudo pip install -I six==1.7.0
+        echo "Installing python3-six version 1.7.0..."
+        sudo $PIP install -I six==1.7.0
     fi
     # fetch RYU
     cd $BUILD_DIR/
@@ -512,9 +512,9 @@ function ryu {
     cd ryu
 
     # install ryu
-    sudo pip install -r tools/pip-requires -r tools/optional-requires \
+    sudo $PIP install -r tools/pip-requires -r tools/optional-requires \
         -r tools/test-requires
-    sudo python setup.py install
+    sudo $PYTHON setup.py install
 
     # Add symbolic link to /usr/bin
     sudo ln -s ./bin/ryu-manager /usr/local/bin/ryu-manager
