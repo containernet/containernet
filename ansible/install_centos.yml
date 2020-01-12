@@ -20,9 +20,9 @@
        state: latest
        name: 
        - net-tools
-       - python-setuptools
-       - python-devel
-       - python-pip
+       - python3-setuptools
+       - python3-devel
+       - python3-pip
        - curl
        - iptables
        - initscripts
@@ -30,13 +30,9 @@
        - device-mapper-persistent-data
        - lvm2
        - ca-certificates
-       - curl
-       - python-setuptools
-       - python-devel
-       - python-pip
-       - iptables
        - gcc
        - sudo
+       - which
 
    - name: install Docker CE (1/3)
      shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -51,14 +47,18 @@
      tags:
         - notindocker
 
+   - name: find pip executable
+     shell: "which pip3"
+     register: pip_path 
+
    - name: install pytest
-     pip: name=pytest version=4.6.4
+     pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
 
    - name: install docker-py
-     pip: name=docker version=2.0.2
+     pip: name=docker version=2.0.2 executable={{pip_path.stdout}}
 
    - name: install python-iptables
-     pip: name=python-iptables state=latest
+     pip: name=python-iptables state=latest executable={{pip_path.stdout}}
 
    - name: build and install Containernet (using Mininet installer)
      shell: containernet/util/install.sh

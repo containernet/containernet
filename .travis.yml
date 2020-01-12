@@ -3,18 +3,9 @@ sudo: required
 
 matrix:
   include:
-    #- dist: trusty
-    #  python: 2.7
-    #  env: dist="14.04 LTS trusty"
-    - dist: xenial
-      python: 2.7
-      env: dist="16.04 LTS xenial"
     - dist: xenial
       python: 3.5
       env: dist="16.04 LTS xenial"
-    - dist: bionic
-      python: 2.7
-      env: dist="18.04 LTS bionic"
     - dist: bionic
       python: 3.6
       env: dist="18.04 LTS bionic"
@@ -41,15 +32,15 @@ before_script:
 # run tests
 script:
   # run unit tests (bare metal)
-  - sudo py.test -v mininet/test/test_containernet.py
+  - travis_wait 60 sudo py.test -v mininet/test/
   # build ubuntu-based docker container
   - travis_wait 60 docker build -t containernet/containernet:ubuntu .
   # run unit tests on ubuntu:xenial-based docker container
-  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:ubuntu  py.test -v mininet/test/test_containernet.py
+  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:ubuntu py.test -v mininet/test/
   # build centos-based docker container
   - travis_wait 60 docker build -t containernet/containernet:centos7 -f Dockerfile.centos .
   # run unit tests on centos7-based docker container
-  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:centos7  py.test -v mininet/test/test_containernet.py
+  - docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:centos7 py.test -v mininet/test/
 
 notifications:
   email:

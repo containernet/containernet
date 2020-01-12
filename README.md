@@ -4,7 +4,9 @@
 
 ## Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
-This fork of Mininet allows to use Docker containers as Mininet hosts. This enables interesting functionalities to built networking/cloud testbeds. The integration is done by subclassing the original Host class.
+<img align="left" width="200" height="200" style="margin-right: 30px" src="https://raw.githubusercontent.com/containernet/logo/master/containernet_logo_v1.png">
+
+Containernet is a fork of the famous [Mininet](http://mininet.org) network emulator and allows to use [Docker](https://www.docker.com) containers as hosts in emulated network topologies. This enables interesting functionalities to build networking/cloud emulators and testbeds. One example for this is the [NFV multi-PoP infrastructure emulator](https://github.com/sonata-nfv/son-emu) which was created by the [SONATA-NFV](http://sonata-nfv.eu) project and is now part of the [OpenSource MANO (OSM)](https://osm.etsi.org) project. Besides this, Containernet is actively used by the research community, focussing on experiments in the field of cloud computing, fog computing, network function virtualization (NFV), and multi-access edge computing (MEC).
 
 Based on: **Mininet 2.3.0d5**
 
@@ -36,20 +38,20 @@ Bibtex:
 ```
 
 ---
-## NFV multi-PoP Extension
+## NFV multi-PoP Extension: `vim-emu`
 
-There is an extension of Containernet called [vim-emu](https://osm.etsi.org/wikipub/index.php/VIM_emulator) which is a full-featured multi-PoP emulation platform for NFV scenarios that was developed as part of the [SONATA-NFV](http://www.sonata-nfv.eu) project and is now hosted by the [OpenSource MANO project](https://osm.etsi.org/).
+There is an extension of Containernet called [vim-emu](https://github.com/containernet/vim-emu) which is a full-featured multi-PoP emulation platform for NFV scenarios. Vim-emu was developed as part of the [SONATA-NFV](http://www.sonata-nfv.eu) project and is now hosted by the [OpenSource MANO project](https://osm.etsi.org/).
 
 ---
 ## Features
 
 * Add, remove Docker containers to Mininet topologies
 * Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts)
-* Execute commands inside Docker containers by using the Mininet CLI
+* Execute commands inside containers by using the Mininet CLI
 * Dynamic topology changes
-   * Add Hosts/Docker containers to a *running* Mininet topology
-   * Connect Hosts/Docker containers to a *running* Mininet topology
-   * Remove Hosts/Docker containers/Links from a *running* Mininet topology
+   * Add hosts/containers to a *running* Mininet topology
+   * Connect hosts/docker containers to a *running* Mininet topology
+   * Remove Hosts/Docker containers/links from a *running* Mininet topology
 * Resource limitation of Docker containers
    * CPU limitation with Docker CPU share option
    * CPU limitation with Docker CFS period/quota options
@@ -57,85 +59,73 @@ There is an extension of Containernet called [vim-emu](https://osm.etsi.org/wiki
    * Change CPU/mem limitations at runtime!
 * Expose container ports and set environment variables of containers through Python API
 * Traffic control links (delay, bw, loss, jitter)
-* Automated unit tests for all new features
 * Automated installation based on Ansible playbook
 
 ---
 ## Installation
 
-Containernet comes with three installation and deployment options.
+Containernet comes with two installation and deployment options.
 
 ### Option 1: Bare-metal installation
 
 Automatic installation is provided through an Ansible playbook.
-* Requires: **Ubuntu Linux 16.04 LTS**
-    ```bash
-    $ sudo apt-get install ansible git aptitude
-    $ git clone https://github.com/containernet/containernet.git
-    $ cd containernet/ansible
-    $ sudo ansible-playbook -i "localhost," -c local install.yml
-    $ cd ..
-    $ sudo python setup.py install
-    ```
-    Wait (and have a coffee) ...
+
+Requires: **Ubuntu Linux 18.04 LTS** and **Python3**
+
+```bash
+$ sudo apt-get install ansible git aptitude
+$ git clone https://github.com/containernet/containernet.git
+$ cd containernet/ansible
+$ sudo ansible-playbook -i "localhost," -c local install.yml
+$ cd ..
+```
+    
+Wait (and have a coffee) ...
+
+You can switch between development (default) and normal installation as follows:
+
+```sh
+sudo make develop
+# or 
+sudo make install
+```
 
 ### Option 2: Nested Docker deployment
 
 Containernet can be executed within a privileged Docker container (nested container deployment). There is also a pre-build Docker image available on [Docker Hub](https://hub.docker.com/r/containernet/containernet/).
 
-```bash
-# build the container locally
-$ docker build -t containernet .
-```
+*Attention:* Container resource limitations, e.g., CPU share limits, are not supported in the nested container deployment. Use bare-metal installations if you need those features.
+
+#### Build/Pull
 
 ```bash
+# build the container locally
+$ docker build -t containernet/containernet .
+
 # or pull the latest pre-build container
 $ docker pull containernet/containernet
 ```
 
+#### Run
+
 ```bash
-# run the container
+# run interactive container and directly start containernet example
+$ docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet
+
+# run interactive container and drop to shell
 $ docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet /bin/bash
 ```
 
-### Option 3: Vagrant-based VM creation
+---
+## Examples
 
-#### There are to diffrent ways to use Vagrant.
-
-#### 1. in the Containernet directory
-
-If you run the following commands in the cloned repository.
-```bash
-$ vagrant up
-$ vagrant ssh
-```
-You will get a VM that has the full directory structure sync with `/home/ubuntu/containernet`. If you want to contribute to the Containernet project. This is probably what you want.
-
-#### 2. in a seprate directory
-
-If you want to use Containernet as a dependancy in your own project. You can use:
-```bash
-$ curl https://raw.githubusercontent.com/containernet/containernet/master/StandaloneVagrantfile -o Vagrantfile
-```
-to download the `StandaloneVagrantfile`, which is automatically renamed to `Vagrantfile` by the curl command. This `Vagrantfile` will download all nessarry parts needed to get up and running. This means your project structure stays slim.
-
-To start the VM just run
-```bash
-$ vagrant up
-```
-After the VM has started, you can use the following command to login as `root`.
-```bash
-$ vagrant ssh
-```
-This is needed because mininet needs full access. If you use PyCharm Professional you can use the created VM as a remote interpreter.
-
-### Usage / Run
+### Usage example (using bare-metal installation)
 
 Start example topology with some empty Docker containers connected to the network.
 
-* `cd containernet`
-* run: `sudo python examples/containernet_example.py`
+* run: `sudo python3 examples/containernet_example.py`
 * use: `containernet> d1 ifconfig` to see config of container `d1`
+* use: `containernet> d1 ping -c4 d2` to ping between containers
 
 ### Topology example
 
@@ -149,11 +139,17 @@ d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_
 d4 = net.addDocker('d4', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
 ```
 
-### Tests
+---
+## Tests
 
-There is a set of Containernet specific unit tests located in `mininet/test/test_containernet.py`. To run these, do:
+```sh
+sudo make test
+```
 
-* `sudo py.test -v mininet/test/test_containernet.py`
+---
+## Documentation
+
+Containernet's [documentation](https://github.com/containernet/containernet/wiki) can be found in the [GitHub wiki](https://github.com/containernet/containernet/wiki). The documentation for the underlying Mininet project can be found [here](http://mininet.org/).
 
 ---
 ## Contact
@@ -169,6 +165,7 @@ Your contributions are very welcome! Please fork the GitHub repository and creat
 ### Lead developer
 
 Manuel Peuster
-* Mail: <manuel (dot) peuster (at) upb (dot) de>
+* Mail: <manuel (at) peuster (dot) de>
+* Twitter: [@ManuelPeuster](https://twitter.com/ManuelPeuster)
 * GitHub: [@mpeuster](https://github.com/mpeuster)
-* Website: [Paderborn University](https://cs.uni-paderborn.de/cn/person/?tx_upbperson_personsite%5BpersonId%5D=13271&tx_upbperson_personsite%5Bcontroller%5D=Person&cHash=bafec92c0ada0bdfe8af6e2ed99efb4e)
+* Website: [https://peuster.de](https://peuster.de)

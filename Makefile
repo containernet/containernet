@@ -2,7 +2,7 @@ MININET = mininet/*.py
 TEST = mininet/test/*.py
 EXAMPLES = mininet/examples/*.py
 MN = bin/mn
-PYTHON ?= python
+PYTHON ?= python3
 PYMN = $(PYTHON) -B bin/mn
 BIN = $(MN)
 PYSRC = $(MININET) $(TEST) $(EXAMPLES) $(BIN)
@@ -17,33 +17,14 @@ PDF = doc/latex/refman.pdf
 
 CFLAGS += -Wall -Wextra
 
-all: codecheck test
+all: test
 
 clean:
 	rm -rf build dist *.egg-info *.pyc $(MNEXEC) $(MANPAGES) $(DOCDIRS)
 
-codecheck: $(PYSRC)
-	-echo "Running code check"
-	util/versioncheck.py
-	pyflakes $(PYSRC)
-	pylint --rcfile=.pylint $(PYSRC)
-#	Exclude miniedit from pep8 checking for now
-	pep8 --repeat --ignore=$(P8IGN) `ls $(PYSRC) | grep -v miniedit.py`
-
-errcheck: $(PYSRC)
-	-echo "Running check for errors only"
-	pyflakes $(PYSRC)
-	pylint -E --rcfile=.pylint $(PYSRC)
-
 test: $(MININET) $(TEST)
 	-echo "Running tests"
-	mininet/test/test_nets.py
-	mininet/test/test_hifi.py
-
-slowtest: $(MININET)
-	-echo "Running slower tests (walkthrough, examples)"
-	mininet/test/test_walkthrough.py -v
-	mininet/examples/test/runner.py -v
+	py.test -v mininet/test/test_containernet.py
 
 mnexec: mnexec.c $(MN) mininet/net.py
 	cc $(CFLAGS) $(LDFLAGS) -DVERSION=\"`PYTHONPATH=. $(PYMN) --version`\" $< -o $@
