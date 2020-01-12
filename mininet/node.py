@@ -2162,6 +2162,3 @@ def DefaultController( name, controllers=DefaultControllers, **kwargs ):
 def NullController( *_args, **_kwargs ):
     "Nonexistent controller - simply returns None"
     return None
-
-def find_image_id(output):
-    pass
