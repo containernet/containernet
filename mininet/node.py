@@ -872,7 +872,7 @@ class Docker ( Host ):
         output = self.dcli.build(**kwargs)
         output_str = ""
         for line in output:
-            output_str += json.loads(line.decode())["stream"]
+            output_str += " ".join(list(json.loads(line.decode()).values()))
         return output_str
 
     def start(self):
