@@ -5,12 +5,59 @@ import time
 import subprocess
 import docker
 from mininet.net import Containernet
-from mininet.node import Host, Controller, OVSSwitch, Docker
+from mininet.node import Host, Controller, OVSSwitch, Docker,\
+    ImageNotTaggedError
 from mininet.link import TCLink
 from mininet.topo import SingleSwitchTopo, LinearTopo
 from mininet.log import setLogLevel
 from mininet.util import quietRun
 from mininet.clean import cleanup
+
+
+def find_test_container(filename):
+    """
+    Returns absolute path to given file in misc/ folder.
+    """
+    abs_path = os.path.dirname(__file__).replace(
+        "mininet/test", "")
+    return os.path.join(abs_path,
+                        "examples/example-containers/{}".format(filename))
+
+
+class testImageBuilding( unittest.TestCase ):
+
+    def testaddDocker(self):
+        net = Containernet(controller=Controller)
+        path = find_test_container("webserver_curl")
+        d3 = net.addDocker("d3", ip='10.0.0.253',
+                           dimage="webserver_curl_test",
+                           build_params={"dockerfile": "Dockerfile.server",
+                                         "path": path})
+        self.assertTrue(d3._check_image_exists("webserver_curl_test"))
+        d4 = net.addDocker("d4", ip='10.0.0.253',
+                           build_params={"dockerfile": "Dockerfile.server",
+                                         "tag": "webserver_curl_test2",
+                                         "path": path})
+        self.assertTrue(d4._check_image_exists("webserver_curl_test2"))
+        self.assertRaises(ImageNotTaggedError, net.addDocker, "d5",
+                          ip='10.0.0.254',
+                          build_params={"dockerfile": "Dockerfile.server",
+                                        "path": path})
+
+    @staticmethod
+    def tearDown():
+        cleanup()
+        # make sure that all pending docker containers are killed
+        with open(os.devnull, 'w') as devnull:
+            subprocess.call(
+                "docker rm -f $(docker ps --filter 'label=com.containernet' -a -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
+
+    @staticmethod
+    def setUp():
+        pass
 
 
 class simpleTestTopology( unittest.TestCase ):

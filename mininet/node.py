@@ -695,6 +695,8 @@ class Host( Node ):
     "A host is simply a Node"
     pass
 
+class ImageNotTaggedError(Exception):
+    pass
 
 class Docker ( Host ):
     """Node that represents a docker container.
@@ -703,9 +705,8 @@ class Docker ( Host ):
     We use the docker-py client library to control docker.
     """
 
-    def __init__(
-            self, name, dimage=None, dcmd=None, path=None, build_params={},
-            **kwargs):
+    def __init__(self, name, dimage=None, dcmd=None, build_params={},
+                 **kwargs):
         """
         Creates a Docker container as Mininet host.
 
@@ -783,13 +784,19 @@ class Docker ( Host ):
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
         self.dcli = docker.from_env().api
 
-        if path is not None:
+        if build_params.get("path", None):
             if not build_params.get("tag", None):
                 if dimage:
                     build_params["tag"] = dimage
-            output = self.build(path, **build_params)
+                else:
+                    raise ImageNotTaggedError("""Please set 
+                    build_params['tag'] or dimage""")
+            else:
+                dimage = build_params["tag"]
+                self.dimage = build_params["tag"]
+            output = self.build(**build_params)
+            info("Docker image built. Output:\n")
             info(output)
-            # dimage = find_image_id(output)
 
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
@@ -861,9 +868,12 @@ class Docker ( Host ):
         self.master = None
         self.slave = None
 
-    def build(self, path, **kwargs):
-        output = self.dcli.build(path=path, **kwargs)
-        return list(output)
+    def build(self, **kwargs):
+        output = self.dcli.build(**kwargs)
+        output_str = ""
+        for line in output:
+            output_str += json.loads(line.decode())["stream"]
+        return output_str
 
     def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
