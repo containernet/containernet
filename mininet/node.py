@@ -872,7 +872,8 @@ class Docker ( Host ):
         output = self.dcli.build(**kwargs)
         output_str = ""
         for line in output:
-            output_str += " ".join(list(json.loads(line.decode()).values()))
+            for item in list(json.loads(line.decode()).values()):
+                output_str += str(item)
         return output_str
 
     def start(self):
