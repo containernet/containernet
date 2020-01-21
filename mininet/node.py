@@ -695,6 +695,8 @@ class Host( Node ):
     "A host is simply a Node"
     pass
 
+class ImageNotTaggedError(Exception):
+    pass
 
 class Docker ( Host ):
     """Node that represents a docker container.
@@ -703,8 +705,8 @@ class Docker ( Host ):
     We use the docker-py client library to control docker.
     """
 
-    def __init__(
-            self, name, dimage, dcmd=None, **kwargs):
+    def __init__(self, name, dimage=None, dcmd=None, build_params={},
+                 **kwargs):
         """
         Creates a Docker container as Mininet host.
 
@@ -782,6 +784,20 @@ class Docker ( Host ):
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
         self.dcli = docker.from_env().api
 
+        if build_params.get("path", None):
+            if not build_params.get("tag", None):
+                if dimage:
+                    build_params["tag"] = dimage
+                else:
+                    raise ImageNotTaggedError("""Please set 
+                    build_params['tag'] or dimage""")
+            else:
+                dimage = build_params["tag"]
+                self.dimage = build_params["tag"]
+            output = self.build(**build_params)
+            info("Docker image built. Output:\n")
+            info(output)
+
         # pull image if it does not exist
         self._check_image_exists(dimage, True)
 
@@ -851,6 +867,14 @@ class Docker ( Host ):
 
         self.master = None
         self.slave = None
+
+    def build(self, **kwargs):
+        output = self.dcli.build(**kwargs)
+        output_str = ""
+        for line in output:
+            for item in list(json.loads(line.decode()).values()):
+                output_str += str(item)
+        return output_str
 
     def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
