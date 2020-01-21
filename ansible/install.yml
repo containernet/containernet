@@ -1,10 +1,11 @@
 - hosts: localhost
   tasks:
    - name: updates apt
-     shell: apt-get -qq update
+     apt:
+      update_cache: yes
 
    - name: install basic packages
-     apt: name={{item}} state=installed
+     apt: name={{item}} state=present
      with_items:
        - aptitude
        - apt-transport-https
@@ -18,16 +19,19 @@
        - software-properties-common
 
    - name: install Docker CE repos (1/3)
-     shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+     apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
 
    - name: install Docker CE repos (2/3)
      shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 
    - name: install Docker CE repos (3/3)
-     shell: apt-get -qq update
+     apt:
+        update_cache: yes
 
    - name: install Docker CE
-     apt: name=docker-ce state=installed
+     apt: name=docker-ce state=present
 
    - name: find pip executable
      shell: "which pip3"
