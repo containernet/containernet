@@ -5,8 +5,7 @@ import time
 import subprocess
 import docker
 from mininet.net import Containernet
-from mininet.node import Host, Controller, OVSSwitch, Docker,\
-    ImageNotTaggedError
+from mininet.node import Host, Controller, OVSSwitch, Docker
 from mininet.link import TCLink
 from mininet.topo import SingleSwitchTopo, LinearTopo
 from mininet.log import setLogLevel
@@ -29,20 +28,20 @@ class testImageBuilding( unittest.TestCase ):
     def testaddDocker(self):
         net = Containernet(controller=Controller)
         path = find_test_container("webserver_curl")
+        d2 = net.addDocker("d2", ip='10.0.0.252',
+                           build_params={"dockerfile": "Dockerfile.server",
+                                         "path": path})
+        self.assertTrue(d2._check_image_exists(_id=d2.dimage))
         d3 = net.addDocker("d3", ip='10.0.0.253',
                            dimage="webserver_curl_test",
                            build_params={"dockerfile": "Dockerfile.server",
                                          "path": path})
         self.assertTrue(d3._check_image_exists("webserver_curl_test"))
-        d4 = net.addDocker("d4", ip='10.0.0.253',
+        d4 = net.addDocker("d4", ip='10.0.0.254',
                            build_params={"dockerfile": "Dockerfile.server",
                                          "tag": "webserver_curl_test2",
                                          "path": path})
         self.assertTrue(d4._check_image_exists("webserver_curl_test2"))
-        self.assertRaises(ImageNotTaggedError, net.addDocker, "d5",
-                          ip='10.0.0.254',
-                          build_params={"dockerfile": "Dockerfile.server",
-                                        "path": path})
 
     @staticmethod
     def tearDown():

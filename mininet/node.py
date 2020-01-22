@@ -695,8 +695,6 @@ class Host( Node ):
     "A host is simply a Node"
     pass
 
-class ImageNotTaggedError(Exception):
-    pass
 
 class Docker ( Host ):
     """Node that represents a docker container.
@@ -782,24 +780,23 @@ class Docker ( Host ):
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
-        self.dcli = docker.from_env().api
+        self.d_client = docker.from_env()
+        self.dcli = self.d_client.api
 
+        _id = None
         if build_params.get("path", None):
             if not build_params.get("tag", None):
                 if dimage:
                     build_params["tag"] = dimage
-                else:
-                    raise ImageNotTaggedError("""Please set 
-                    build_params['tag'] or dimage""")
-            else:
-                dimage = build_params["tag"]
-                self.dimage = build_params["tag"]
-            output = self.build(**build_params)
-            info("Docker image built. Output:\n")
+            _id, output = self.build(**build_params)
+            dimage = _id
+            self.dimage = _id
+            info("Docker image built: id: {},  {}. Output:\n".format(
+                _id, build_params.get("tag", None)))
             info(output)
 
         # pull image if it does not exist
-        self._check_image_exists(dimage, True)
+        self._check_image_exists(dimage, True, _id=None)
 
         # for DEBUG
         debug("Created docker container object %s\n" % name)
@@ -869,12 +866,9 @@ class Docker ( Host ):
         self.slave = None
 
     def build(self, **kwargs):
-        output = self.dcli.build(**kwargs)
-        output_str = ""
-        for line in output:
-            for item in list(json.loads(line.decode()).values()):
-                output_str += str(item)
-        return output_str
+        image, output = self.d_client.images.build(**kwargs)
+        output_str = parse_build_output(output)
+        return image.id, output_str
 
     def start(self):
         # Containernet ignores the CMD field of the Dockerfile.
@@ -1060,18 +1054,21 @@ class Docker ( Host ):
             return False;
         return True
 
-    def _check_image_exists(self, imagename, pullImage=False):
+    def _check_image_exists(self, imagename=None, pullImage=False, _id=None):
         # split tag from repository if a tag is specified
-        if ":" in imagename:
-            #If two :, then the first is to specify a port. Otherwise, it must be a tag
-            slices = imagename.split(":")
-            repo = ":".join(slices[0:-1])
-            tag = slices[-1]
+        if imagename:
+            if ":" in imagename:
+                #If two :, then the first is to specify a port. Otherwise, it must be a tag
+                slices = imagename.split(":")
+                repo = ":".join(slices[0:-1])
+                tag = slices[-1]
+            else:
+                repo = imagename
+                tag = "latest"
         else:
-            repo = imagename
-            tag = "latest"
+            repo, tag = "None", "None"
 
-        if self._image_exists(repo, tag):
+        if self._image_exists(repo, tag, _id):
             return True
 
         # image not found
@@ -1082,17 +1079,22 @@ class Docker ( Host ):
         # we couldn't find the image
         return False
 
-    def _image_exists(self, repo, tag):
+    def _image_exists(self, repo, tag, _id=None):
         """
         Checks if the repo:tag image exists locally
         :return: True if the image exists locally. Else false.
         """
+        print("1: ")
         images = self.dcli.images()
         imageTag = "%s:%s" % (repo, tag)
         for image in images:
-            if image.get("RepoTags"):
+            if image.get("RepoTags", None):
                 if imageTag in image.get("RepoTags", []):
                     debug("Image '{}' exists.\n".format(imageTag))
+                    return True
+            if image.get("Id", None):
+                print("; ".join([str(repo), str(tag), str(_id), str(image.get("Id"))]))
+                if image.get("Id") == _id:
                     return True
         return False
 
@@ -2159,13 +2161,16 @@ class RemoteController( Controller ):
         else:
             return True
 
+
 DefaultControllers = ( Controller, OVSController )
+
 
 def findController( controllers=DefaultControllers ):
     "Return first available controller from list, if any"
     for controller in controllers:
         if controller.isAvailable():
             return controller
+
 
 def DefaultController( name, controllers=DefaultControllers, **kwargs ):
     "Find a controller that is available and instantiate it"
@@ -2174,6 +2179,15 @@ def DefaultController( name, controllers=DefaultControllers, **kwargs ):
         raise Exception( 'Could not find a default OpenFlow controller' )
     return controller( name, **kwargs )
 
+
 def NullController( *_args, **_kwargs ):
     "Nonexistent controller - simply returns None"
     return None
+
+
+def parse_build_output(output):
+        output_str = ""
+        for line in output:
+            for item in line.values():
+                output_str += str(item)
+        return output_str
