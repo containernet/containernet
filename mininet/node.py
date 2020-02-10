@@ -750,7 +750,9 @@ class Docker ( Host ):
                      'ipc_mode': None,
                      'devices': [],
                      'cap_add': [],
-                     'sysctls': {}
+                     'sysctls': {},
+                     'extra_hosts': {},
+                     'working_dir': None,
                      }
         defaults.update( kwargs )
 
@@ -777,6 +779,8 @@ class Docker ( Host ):
         self.devices = defaults['devices']
         self.cap_add = defaults['cap_add']
         self.sysctls = defaults['sysctls']
+        self.working_dir = defaults['working_dir']
+        self.extra_hosts = defaults['extra_hosts']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -819,8 +823,8 @@ class Docker ( Host ):
             ipc_mode=self.ipc_mode,  # string
             devices=self.devices,  # see docker-py docu
             cap_add=self.cap_add,  # see docker-py docu
-            sysctls=self.sysctls   # see docker-py docu
-            
+            sysctls=self.sysctls,  # see docker-py docu
+            extra_hosts=self.extra_hosts, # see docker-py docu   
         )
 
         if kwargs.get("rm", False):
@@ -845,7 +849,8 @@ class Docker ( Host ):
             ports=defaults['ports'],
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
-            hostname=name
+            hostname=name,
+            working_dir=self.working_dir,
         )
 
         # start the container
