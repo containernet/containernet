@@ -831,13 +831,16 @@ class Docker ( Host ):
             container_list = self.dcli.containers(all=True)
             for container in container_list:
                 for container_name in container.get("Names", []):
-                    if "%s.%s" % (self.dnameprefix, name) in container_name:
-                        self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
+                    # if "%s.%s" % (self.dnameprefix, name) in container_name:
+                    #     self.dcli.remove_container(container="%s.%s" % (self.dnameprefix, name), force=True)
+                    if "%s" % (name) in container_name:
+                        self.dcli.remove_container(container="%s" % (name), force=True)
                         break
 
         # create new docker container
         self.dc = self.dcli.create_container(
-            name="%s.%s" % (self.dnameprefix, name),
+            # name="%s.%s" % (self.dnameprefix, name),
+            name="%s" % (name),
             image=self.dimage,
             command=self.dcmd,
             entrypoint=list(),  # overwrite (will be executed manually at the end)
@@ -950,8 +953,12 @@ class Docker ( Host ):
         # bash -i: force interactive
         # -s: pass $* to shell, and make process easy to find in ps
         # prompt is set to sentinel chr( 127 )
-        cmd = [ 'docker', 'exec', '-it',  '%s.%s' % ( self.dnameprefix, self.name ), 'env', 'PS1=' + chr( 127 ),
+        
+        # cmd = [ 'docker', 'exec', '-it',  '%s.%s' % ( self.dnameprefix, self.name ), 'env', 'PS1=' + chr( 127 ),
+        #         'bash', '--norc', '-is', 'mininet:' + self.name ]
+        cmd = [ 'docker', 'exec', '-it',  '%s' % ( self.name ), 'env', 'PS1=' + chr( 127 ),
                 'bash', '--norc', '-is', 'mininet:' + self.name ]
+        
         # Spawn a shell subprocess in a pseudo-tty, to disable buffering
         # in the subprocess and insulate it from signals (e.g. SIGINT)
         # received by the parent
@@ -1015,7 +1022,8 @@ class Docker ( Host ):
         if not self._is_container_running():
             error( "ERROR: Can't connect to Container \'%s\'' for docker host \'%s\'!\n" % (self.did, self.name) )
             return
-        mncmd = ["docker", "exec", "-t", "%s.%s" % (self.dnameprefix, self.name)]
+        # mncmd = ["docker", "exec", "-t", "%s.%s" % (self.dnameprefix, self.name)]
+        mncmd = ["docker", "exec", "-t", "%s" % (self.name)]
         return Host.popen( self, *args, mncmd=mncmd, **kwargs )
 
     def cmd(self, *args, **kwargs ):
@@ -2196,3 +2204,4 @@ def parse_build_output(output):
             for item in line.values():
                 output_str += str(item)
         return output_str
+
