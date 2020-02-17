@@ -3,11 +3,8 @@ sudo: required
 
 matrix:
   include:
-    - dist: xenial
-      python: 3.5
-      env: dist="16.04 LTS xenial"
     - dist: bionic
-      python: 3.6
+      python: 3.7
       env: dist="18.04 LTS bionic"
 
 env:
@@ -15,7 +12,7 @@ env:
     - COMMIT=${TRAVIS_COMMIT::8}
 
 virtualenv:
-  system_site_packages: true
+        system_site_packages: false
 
 before_install:
   - sudo apt-get update -qq
