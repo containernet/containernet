@@ -1,6 +1,6 @@
 # Containernet
 
-[![Join the chat at https://gitter.im/containernet/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/containernet/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge) [![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
+[![Build Status](https://travis-ci.org/containernet/containernet.svg?branch=master)](https://travis-ci.org/containernet/containernet)
 
 ## Containernet: Mininet fork that allows to use Docker containers as hosts in emulated networks
 
@@ -156,7 +156,7 @@ Containernet's [documentation](https://github.com/containernet/containernet/wiki
 
 ### Support
 
-If you have any questions, please use GitHub's [issue system](https://github.com/containernet/containernet/issues) or Containernet's [Gitter channel](https://gitter.im/containernet/) to get in touch.
+If you have any questions, please use GitHub's [issue system](https://github.com/containernet/containernet/issues) or to get in touch.
 
 ### Contribute
 
