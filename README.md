@@ -71,6 +71,7 @@ Containernet comes with two installation and deployment options.
 Automatic installation is provided through an Ansible playbook.
 
 Requires: **Ubuntu Linux 18.04 LTS** and **Python3**
+Experimental: **Ubuntu Linux 20.04 LTS** and **Python3**
 
 ```bash
 $ sudo apt-get install ansible git aptitude
