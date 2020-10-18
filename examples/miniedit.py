@@ -1555,7 +1555,7 @@ class MiniEdit( Frame ):
         if f == None:
             return
         self.newTopology()
-        loadedTopology = self.convertJsonUnicode(json.load(f))
+        loadedTopology = json.load(f)
 
         # Load application preferences
         if 'application' in loadedTopology:
@@ -1800,7 +1800,7 @@ class MiniEdit( Frame ):
             savingDictionary['application'] = self.appPrefs
 
             try:
-                f = open(fileName, 'wb')
+                f = open(fileName, 'w')
                 f.write(json.dumps(savingDictionary, sort_keys=True, indent=4, separators=(',', ': ')))
             # pylint: disable=broad-except
             except Exception as er:
