@@ -650,5 +650,38 @@ class testContainernetVolumeAPI( simpleTestTopology ):
         self.stopNet()
 
 
+#@unittest.skip("disabled container storage_opt tests for development")
+class testContainernetContainerStorageOptAPI( simpleTestTopology ):
+    """
+    Test to check the storage option/limitation API of the Docker integration.
+    """
+
+    def testStorageOpt( self ):
+        """
+        d1, d2 with storage size limit
+        """
+        # create network
+        self.createNet(nswitches=1, nhosts=0, ndockers=0)
+        # add dockers
+        d0 = self.net.addDocker(
+            'd0', ip='10.0.0.1', dimage="ubuntu:trusty",
+            storage_opt={'size': '42m'})
+        d1 = self.net.addDocker(
+            'd1', ip='10.0.0.2', dimage="ubuntu:trusty",
+            storage_opt={'size': '1G'})
+        # setup links (we always need one connection to suppress warnings)
+        self.net.addLink(d0, self.s[0])
+        self.net.addLink(d1, self.s[0])
+        # start Mininet network
+        self.startNet()
+        # check number of running docker containers
+        self.assertTrue(len(self.net.hosts) == 2)
+        # check size of default docker storage partition (overlay)
+        self.assertEqual(d0.cmd("df -h | grep overlay").split()[1], "42M")
+        self.assertEqual(d1.cmd("df -h | grep overlay").split()[1], "1.0G")
+        # stop Mininet network
+        self.stopNet()
+
+
 if __name__ == '__main__':
     unittest.main()
