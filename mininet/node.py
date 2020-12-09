@@ -751,7 +751,7 @@ class Docker ( Host ):
                      'devices': [],
                      'cap_add': [],
                      'sysctls': {},
-                     'storage_opt': {},
+                     'storage_opt': None,
                      }
         defaults.update( kwargs )
 
