@@ -750,6 +750,7 @@ class Docker ( Host ):
                      'ipc_mode': None,
                      'devices': [],
                      'cap_add': [],
+                     'storage_opt': None,
                      'sysctls': {}
                      }
         defaults.update( kwargs )
