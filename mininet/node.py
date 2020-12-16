@@ -778,6 +778,7 @@ class Docker ( Host ):
         self.devices = defaults['devices']
         self.cap_add = defaults['cap_add']
         self.sysctls = defaults['sysctls']
+        self.storage_opt = defaults['storage_opt']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -820,7 +821,8 @@ class Docker ( Host ):
             ipc_mode=self.ipc_mode,  # string
             devices=self.devices,  # see docker-py docu
             cap_add=self.cap_add,  # see docker-py docu
-            sysctls=self.sysctls   # see docker-py docu
+            sysctls=self.sysctls,   # see docker-py docu
+            storage_opt=self.storage_opt
             
         )
 
