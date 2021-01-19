@@ -822,8 +822,8 @@ class Docker ( Host ):
             devices=self.devices,  # see docker-py docu
             cap_add=self.cap_add,  # see docker-py docu
             sysctls=self.sysctls,   # see docker-py docu
-            storage_opt=self.storage_opt
-            
+            # fix https://github.com/containernet/containernet/issues/198
+            # storage_opt=self.storage_opt
         )
 
         if kwargs.get("rm", False):
