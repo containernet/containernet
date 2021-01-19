@@ -703,7 +703,9 @@ class Docker ( Host ):
     We use the docker-py client library to control docker.
     """
 
-    def __init__(self, name, dimage=None, dcmd=None, build_params={},
+    def __init__(self, name, dimage=None, dcmd=None,
+                 network_disabled=False,
+                 build_params={},
                  **kwargs):
         """
         Creates a Docker container as Mininet host.
@@ -724,6 +726,9 @@ class Docker ( Host ):
         All resource limits can be updated at runtime! Use:
         * updateCpuLimits(...)
         * updateMemoryLimits(...)
+
+        set network_disabled=True to avoid connecting to the default bridge
+        BEWARE: docker stats breaks if we disable the default network
         """
         self.dimage = dimage
         self.dnameprefix = "mn"
@@ -843,7 +848,7 @@ class Docker ( Host ):
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
             environment=self.environment,
-            #network_disabled=True,  # docker stats breaks if we disable the default network
+            network_disabled=network_disabled,
             host_config=hc,
             ports=defaults['ports'],
             labels=['com.containernet'],
