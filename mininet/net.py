@@ -1004,9 +1004,9 @@ class Mininet( object ):
         elif dst not in self.nameToNode:
             error( 'dst not in network: %s\n' % dst )
         else:
-            if isinstance( src, basestring ):
+            if isinstance( src, BaseString ):
                 src = self.nameToNode[ src ]
-            if isinstance( dst, basestring ):
+            if isinstance( dst, BaseString ):
                 dst = self.nameToNode[ dst ]
             connections = src.connectionsTo( dst )
             if len( connections ) == 0:
