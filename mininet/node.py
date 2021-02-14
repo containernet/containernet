@@ -807,7 +807,7 @@ class Docker ( Host ):
         info("%s: kwargs %s\n" % (name, str(kwargs)))
 
         # creats host config for container
-        # see: https://docker-py.readthedocs.io/en/2.0.2/api.html#module-docker.api.container
+        # see: https://docker-py.readthedocs.io/en/stable/api.html#docker.api.container.ContainerApiMixin.create_host_config
         hc = self.dcli.create_host_config(
             network_mode=self.network_mode,
             privileged=True,  # we need this to allow mininet network setup
