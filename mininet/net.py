@@ -1045,10 +1045,13 @@ class Containernet( Mininet ):
     This class is not more than API beautification.
     """
 
-    def __init__(self, **params):
-        # call original Mininet.__init__
-        Mininet.__init__(self, **params)
+    def __init__(self, topo=None, dimage=None, **params):
+        # call original Mininet.__init__ with build=False
+        # still provide any topo objects and init node lists
+        Mininet.__init__(self, build=False, **params)
         self.SAPswitches = dict()
+        if topo and dimage:
+            self.buildFromTopo(topo, dimage)
 
     def addDocker( self, name, cls=Docker, **params ):
         """
@@ -1082,6 +1085,51 @@ class Containernet( Mininet ):
             self.addSAPNAT(SAPswitch)
 
         return SAPswitch
+
+    def buildFromTopo( self, topo=None, dimage=None ):
+        """
+        Build Containernet from a topology object. Overrides
+        buildFromTopo from Mininet class, since we need to invoke
+        addDocker here instead of addHost.
+        At the en of this function, everything should be connected
+        and up.
+        """
+
+        info( '*** Creating network\n' )
+
+        if not self.controllers and self.controller:
+            # Add a default controller
+            info( '*** Adding controller\n' )
+            classes = self.controller
+            if not isinstance( classes, list ):
+                classes = [ classes ]
+            for i, cls in enumerate( classes ):
+                # Allow Controller objects because nobody understands partial()
+                if isinstance( cls, Controller ):
+                    self.addController( cls )
+                else:
+                    self.addController( 'c%d' % i, cls )
+
+        info( '*** Adding Docker containers:\n' )
+        for hostName in topo.hosts():
+            self.addDocker( hostName, dimage=dimage, **topo.nodeInfo( hostName ) )
+            info( hostName + ' ' )
+
+        info( '\n*** Adding switches:\n' )
+        for switchName in topo.switches():
+            # A bit ugly: add batch parameter if appropriate
+            params = topo.nodeInfo( switchName )
+            cls = params.get( 'cls', self.switch )
+            self.addSwitch( switchName, **params )
+            info( switchName + ' ' )
+
+        info( '\n*** Adding links:\n' )
+        for srcName, dstName, params in topo.links(
+                sort=True, withInfo=True ):
+            self.addLink( **params )
+            info( '(%s, %s) ' % ( srcName, dstName ) )
+
+        info( '\n' )
 
     def removeExtSAP(self, sapName):
         SAPswitch = self.SAPswitches[sapName]
