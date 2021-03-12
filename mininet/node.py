@@ -749,11 +749,14 @@ class Docker ( Host ):
                      'dns': [],
                      'ipc_mode': None,
                      'devices': [],
-                     'cap_add': [],
+                     'cap_add': ['net_admin'],  # we need this to allow mininet network setup
                      'storage_opt': None,
                      'sysctls': {}
                      }
         defaults.update( kwargs )
+
+        if 'net_admin' not in defaults['cap_add']:
+            defaults['cap_add'] += ['net_admin']  # adding net_admin if it's cleared out to allow mininet network setup
 
         # keep resource in a dict for easy update during container lifetime
         self.resources = dict(
@@ -810,7 +813,7 @@ class Docker ( Host ):
         # see: https://docker-py.readthedocs.io/en/stable/api.html#docker.api.container.ContainerApiMixin.create_host_config
         hc = self.dcli.create_host_config(
             network_mode=self.network_mode,
-            privileged=True,  # we need this to allow mininet network setup
+            privileged=False,  # no longer need privileged, using net_admin capability instead
             binds=self.volumes,
             tmpfs=self.tmpfs,
             publish_all_ports=self.publish_all_ports,
