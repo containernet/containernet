@@ -34,13 +34,19 @@
        - sudo
        - which
 
+   - name: "Check if Docker-CE is installed"
+     package_facts:
+      manager: "auto"
+
    - name: install Docker CE (1/3)
      shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: install Docker CE (2/3)
      yum:
        name: docker-ce
        state: latest
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: install Docker CE (3/3)
      systemd: name=docker state=started
