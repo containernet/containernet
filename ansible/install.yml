@@ -18,20 +18,28 @@
        - iptables
        - software-properties-common
 
+   - name: "Check if Docker-CE is installed"
+     package_facts:
+      manager: "auto"
+
    - name: install Docker CE repos (1/3)
      apt_key:
       url: https://download.docker.com/linux/ubuntu/gpg
       state: present
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: install Docker CE repos (2/3)
      shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: install Docker CE repos (3/3)
      apt:
         update_cache: yes
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: install Docker CE
      apt: name=docker-ce state=present
+     when: "'docker-ce' not in ansible_facts.packages"
 
    - name: find pip executable
      shell: "which pip3"
