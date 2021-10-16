@@ -29,12 +29,21 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    # OVS needs to install a kernel module. We do not want to allow
+    # the container to modify the kernel so we install it before.
+    - name: Install OVS
+      run: |
+        sudo apt-get -y install openvswitch-switch
     - name: Build container
       run: |
         docker build -t containernet/containernet:ubuntu -f ./Dockerfile .
     - name: Run tests in container
       run: |
-        docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:ubuntu py.test -v mininet/test/
+        docker run --name containernet -i --rm --privileged \
+          --pid='host' \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          containernet/containernet:ubuntu \
+          py.test -v mininet/test/
 
   test-on-centos:
     name: Run tests in CentOS container
@@ -43,9 +52,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    # OVS needs to install a kernel module. We do not want to allow
+    # the container to modify the kernel so we install it before.
+    - name: Install OVS
+      run: |
+        sudo apt-get -y install openvswitch-switch
     - name: Build container
       run: |
         docker build -t containernet/containernet:centos7 -f ./Dockerfile.centos .
     - name: Run tests in container
       run: |
-        docker run --name containernet -i --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet:centos7 py.test -v mininet/test/
+        docker run --name containernet -i --rm --privileged \
+          --pid='host' \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          containernet/containernet:centos7 \
+          py.test -v mininet/test/
