@@ -33,6 +33,7 @@
        - gcc
        - sudo
        - which
+       - libibverbs
 
    - name: "Check if Docker-CE is installed"
      package_facts:
