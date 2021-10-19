@@ -8,9 +8,9 @@ on:
 
 jobs:
   test:
-    name: Run tests on bare metal
+    name: Run tests on Ubuntu 18.04
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v2
@@ -24,9 +24,9 @@ jobs:
         sudo pytest -v mininet/test
 
   test-on-ubuntu:
-    name: Run tests in Ubuntu container
+    name: Run tests in Ubuntu 18.04 container
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v2
@@ -47,9 +47,9 @@ jobs:
           py.test -v mininet/test/
 
   test-on-centos:
-    name: Run tests in CentOS container
+    name: Run tests in CentOS 7 container
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-18.04
 
     steps:
     - uses: actions/checkout@v2
