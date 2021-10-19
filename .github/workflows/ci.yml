@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+    branches: [ $default-branch ]
+
+jobs:
+  test:
+    name: Run tests on bare metal
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run Ansible Playbook
+      run: |
+        sudo apt-get -y install ansible vlan 
+        cd ansible
+        sudo ansible-playbook -i "localhost," -c local install.yml
+    - name: Run Tests
+      run: |
+        sudo pytest -v mininet/test
+
+  test-on-ubuntu:
+    name: Run tests in Ubuntu container
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    # OVS needs to install a kernel module. We do not want to allow
+    # the container to modify the kernel so we install it before.
+    - name: Install OVS
+      run: |
+        sudo apt-get -y install openvswitch-switch
+    - name: Build container
+      run: |
+        docker build -t containernet/containernet:ubuntu -f ./Dockerfile .
+    - name: Run tests in container
+      run: |
+        docker run --name containernet -i --rm --privileged \
+          --pid='host' \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          containernet/containernet:ubuntu \
+          py.test -v mininet/test/
+
+  test-on-centos:
+    name: Run tests in CentOS container
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    # OVS needs to install a kernel module. We do not want to allow
+    # the container to modify the kernel so we install it before.
+    - name: Install OVS
+      run: |
+        sudo apt-get -y install openvswitch-switch
+    - name: Build container
+      run: |
+        docker build -t containernet/containernet:centos7 -f ./Dockerfile.centos .
+    - name: Run tests in container
+      run: |
+        docker run --name containernet -i --rm --privileged \
+          --pid='host' \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          containernet/containernet:centos7 \
+          py.test -v mininet/test/

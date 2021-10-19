@@ -825,8 +825,10 @@ class Docker ( Host ):
             devices=self.devices,  # see docker-py docu
             cap_add=self.cap_add,  # see docker-py docu
             sysctls=self.sysctls,   # see docker-py docu
-            storage_opt=self.storage_opt
-            
+            storage_opt=self.storage_opt,
+            # Assuming Docker uses the cgroupfs driver, we set the parent to safely
+            # access cgroups when modifying resource limits.
+            cgroup_parent='/docker'
         )
 
         if kwargs.get("rm", False):

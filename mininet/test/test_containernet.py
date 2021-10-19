@@ -650,7 +650,7 @@ class testContainernetVolumeAPI( simpleTestTopology ):
         self.stopNet()
 
 
-@unittest.skip("disabled container storage_opt tests since this is not supported by travis.ci")
+@unittest.skip("skip since storage_opt is only supported for overlay on XFS filesystems with pquota mount option")
 class testContainernetContainerStorageOptAPI( simpleTestTopology ):
     """
     Test to check the storage option/limitation API of the Docker integration.
