@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 Simple example of Mobility with Mininet
@@ -19,12 +19,12 @@ to-do:
 - think about clearing last hop - why doesn't that work?
 """
 
+from random import randint
+
 from mininet.net import Mininet
 from mininet.node import OVSSwitch
 from mininet.topo import LinearTopo
-from mininet.log import output, warn
-
-from random import randint
+from mininet.log import info, output, warn, setLogLevel
 
 
 class MobilitySwitch( OVSSwitch ):
@@ -37,6 +37,7 @@ class MobilitySwitch( OVSSwitch ):
         del self.intfs[ port ]
         del self.nameToIntf[ intf.name ]
 
+    # pylint: disable=arguments-differ
     def addIntf( self, intf, rename=False, **kwargs ):
         "Add (and reparent) an interface"
         OVSSwitch.addIntf( self, intf, **kwargs )
@@ -105,30 +106,33 @@ def moveHost( host, oldSwitch, newSwitch, newPort=None ):
 
 def mobilityTest():
     "A simple test of mobility"
-    print('* Simple mobility test')
-    net = Mininet( topo=LinearTopo( 3 ), switch=MobilitySwitch )
-    print('* Starting network:')
+    info( '* Simple mobility test\n' )
+    net = Mininet( topo=LinearTopo( 3 ), switch=MobilitySwitch,
+                                    waitConnected=True )
+    info( '* Starting network:\n' )
     net.start()
     printConnections( net.switches )
-    print('* Testing network')
+    info( '* Testing network\n' )
     net.pingAll()
-    print('* Identifying switch interface for h1')
+    info( '* Identifying switch interface for h1\n' )
     h1, old = net.get( 'h1', 's1' )
     for s in 2, 3, 1:
         new = net[ 's%d' % s ]
         port = randint( 10, 20 )
-        print(('* Moving', h1, 'from', old, 'to', new, 'port', port))
+        info( '* Moving', h1, 'from', old, 'to', new, 'port', port, '\n' )
         hintf, sintf = moveHost( h1, old, new, newPort=port )
-        print(('*', hintf, 'is now connected to', sintf))
-        print('* Clearing out old flows')
+        info( '*', hintf, 'is now connected to', sintf, '\n' )
+        info( '* Clearing out old flows\n' )
         for sw in net.switches:
             sw.dpctl( 'del-flows' )
-        print('* New network:')
+        info( '* New network:\n' )
         printConnections( net.switches )
-        print('* Testing connectivity:')
+        info( '* Testing connectivity:\n' )
         net.pingAll()
         old = new
     net.stop()
 
+
 if __name__ == '__main__':
+    setLogLevel( 'info' )
     mobilityTest()

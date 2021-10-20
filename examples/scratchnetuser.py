@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 Build a simple network from scratch, using mininet primitives.
@@ -52,7 +52,7 @@ def scratchNetUser( cname='controller', cargs='ptcp:' ):
     info( '*** Starting controller and user datapath\n' )
     controller.cmd( cname + ' ' + cargs + '&' )
     switch.cmd( 'ifconfig lo 127.0.0.1' )
-    intfs = [ str( i ) for i in (sintf1, sintf2) ]
+    intfs = str( sintf1 ), str( sintf2 )
     switch.cmd( 'ofdatapath -i ' + ','.join( intfs ) + ' ptcp: &' )
     switch.cmd( 'ofprotocol tcp:' + controller.IP() + ' tcp:localhost &' )
 
@@ -65,6 +65,7 @@ def scratchNetUser( cname='controller', cargs='ptcp:' ):
     switch.cmd( 'kill %ofprotocol' )
     switch.deleteIntfs()
     info( '\n' )
+
 
 if __name__ == '__main__':
     setLogLevel( 'info' )

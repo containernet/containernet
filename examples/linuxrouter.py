@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 linuxrouter.py: Example network with Linux IP router
@@ -27,15 +27,18 @@ Additional routes may be added to the router or hosts by
 executing 'ip route' or 'route' commands on the router or hosts.
 """
 
+
 from mininet.topo import Topo
 from mininet.net import Mininet
 from mininet.node import Node
 from mininet.log import setLogLevel, info
 from mininet.cli import CLI
 
+
 class LinuxRouter( Node ):
     "A Node with IP forwarding enabled."
 
+    # pylint: disable=arguments-differ
     def config( self, **params ):
         super( LinuxRouter, self).config( **params )
         # Enable forwarding on the router
@@ -49,12 +52,13 @@ class LinuxRouter( Node ):
 class NetworkTopo( Topo ):
     "A LinuxRouter connecting three IP subnets"
 
+    # pylint: disable=arguments-differ
     def build( self, **_opts ):
 
         defaultIP = '192.168.1.1/24'  # IP address for r0-eth1
         router = self.addNode( 'r0', cls=LinuxRouter, ip=defaultIP )
 
-        s1, s2, s3 = [ self.addSwitch( s ) for s in ('s1', 's2', 's3') ]
+        s1, s2, s3 = [ self.addSwitch( s ) for s in ( 's1', 's2', 's3' ) ]
 
         self.addLink( s1, router, intfName2='r0-eth1',
                       params2={ 'ip' : defaultIP } )  # for clarity
@@ -77,12 +81,14 @@ class NetworkTopo( Topo ):
 def run():
     "Test linux router"
     topo = NetworkTopo()
-    net = Mininet( topo=topo )  # controller is used by s1-s3
+    net = Mininet( topo=topo,
+                   waitConnected=True )  # controller is used by s1-s3
     net.start()
     info( '*** Routing Table on Router:\n' )
-    print((net[ 'r0' ].cmd( 'route' )))
+    info( net[ 'r0' ].cmd( 'route' ) )
     CLI( net )
     net.stop()
+
 
 if __name__ == '__main__':
     setLogLevel( 'info' )

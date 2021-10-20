@@ -50,7 +50,7 @@ def makeTerm( node, title='Node', term='xterm', display=None, cmd='bash'):
     }
     if term not in cmds:
         error( 'invalid terminal type: %s' % term )
-        return
+        return None
     # Docker Hosts don't have DISPLAY. So instead of
     # X11 tunnel, we use terminals from outside Docker
     from mininet.node import Docker

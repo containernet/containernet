@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 Build a simple network from scratch, using mininet primitives.
@@ -8,13 +8,14 @@ but it exposes the configuration details and allows customization.
 For most tasks, the higher-level API will be preferable.
 """
 
+from time import sleep
+
 from mininet.net import Mininet
 from mininet.node import Node
 from mininet.link import Link
 from mininet.log import setLogLevel, info
 from mininet.util import quietRun
 
-from time import sleep
 
 def scratchNet( cname='controller', cargs='-v ptcp:' ):
     "Create network from scratch using Open vSwitch."
@@ -39,8 +40,8 @@ def scratchNet( cname='controller', cargs='-v ptcp:' ):
     controller.cmd( cname + ' ' + cargs + '&' )
     switch.cmd( 'ovs-vsctl del-br dp0' )
     switch.cmd( 'ovs-vsctl add-br dp0' )
-    for intf in list(switch.intfs.values()):
-        print((switch.cmd( 'ovs-vsctl add-port dp0 %s' % intf )))
+    for intf in switch.intfs.values():
+        switch.cmd( 'ovs-vsctl add-port dp0 %s\n' % intf )
 
     # Note: controller and switch are in root namespace, and we
     # can connect via loopback interface
@@ -60,6 +61,7 @@ def scratchNet( cname='controller', cargs='-v ptcp:' ):
     switch.cmd( 'ovs-vsctl del-br dp0' )
     switch.deleteIntfs()
     info( '\n' )
+
 
 if __name__ == '__main__':
     setLogLevel( 'info' )

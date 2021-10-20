@@ -24,10 +24,15 @@ TCIntf: interface with bandwidth limiting and delay via tc
 Link: basic link class for creating veth pairs
 """
 
+import re
+
 from mininet.log import info, error, debug
 from mininet.util import makeIntfPair
 import mininet.node
-import re
+
+# Make pylint happy:
+# pylint: disable=too-many-arguments
+
 
 class Intf( object ):
 
@@ -178,7 +183,7 @@ class Intf( object ):
         name, value = list( param.items() )[ 0 ]
         f = getattr( self, method, None )
         if not f or value is None:
-            return
+            return None
         if isinstance( value, list ):
             result = f( *value )
         elif isinstance( value, dict ):
@@ -300,11 +305,6 @@ class TCIntf( Intf ):
                    loss=None, max_queue_size=None ):
         "Internal method: return tc commands for delay and loss"
         cmds = []
-        # if delay and float(delay) < 0:
-        #     error( 'Negative delay', delay, '\n' )
-        # elif jitter and float(jitter) < 0:
-        #     error( 'Negative jitter', jitter, '\n' )
-        # elif loss and ( float(loss) < 0 or float(loss) > 100 ):
         if loss and ( loss < 0 or loss > 100 ):
             error( 'Bad loss percentage', loss, '%%\n' )
         else:
@@ -328,6 +328,7 @@ class TCIntf( Intf ):
         debug(" *** executing command: %s\n" % c)
         return self.cmd( c )
 
+    # pylint: disable=arguments-differ
     def config( self, bw=None, delay=None, jitter=None, loss=None,
                 gro=False, txo=True, rxo=True,
                 speedup=0, use_hfsc=False, use_tbf=False,
@@ -368,7 +369,7 @@ class TCIntf( Intf ):
         # Question: what happens if we want to reset things?
         if ( bw is None and not delay and not loss
              and max_queue_size is None ):
-            return
+            return None
 
         # Clear existing configuration
         tcoutput = self.tc( '%s qdisc show dev %s' )
@@ -550,7 +551,11 @@ class OVSLink( Link ):
 
     def __init__( self, node1, node2, **kwargs ):
         "See Link.__init__() for options"
-        from mininet.node import OVSSwitch
+        try:
+            OVSSwitch
+        except NameError:
+            # pylint: disable=import-outside-toplevel,cyclic-import
+            from mininet.node import OVSSwitch
         self.isPatchLink = False
         if ( isinstance( node1, OVSSwitch ) and
              isinstance( node2, OVSSwitch ) ):
@@ -558,6 +563,7 @@ class OVSLink( Link ):
             kwargs.update( cls1=OVSIntf, cls2=OVSIntf )
         Link.__init__( self, node1, node2, **kwargs )
 
+    # pylint: disable=arguments-differ, signature-differs
     def makeIntfPair( self, *args, **kwargs ):
         "Usually delegated to OVSSwitch"
         if self.isPatchLink:

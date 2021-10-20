@@ -88,7 +88,6 @@ class Cleanup( object ):
         for dp in dps:
             if dp:
                 sh( 'dpctl deldp ' + dp )
-
         info( "***  Removing OVS datapaths\n" )
         dps = sh("ovs-vsctl --timeout=1 list-br").strip().splitlines()
         if dps:
