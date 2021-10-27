@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 MiniEdit: a simple network editor for Mininet
@@ -13,17 +13,32 @@ Controller icon from http://semlabs.co.uk/
 OpenFlow icon from https://www.opennetworking.org/
 """
 
-# Miniedit needs some work in order to pass pylint...
-# pylint: disable=line-too-long,too-many-branches
-# pylint: disable=too-many-statements,attribute-defined-outside-init
-# pylint: disable=missing-docstring
-
-MINIEDIT_VERSION = '2.2.0.1'
-
+import json
+import os
+import re
 import sys
+
+from distutils.version import StrictVersion
+from functools import partial
 from optparse import OptionParser
 from subprocess import call
+from sys import exit  # pylint: disable=redefined-builtin
 
+from mininet.log import info, debug, warn, setLogLevel
+from mininet.net import Mininet, VERSION, Containernet
+from mininet.util import (netParse, ipAdd, quietRun,
+                          buildTopo, custom, customClass )
+from mininet.term import makeTerm, cleanUpScreens
+from mininet.node import (Controller, RemoteController, NOX, OVSController,
+                          CPULimitedHost, Host, Node, Docker,
+                          OVSSwitch, UserSwitch, IVSSwitch )
+from mininet.link import TCLink, Intf, Link
+from mininet.cli import CLI
+from mininet.moduledeps import moduleDeps
+from mininet.topo import SingleSwitchTopo, LinearTopo, SingleSwitchReversedTopo
+from mininet.topolib import TreeTopo
+
+# pylint: disable=import-error
 if sys.version_info[0] == 2:
     from Tkinter import ( Frame, Label, LabelFrame, Entry, OptionMenu,
                           Checkbutton, Menu, Toplevel, Button, BitmapImage,
@@ -35,7 +50,6 @@ if sys.version_info[0] == 2:
     import tkFont
     import tkFileDialog
     import tkSimpleDialog
-
 else:
     from tkinter import ( Frame, Label, LabelFrame, Entry, OptionMenu,
                           Checkbutton, Menu, Toplevel, Button, BitmapImage,
@@ -47,37 +61,24 @@ else:
     from tkinter import font as tkFont
     from tkinter import simpledialog as tkSimpleDialog
     from tkinter import filedialog as tkFileDialog
+# someday: from ttk import *
+# pylint: enable=import-error
 
-import re
-import json
-from distutils.version import StrictVersion
-import os
-from functools import partial
+
+# Miniedit still needs work in order to pass pylint...
+# pylint: disable=line-too-long,too-many-branches
+# pylint: disable=too-many-statements,attribute-defined-outside-init
+# pylint: disable=missing-docstring,too-many-ancestors
+# pylint: disable=too-many-nested-blocks,too-many-arguments
+
+
+MINIEDIT_VERSION = '2.2.0.1'
 
 if 'PYTHONPATH' in os.environ:
     sys.path = os.environ[ 'PYTHONPATH' ].split( ':' ) + sys.path
 
-# someday: from ttk import *
-
-from mininet.log import info, setLogLevel
-from mininet.net import Mininet, VERSION, Containernet
-from mininet.util import netParse, ipAdd, quietRun
-from mininet.util import buildTopo
-from mininet.util import custom, customClass
-from mininet.term import makeTerm, cleanUpScreens
-from mininet.node import Controller, RemoteController, NOX, OVSController
-from mininet.node import CPULimitedHost, Host, Node, Docker
-from mininet.node import OVSSwitch, UserSwitch
-from mininet.link import TCLink, Intf, Link
-from mininet.cli import CLI
-from mininet.moduledeps import moduleDeps
-from mininet.topo import SingleSwitchTopo, LinearTopo, SingleSwitchReversedTopo
-from mininet.topolib import TreeTopo
-
-print(('MiniEdit running against Containernet ' + VERSION))
+info( 'MiniEdit running against Containernet '+VERSION, '\n' )
 MININET_VERSION = re.sub(r'[^\d\.]', '', VERSION)
-if StrictVersion(MININET_VERSION) > StrictVersion('2.0'):
-    from mininet.node import IVSSwitch
 
 TOPODEF = 'none'
 TOPOS = { 'minimal': lambda: SingleSwitchTopo( k=2 ),
@@ -138,6 +139,7 @@ class LegacyRouter( Node ):
     def __init__( self, name, inNamespace=True, **params ):
         Node.__init__( self, name, inNamespace, **params )
 
+    # pylint: disable=arguments-differ
     def config( self, **_params ):
         if self.intfs:
             self.setParam( _params, 'setIP', ip='0.0.0.0' )
@@ -394,14 +396,14 @@ class PrefsDialog(tkSimpleDialog.Dialog):
     @staticmethod
     def getOvsVersion():
         "Return OVS version"
-        outp = quietRun("ovs-vsctl show")
-        r = r'ovs_version: "(.*)"'
+        outp = quietRun("ovs-vsctl --version")
+        r = r'ovs-vsctl \(Open vSwitch\) (.*)'
         m = re.search(r, outp)
         if m is None:
-            print('Version check failed')
+            warn( 'Version check failed' )
             return None
         else:
-            print(('Open vSwitch version is '+m.group(1)))
+            info( 'Open vSwitch version is '+m.group(1), '\n' )
             return m.group(1)
 
 
@@ -862,7 +864,7 @@ class SwitchDialog(CustomDialog):
     def apply(self):
         externalInterfaces = []
         for row in range(self.tableFrame.rows):
-            #print 'Interface is ' + self.tableFrame.get(row, 0)
+            # debug( 'Interface is ' + self.tableFrame.get(row, 0), '\n' )
             if len(self.tableFrame.get(row, 0)) > 0:
                 externalInterfaces.append(self.tableFrame.get(row, 0))
 
@@ -910,8 +912,8 @@ class VerticalScrolledTable(LabelFrame):
     * This frame only allows vertical scrolling
 
     """
-    def __init__(self, parent, rows=2, columns=2, title=None, *args, **kw):
-        LabelFrame.__init__(self, parent, text=title, padx=5, pady=5, *args, **kw)
+    def __init__(self, parent, rows=2, columns=2, title=None, **kw):
+        LabelFrame.__init__(self, parent, text=title, padx=5, pady=5, **kw)
 
         # create a canvas object and a vertical scrollbar for scrolling it
         vscrollbar = Scrollbar(self, orient=VERTICAL)
@@ -947,8 +949,6 @@ class VerticalScrolledTable(LabelFrame):
                 canvas.itemconfigure(interior_id, width=canvas.winfo_width())
         canvas.bind('<Configure>', _configure_canvas)
 
-        return
-
 class TableFrame(Frame):
     def __init__(self, parent, rows=2, columns=2):
 
@@ -973,14 +973,14 @@ class TableFrame(Frame):
         return widget.get()
 
     def addRow( self, value=None, readonly=False ):
-        #print "Adding row " + str(self.rows +1)
+        # debug( "Adding row " + str(self.rows +1), '\n' )
         current_row = []
         for column in range(self.columns):
             label = Entry(self, borderwidth=0)
             label.grid(row=self.rows, column=column, sticky="wens", padx=1, pady=1)
             if value is not None:
                 label.insert(0, value[column])
-            if readonly == True:
+            if readonly:
                 label.configure(state='readonly')
             current_row.append(label)
         self._widgets.append(current_row)
@@ -1511,13 +1511,13 @@ class MiniEdit( Frame ):
 
     def addNode( self, node, nodeNum, x, y, name=None):
         "Add a new node to our canvas."
-        if 'Switch' == node or 'LegacySwitch' == node or 'LegacyRouter' == node:
+        if node == 'Switch' or node == 'LegacySwitch' or node == 'LegacyRouter':
             self.switchCount += 1
-        if 'Host' == node:
+        if node == 'Host':
             self.hostCount += 1
-        if 'Docker' == node:
+        if node == 'Docker':
             self.dockerCount += 1
-        if 'Controller' == node:
+        if node == 'Controller':
             self.controllerCount += 1
         if name is None:
             name = self.nodePrefixes[ node ] + nodeNum
@@ -1534,14 +1534,17 @@ class MiniEdit( Frame ):
 
     def convertJsonUnicode(self, text):
         "Some part of Mininet don't like Unicode"
-        if isinstance(text, dict):
-            return {self.convertJsonUnicode(key): self.convertJsonUnicode(value) for key, value in list(text.items())}
-        elif isinstance(text, list):
-            return [self.convertJsonUnicode(element) for element in text]
-        elif isinstance(text, str):
-            return text.encode('utf-8')
-        else:
+        try:
+            unicode
+        except NameError:
             return text
+        if isinstance(text, dict):
+            return {self.convertJsonUnicode(key): self.convertJsonUnicode(value) for key, value in text.items()}
+        if isinstance(text, list):
+            return [self.convertJsonUnicode(element) for element in text]
+        if isinstance(text, unicode):  # pylint: disable=undefined-variable
+            return text.encode('utf-8')
+        return text
 
     def loadTopology( self ):
         "Load command."
@@ -1552,14 +1555,14 @@ class MiniEdit( Frame ):
             ('All Files','*'),
         ]
         f = tkFileDialog.askopenfile(filetypes=myFormats, mode='rb')
-        if f == None:
+        if f is None:
             return
         self.newTopology()
         loadedTopology = json.load(f)
 
         # Load application preferences
         if 'application' in loadedTopology:
-            self.appPrefs = dict(list(self.appPrefs.items()) + list(loadedTopology['application'].items()))
+            self.appPrefs.update(loadedTopology['application'])
             if "ovsOf10" not in self.appPrefs["openFlowVersions"]:
                 self.appPrefs["openFlowVersions"]["ovsOf10"] = '0'
             if "ovsOf11" not in self.appPrefs["openFlowVersions"]:
@@ -1719,10 +1722,11 @@ class MiniEdit( Frame ):
         for widget in self.widgetToItem:
             if name ==  widget[ 'text' ]:
                 return widget
+        return None
 
     def newTopology( self ):
         "New command."
-        for widget in list(self.widgetToItem.keys()):
+        for widget in tuple( self.widgetToItem ):
             self.deleteItem( self.widgetToItem[ widget ] )
         self.hostCount = 0
         self.dockerCount = 0
@@ -1804,7 +1808,7 @@ class MiniEdit( Frame ):
                 f.write(json.dumps(savingDictionary, sort_keys=True, indent=4, separators=(',', ': ')))
             # pylint: disable=broad-except
             except Exception as er:
-                print(er)
+                warn( er, '\n' )
             # pylint: enable=broad-except
             finally:
                 f.close()
@@ -1818,10 +1822,10 @@ class MiniEdit( Frame ):
 
         fileName = tkFileDialog.asksaveasfilename(filetypes=myFormats ,title="Export the topology as...")
         if len(fileName ) > 0:
-            #print "Now saving under %s" % fileName
-            f = open(fileName, 'wb')
+            # debug( "Now saving under %s\n" % fileName )
+            f = open(fileName, 'w')
 
-            f.write("#!/usr/bin/python\n")
+            f.write("#!/usr/bin/env python\n")
             f.write("\n")
             f.write("from mininet.net import Mininet\n")
             f.write("from mininet.node import Controller, RemoteController, OVSController\n")
@@ -1845,7 +1849,7 @@ class MiniEdit( Frame ):
                     if controllerType == 'inband':
                         inBandCtrl = True
 
-            if inBandCtrl == True:
+            if inBandCtrl:
                 f.write("\n")
                 f.write("class InbandController( RemoteController ):\n")
                 f.write("\n")
@@ -1970,7 +1974,7 @@ class MiniEdit( Frame ):
 
             # Save Links
             f.write("    info( '*** Add links\\n')\n")
-            for key,linkDetail in list(self.links.items()):
+            for key,linkDetail in self.links.items():
                 tags = self.canvas.gettags(key)
                 if 'data' in tags:
                     optsExist = False
@@ -2242,7 +2246,7 @@ class MiniEdit( Frame ):
         c = self.canvas
         x, y = c.canvasx( event.x ), c.canvasy( event.y )
         name = self.nodePrefixes[ node ]
-        if 'Switch' == node:
+        if node == 'Switch':
             self.switchCount += 1
             name = self.nodePrefixes[ node ] + str( self.switchCount )
             self.switchOpts[name] = {}
@@ -2250,14 +2254,14 @@ class MiniEdit( Frame ):
             self.switchOpts[name]['hostname']=name
             self.switchOpts[name]['switchType']='default'
             self.switchOpts[name]['controllers']=[]
-        if 'LegacyRouter' == node:
+        if node == 'LegacyRouter':
             self.switchCount += 1
             name = self.nodePrefixes[ node ] + str( self.switchCount )
             self.switchOpts[name] = {}
             self.switchOpts[name]['nodeNum']=self.switchCount
             self.switchOpts[name]['hostname']=name
             self.switchOpts[name]['switchType']='legacyRouter'
-        if 'LegacySwitch' == node:
+        if node == 'LegacySwitch':
             self.switchCount += 1
             name = self.nodePrefixes[ node ] + str( self.switchCount )
             self.switchOpts[name] = {}
@@ -2265,14 +2269,14 @@ class MiniEdit( Frame ):
             self.switchOpts[name]['hostname']=name
             self.switchOpts[name]['switchType']='legacySwitch'
             self.switchOpts[name]['controllers']=[]
-        if 'Host' == node:
+        if node == 'Host':
             self.hostCount += 1
             name = self.nodePrefixes[ node ] + str( self.hostCount )
             self.hostOpts[name] = {'sched':'host'}
             self.hostOpts[name]['nodeNum']=self.hostCount
             self.hostOpts[name]['hostname']=name
             self.hostOpts[name]['nodeType']=node
-        if 'Docker' == node:
+        if node == 'Docker':
             self.dockerCount += 1
             name = self.nodePrefixes[ node ] + str( self.dockerCount )
             self.hostOpts[name] = {'sched':'host'}
@@ -2281,7 +2285,7 @@ class MiniEdit( Frame ):
             self.hostOpts[name]['dimage']='ubuntu:trusty'
             self.hostOpts[name]['startCommand']='/bin/bash'
             self.hostOpts[name]['nodeType']=node
-        if 'Controller' == node:
+        if node == 'Controller':
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
             ctrlr = { 'controllerType': 'ref',
                       'hostname': name,
@@ -2299,17 +2303,17 @@ class MiniEdit( Frame ):
         self.itemToWidget[ item ] = icon
         self.selectItem( item )
         icon.links = {}
-        if 'Switch' == node:
+        if node == 'Switch':
             icon.bind('<Button-3>', self.do_switchPopup )
-        if 'LegacyRouter' == node:
+        if node == 'LegacyRouter':
             icon.bind('<Button-3>', self.do_legacyRouterPopup )
-        if 'LegacySwitch' == node:
+        if node == 'LegacySwitch':
             icon.bind('<Button-3>', self.do_legacySwitchPopup )
-        if 'Host' == node:
+        if node == 'Host':
             icon.bind('<Button-3>', self.do_hostPopup )
-        if 'Docker' == node:
+        if node == 'Docker':
             icon.bind('<Button-3>', self.do_dockerPopup )
-        if 'Controller' == node:
+        if node == 'Controller':
             icon.bind('<Button-3>', self.do_controllerPopup )
 
     def clickController( self, event ):
@@ -2383,7 +2387,7 @@ class MiniEdit( Frame ):
 
     def clickNode( self, event ):
         "Node click handler."
-        if self.active is 'NetLink':
+        if self.active == 'NetLink':
             self.startLink( event )
         else:
             self.selectNode( event )
@@ -2391,14 +2395,14 @@ class MiniEdit( Frame ):
 
     def dragNode( self, event ):
         "Node drag handler."
-        if self.active is 'NetLink':
+        if self.active == 'NetLink':
             self.dragNetLink( event )
         else:
             self.dragNodeAround( event )
 
     def releaseNode( self, event ):
         "Node release handler."
-        if self.active is 'NetLink':
+        if self.active == 'NetLink':
             self.finishLink( event )
 
     # Specific node handlers
@@ -2511,6 +2515,8 @@ class MiniEdit( Frame ):
         # but allow docker containers
         stags = self.canvas.gettags( self.widgetToItem[ source ] )
         dtags = self.canvas.gettags( target )
+        # TODO: Make this less confusing
+        # pylint: disable=too-many-boolean-expressions
         if (('Host' in stags and 'Host' in dtags) or
            ('Controller' in dtags and 'LegacyRouter' in stags) or
            ('Controller' in stags and 'LegacyRouter' in dtags) or
@@ -2644,7 +2650,7 @@ class MiniEdit( Frame ):
             if len(hostBox.result['privateDirectory']) > 0:
                 newHostOpts['privateDirectory'] = hostBox.result['privateDirectory']
             self.hostOpts[name] = newHostOpts
-            print(('New host details for ' + name + ' = ' + str(newHostOpts)))
+            info( 'New host details for ' + name + ' = ' + str(newHostOpts), '\n' )
 
     def dockerDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -2679,7 +2685,7 @@ class MiniEdit( Frame ):
             if len(dockerBox.result['multiInterfaces']) > 0:
                 newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
             self.hostOpts[name] = newDockerOpts
-            print(('New host details for ' + name + ' = ' + str(self.hostOpts[name])))
+            info( 'New host details for ' + name + ' = ' + str(self.hostOpts[name]), '\n' )
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -2717,7 +2723,7 @@ class MiniEdit( Frame ):
             newSwitchOpts['sflow'] = switchBox.result['sflow']
             newSwitchOpts['netflow'] = switchBox.result['netflow']
             self.switchOpts[name] = newSwitchOpts
-            print(('New switch details for ' + name + ' = ' + str(newSwitchOpts)))
+            info( 'New switch details for ' + name + ' = ' + str(newSwitchOpts), '\n' )
 
     def linkUp( self ):
         if ( self.selection is None or
@@ -2756,12 +2762,12 @@ class MiniEdit( Frame ):
         linkBox = LinkDialog(self, title='Link Details', linkDefaults=linkopts)
         if linkBox.result is not None:
             linkDetail['linkOpts'] = linkBox.result
-            print(('New link details = ' + str(linkBox.result)))
+            info( 'New link details = ' + str(linkBox.result), '\n' )
 
     def prefDetails( self ):
         prefDefaults = self.appPrefs
         prefBox = PrefsDialog(self, title='Preferences', prefDefaults=prefDefaults)
-        print(('New Prefs = ' + str(prefBox.result)))
+        info( 'New Prefs = ' + str(prefBox.result), '\n' )
         if prefBox.result:
             self.appPrefs = prefBox.result
 
@@ -2780,14 +2786,14 @@ class MiniEdit( Frame ):
 
         ctrlrBox = ControllerDialog(self, title='Controller Details', ctrlrDefaults=self.controllers[name])
         if ctrlrBox.result:
-            #print 'Controller is ' + ctrlrBox.result[0]
+            # debug( 'Controller is ' + ctrlrBox.result[0], '\n' )
             if len(ctrlrBox.result['hostname']) > 0:
                 name = ctrlrBox.result['hostname']
                 widget[ 'text' ] = name
             else:
                 ctrlrBox.result['hostname'] = name
             self.controllers[name] = ctrlrBox.result
-            print(('New controller details for ' + name + ' = ' + str(self.controllers[name])))
+            info( 'New controller details for ' + name + ' = ' + str(self.controllers[name]), '\n' )
             # Find references to controller and change name
             if oldName != name:
                 for widget in self.widgetToItem:
@@ -2832,7 +2838,7 @@ class MiniEdit( Frame ):
             linkopts = {}
         source.links[ dest ] = self.link
         dest.links[ source ] = self.link
-        self.links[ self.link ] = {'type' :linktype,
+        self.links[ self.link ] = {'type':linktype,
                                    'src':source,
                                    'dest':dest,
                                    'linkOpts':linkopts}
@@ -2873,14 +2879,13 @@ class MiniEdit( Frame ):
         tags = self.canvas.gettags(item)
         if 'Controller' in tags:
             # remove from switch controller lists
-            for serachwidget in self.widgetToItem:
-                name = serachwidget[ 'text' ]
-                tags = self.canvas.gettags( self.widgetToItem[ serachwidget ] )
+            for searchwidget in self.widgetToItem:
+                name = searchwidget[ 'text' ]
+                tags = self.canvas.gettags( self.widgetToItem[ searchwidget ] )
                 if 'Switch' in tags:
                     if widget['text'] in self.switchOpts[name]['controllers']:
                         self.switchOpts[name]['controllers'].remove(widget['text'])
-
-        for link in list(widget.links.values()):
+        for link in tuple( widget.links.values() ):
             # Delete from view and model
             self.deleteItem( link )
         del self.itemToWidget[ item ]
@@ -2888,15 +2893,15 @@ class MiniEdit( Frame ):
 
     def buildNodes( self, net):
         # Make nodes
-        print("Getting Hosts and Switches.")
+        info( "Getting Hosts and Switches.\n" )
         for widget in self.widgetToItem:
             name = widget[ 'text' ]
             tags = self.canvas.gettags( self.widgetToItem[ widget ] )
-            #print name+' has '+str(tags)
+            # debug( name+' has '+str(tags), '\n' )
 
             if 'Switch' in tags:
                 opts = self.switchOpts[name]
-                #print str(opts)
+                # debug( str(opts), '\n' )
 
                 # Create the correct switch class
                 switchClass = customOvs
@@ -2962,7 +2967,7 @@ class MiniEdit( Frame ):
                 newSwitch = net.addHost( name , cls=LegacyRouter)
             elif 'Host' in tags:
                 opts = self.hostOpts[name]
-                #print str(opts)
+                # debug( str(opts), '\n' )
                 ip = None
                 defaultRoute = None
                 if 'defaultRoute' in opts and len(opts['defaultRoute']) > 0:
@@ -2987,7 +2992,7 @@ class MiniEdit( Frame ):
                                            privateDirs=opts['privateDirectory'] )
                     else:
                         hostCls=Host
-                print(hostCls)
+                debug( hostCls, '\n' )
                 newHost = net.addHost( name,
                                        cls=hostCls,
                                        ip=ip,
@@ -3007,7 +3012,7 @@ class MiniEdit( Frame ):
                             Intf( extInterface, node=newHost )
                 if 'vlanInterfaces' in opts:
                     if len(opts['vlanInterfaces']) > 0:
-                        print('Checking that OS is VLAN prepared')
+                        info( 'Checking that OS is VLAN prepared\n' )
                         self.pathCheck('vconfig', moduleName='vlan package')
                         moduleDeps( add='8021q' )
             elif 'Docker' in tags:
@@ -3048,7 +3053,7 @@ class MiniEdit( Frame ):
                 controllerPort = opts['remotePort']
 
                 # Make controller
-                print(('Getting controller selection:'+controllerType))
+                info( 'Getting controller selection:'+controllerType, '\n' )
                 if controllerType == 'remote':
                     net.addController(name=name,
                                       controller=RemoteController,
@@ -3088,8 +3093,8 @@ class MiniEdit( Frame ):
 
     def buildLinks( self, net):
         # Make links
-        print("Getting Links.")
-        for key,link in list(self.links.items()):
+        info( "Getting Links.\n" )
+        for key,link in self.links.items():
             tags = self.canvas.gettags(key)
             # start links
             if 'data' in tags:
@@ -3138,14 +3143,14 @@ class MiniEdit( Frame ):
                 elif linkopts:
                     net.addLink(srcNode, dstNode, cls=TCLink, **linkopts)
                 else:
-                    #print str(srcNode)
-                    #print str(dstNode)
+                    # debug( str(srcNode) )
+                    # debug( str(dstNode), '\n' )
                     net.addLink(srcNode, dstNode)
                 self.canvas.itemconfig(key, dash=())
 
 
     def build( self ):
-        print("Build network based on our topology.")
+        "Build network based on our topology."
 
         dpctl = None
         if len(self.appPrefs['dpctl']) > 0:
@@ -3176,7 +3181,7 @@ class MiniEdit( Frame ):
                 # Attach vlan interfaces
                 if 'vlanInterfaces' in opts:
                     for vlanInterface in opts['vlanInterfaces']:
-                        print(('adding vlan interface '+vlanInterface[1]))
+                        info( 'adding vlan interface '+vlanInterface[1], '\n' )
                         newHost.cmdPrint('ifconfig '+name+'-eth0.'+vlanInterface[1]+' '+vlanInterface[0])
                 # Run User Defined Start Command
                 if 'startCommand' in opts:
@@ -3202,7 +3207,7 @@ class MiniEdit( Frame ):
                     opts = self.switchOpts[name]
                     if 'netflow' in opts:
                         if opts['netflow'] == '1':
-                            print((name+' has Netflow enabled'))
+                            info( name+' has Netflow enabled\n' )
                             nflowSwitches = nflowSwitches+' -- set Bridge '+name+' netflow=@MiniEditNF'
                             nflowEnabled=True
             if nflowEnabled:
@@ -3211,13 +3216,13 @@ class MiniEdit( Frame ):
                     nflowCmd = nflowCmd + ' add_id_to_interface=true'
                 else:
                     nflowCmd = nflowCmd + ' add_id_to_interface=false'
-                print(('cmd = '+nflowCmd+nflowSwitches))
+                info( 'cmd = '+nflowCmd+nflowSwitches, '\n' )
                 call(nflowCmd+nflowSwitches, shell=True)
 
             else:
-                print('No switches with Netflow')
+                info( 'No switches with Netflow\n' )
         else:
-            print('No NetFlow targets specified.')
+            info( 'No NetFlow targets specified.\n' )
 
         # Configure sFlow
         sflowValues = self.appPrefs['sflow']
@@ -3232,23 +3237,23 @@ class MiniEdit( Frame ):
                     opts = self.switchOpts[name]
                     if 'sflow' in opts:
                         if opts['sflow'] == '1':
-                            print((name+' has sflow enabled'))
+                            info( name+' has sflow enabled\n' )
                             sflowSwitches = sflowSwitches+' -- set Bridge '+name+' sflow=@MiniEditSF'
                             sflowEnabled=True
             if sflowEnabled:
                 sflowCmd = 'ovs-vsctl -- --id=@MiniEditSF create sFlow '+ 'target=\\\"'+sflowValues['sflowTarget']+'\\\" '+ 'header='+sflowValues['sflowHeader']+' '+ 'sampling='+sflowValues['sflowSampling']+' '+ 'polling='+sflowValues['sflowPolling']
-                print(('cmd = '+sflowCmd+sflowSwitches))
+                info( 'cmd = '+sflowCmd+sflowSwitches, '\n' )
                 call(sflowCmd+sflowSwitches, shell=True)
 
             else:
-                print('No switches with sflow')
+                info( 'No switches with sflow\n' )
         else:
-            print('No sFlow targets specified.')
+            info( 'No sFlow targets specified.\n' )
 
         ## NOTE: MAKE SURE THIS IS LAST THING CALLED
         # Start the CLI if enabled
         if self.appPrefs['startCLI'] == '1':
-            info( "\n\n NOTE: PLEASE REMEMBER TO EXIT THE CLI BEFORE YOU PRESS THE STOP BUTTON. Not exiting will prevent MiniEdit from quitting and will prevent you from starting the network again during this sessoin.\n\n")
+            info( "\n\n NOTE: PLEASE REMEMBER TO EXIT THE CLI BEFORE YOU PRESS THE STOP BUTTON. Not exiting will prevent MiniEdit from quitting and will prevent you from starting the network again during this session.\n\n")
             CLI(self.net)
 
     def start( self ):
@@ -3477,14 +3482,15 @@ class MiniEdit( Frame ):
         "Parse custom file and add params before parsing cmd-line options."
         customs = {}
         if os.path.isfile( fileName ):
-            exec(compile(open( fileName, "rb" ).read(), fileName, 'exec'), customs, customs)
-            for name, val in list(customs.items()):
+            with open( fileName, 'r' ) as f:
+                exec( f.read() )  # pylint: disable=exec-used
+            for name, val in customs.items():
                 self.setCustom( name, val )
         else:
             raise Exception( 'could not find custom file: %s' % fileName )
 
     def importTopo( self ):
-        print(('topo='+self.options.topo))
+        info( 'topo='+self.options.topo, '\n' )
         if self.options.topo == 'none':
             return
         self.newTopology()
@@ -3498,7 +3504,7 @@ class MiniEdit( Frame ):
         currentY = 100
 
         # Add Controllers
-        print(('controllers:'+str(len(importNet.controllers))))
+        info( 'controllers:'+str(len(importNet.controllers)), '\n' )
         for controller in importNet.controllers:
             name = controller.name
             x = self.controllerCount*100+100
@@ -3518,7 +3524,7 @@ class MiniEdit( Frame ):
         currentY = currentY + rowIncrement
 
         # Add switches
-        print(('switches:'+str(len(importNet.switches))))
+        info( 'switches:'+str(len(importNet.switches)), '\n' )
         columnCount = 0
         for switch in importNet.switches:
             name = switch.name
@@ -3559,7 +3565,7 @@ class MiniEdit( Frame ):
 
         currentY = currentY + rowIncrement
         # Add hosts
-        print(('hosts:'+str(len(importNet.hosts))))
+        info( 'hosts:'+str(len(importNet.hosts)), '\n' )
         columnCount = 0
         for host in importNet.hosts:
             name = host.name
@@ -3579,10 +3585,10 @@ class MiniEdit( Frame ):
             else:
                 columnCount =columnCount+1
 
-        print(('links:'+str(len(topo.links()))))
+        info( 'links:'+str(len(topo.links())), '\n' )
         #[('h1', 's3'), ('h2', 's4'), ('s3', 's4')]
         for link in topo.links():
-            print((str(link)))
+            info( str(link), '\n' )
             srcNode = link[0]
             src = self.findWidgetByName(srcNode)
             sx, sy = self.canvas.coords( self.widgetToItem[ src ] )
@@ -3592,7 +3598,7 @@ class MiniEdit( Frame ):
             dx, dy = self.canvas.coords( self.widgetToItem[ dest]  )
 
             params = topo.linkInfo( srcNode, destNode )
-            print(('Link Parameters='+str(params)))
+            info( 'Link Parameters='+str(params), '\n' )
 
             self.link = self.canvas.create_line( sx, sy, dx, dy, width=4,
                                              fill='blue', tag='link' )
@@ -3955,8 +3961,7 @@ def addDictOption( opts, choicesDict, default, name, helpStr=None ):
 if __name__ == '__main__':
     setLogLevel( 'info' )
     app = MiniEdit()
-    ### import topology if specified ###
     app.parseArgs()
+    ### import topology if specified ###
     app.importTopo()
-
     app.mainloop()

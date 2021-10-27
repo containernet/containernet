@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 multiping.py: monitor multiple sets of hosts using ping
@@ -8,13 +8,14 @@ multiple hosts and monitor their output interactively for a period=
 of time.
 """
 
+from select import poll, POLLIN
+from time import time
+
 from mininet.net import Mininet
 from mininet.node import Node
 from mininet.topo import SingleSwitchTopo
-from mininet.log import setLogLevel
+from mininet.log import info, setLogLevel
 
-from select import poll, POLLIN
-from time import time
 
 def chunks( l, n ):
     "Divide list l into chunks of size n - thanks Stackoverflow"
@@ -34,8 +35,8 @@ def startpings( host, targetips ):
             ' done; '
             'done &' )
 
-    print(( '*** Host %s (%s) will be pinging ips: %s' %
-            ( host.name, host.IP(), targetips ) ))
+    info( '*** Host %s (%s) will be pinging ips: %s\n' %
+          ( host.name, host.IP(), targetips ) )
 
     host.cmd( cmd )
 
@@ -44,7 +45,7 @@ def multiping( netsize, chunksize, seconds):
 
     # Create network and identify subnets
     topo = SingleSwitchTopo( netsize )
-    net = Mininet( topo=topo )
+    net = Mininet( topo=topo, waitConnected=True )
     net.start()
     hosts = net.hosts
     subnets = chunks( hosts, chunksize )
@@ -58,7 +59,7 @@ def multiping( netsize, chunksize, seconds):
     # Start pings
     for subnet in subnets:
         ips = [ host.IP() for host in subnet ]
-        #adding bogus to generate packet loss
+        # adding bogus to generate packet loss
         ips.append( '10.0.0.200' )
         for host in subnet:
             startpings( host, ips )
@@ -69,7 +70,7 @@ def multiping( netsize, chunksize, seconds):
         readable = poller.poll(1000)
         for fd, _mask in readable:
             node = Node.outToNode[ fd ]
-            print(('%s:' % node.name, node.monitor().strip()))
+            info( '%s:' % node.name, node.monitor().strip(), '\n' )
 
     # Stop pings
     for host in hosts:

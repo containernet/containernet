@@ -58,7 +58,7 @@
     pip: name=python-iptables state=latest
 
   - name: build and install Containernet (using Mininet installer)
-    shell: containernet/util/install.sh
+    shell: PYTHON=python3 containernet/util/install.sh
     args:
       chdir: /var
 

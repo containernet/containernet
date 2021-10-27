@@ -1,10 +1,11 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 """
 Create a network with 5 hosts, numbered 1-4 and 9.
 Validate that the port numbers match to the interface name,
 and that the ovs ports match the mininet ports.
 """
+
 
 from mininet.net import Mininet
 from mininet.node import Controller
@@ -27,7 +28,7 @@ def testPortNumbering():
        mid-level API) and check that implicit and
        explicit port numbering works as expected."""
 
-    net = Mininet( controller=Controller )
+    net = Mininet( controller=Controller, waitConnected=True )
 
     info( '*** Adding controller\n' )
     net.addController( 'c0' )
@@ -65,14 +66,15 @@ def testPortNumbering():
                    'is actually on port', s1.ports[intfs], '... ' )
             if validatePort( s1, intfs ):
                 info( 'Validated.\n' )
-    print('\n')
+    info( '\n' )
 
     # test the network with pingall
     net.pingAll()
-    print('\n')
+    info( '\n' )
 
-    info( '*** Stopping network' )
+    info( '*** Stopping network\n' )
     net.stop()
+
 
 if __name__ == '__main__':
     setLogLevel( 'info' )

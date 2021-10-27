@@ -5,7 +5,7 @@ Test for scratchnet.py
 """
 
 import unittest
-import pexpect
+from mininet.util import pexpect
 
 class testScratchNet( unittest.TestCase ):
 
@@ -14,8 +14,9 @@ class testScratchNet( unittest.TestCase ):
     def pingTest( self, name ):
         "Verify that no ping packets were dropped"
         p = pexpect.spawn( 'python -m %s' % name )
-        index = p.expect( self.opts )
+        index = p.expect( self.opts, timeout=120 )
         self.assertEqual( index, 0 )
+        p.wait()
 
     def testPingKernel( self ):
         self.pingTest( 'mininet.examples.scratchnet' )
