@@ -3157,7 +3157,6 @@ class MiniEdit( Frame ):
             dpctl = int(self.appPrefs['dpctl'])
         net = Containernet( topo=None,
                        listenPort=dpctl,
-                       build=False,
                        ipBase=self.appPrefs['ipBase'] )
 
         self.buildNodes(net)
