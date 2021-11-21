@@ -99,6 +99,30 @@ After launching the emulated network, you can interact with the involved contain
 
 You can exit the CLI using `containernet> exit`.
 
+### Running a client-server example
+
+Let's simulate a webserver and a client making requests. For that, we need a server and client image.
+First, change into the `containernet/examples` directory.
+
+Containernet already provides a simple Python server for testing purposes. To build the server image, just run
+
+```bash
+docker build -f example-containers/webserver_curl/Dockerfile.server -t test_server:latest example-containers/webserver_curl/
+```
+
+We further need a basic client to make a CURL request. Containernet provides that as well. Please run
+
+```bash
+docker build -f example-containers/Dockerfile.curl -t test_client:latest example-containers/
+```
+
+Now that we have a server and client image, we can create hosts using them. You can either checkout the topology
+script `containernet_example_server_client.py` first or run it directly:
+
+```bash
+sudo python3 containernet_example_server_curl.py
+```
+
 ### Customizing topologies
 
 You can also add hosts with resource restrictions or mounted volumes:
