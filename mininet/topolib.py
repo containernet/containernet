@@ -2,6 +2,7 @@
 
 from mininet.topo import Topo
 from mininet.net import Mininet, Containernet
+from mininet.node import Docker
 
 # The build() method is expected to do this:
 # pylint: disable=arguments-differ
@@ -31,6 +32,31 @@ class TreeTopo( Topo ):
             self.hostNum += 1
         return node
 
+class ContainerTreeTopo( Topo ):
+    "Topology for a container tree network with a given depth and fanout."
+
+    def build( self, depth=1, fanout=2, dimage="ubuntu:trusty" ):
+        # Numbering:  h1..N, s1..M
+        self.hostNum = 1
+        self.switchNum = 1
+        # Build topology
+        self.addTree( depth, fanout, dimage )
+
+    def addTree( self, depth, fanout, dimage ):
+        """Add a subtree starting with node n.
+           returns: last node added"""
+        isSwitch = depth > 0
+        if isSwitch:
+            node = self.addSwitch( 's%s' % self.switchNum )
+            self.switchNum += 1
+            for _ in range( fanout ):
+                child = self.addTree( depth - 1, fanout, dimage )
+                self.addLink( node, child )
+        else:
+            node = self.addHost( 'h%s' % self.hostNum, cls=Docker, dimage=dimage )
+            self.hostNum += 1
+        return node
+
 
 def TreeNet( depth=1, fanout=2, **kwargs ):
     "Convenience function for creating tree networks."
@@ -40,8 +66,8 @@ def TreeNet( depth=1, fanout=2, **kwargs ):
 
 def TreeContainerNet( depth=1, fanout=2, dimage="ubuntu:trusty", **kwargs ):
     "Convenience function for creating tree networks with Docker."
-    topo = TreeTopo( depth, fanout )
-    return Containernet( topo, dimage, **kwargs )
+    topo = ContainerTreeTopo( depth, fanout, dimage )
+    return Containernet( topo=topo, **kwargs )
 
 
 class TorusTopo( Topo ):
