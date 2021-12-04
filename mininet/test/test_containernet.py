@@ -1,15 +1,12 @@
 import pytest
 import unittest
 import os
-import time
 import subprocess
 import docker
 from mininet.net import Containernet
-from mininet.node import Host, Controller, OVSSwitch, Docker
+from mininet.node import Controller
 from mininet.link import TCLink
-from mininet.topo import SingleSwitchTopo, LinearTopo
-from mininet.log import setLogLevel
-from mininet.util import quietRun
+from mininet.topolib import TreeContainerNet
 from mininet.clean import cleanup
 
 
@@ -681,6 +678,35 @@ class testContainernetContainerStorageOptAPI( simpleTestTopology ):
         self.assertEqual(d1.cmd("df -h | grep overlay").split()[1], "1.0G")
         # stop Mininet network
         self.stopNet()
+
+class testCustomTopologies( unittest.TestCase ):
+    """
+    Test the behaviour of custom containernet topologies.
+    """
+
+    def testTreeTopology( self ):
+        net = TreeContainerNet(2, 2, dimage="ubuntu:trusty")
+        dropped = net.run( net.pingAll )
+        self.assertEqual( dropped, 0 )
+
+    def testNATWithTreeTopology( self ):
+        net = TreeContainerNet(2, 2, dimage="ubuntu:trusty")
+        net.addNAT().configDefault()
+        net.start()
+        pingLostPercentage = net.hosts[0].cmd("ping -c 1 8.8.8.8 | grep -oP '\\d+(?=% packet loss)'").strip()
+        self.assertEqual(pingLostPercentage, "0")
+        net.stop()
+
+    @staticmethod
+    def tearDown():
+        cleanup()
+        # make sure that all pending docker containers are killed
+        with open(os.devnull, 'w') as devnull:
+            subprocess.call(
+                "docker rm -f $(docker ps --filter 'label=com.containernet' -a -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
 
 
 if __name__ == '__main__':
