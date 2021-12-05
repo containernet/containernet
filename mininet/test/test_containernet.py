@@ -689,6 +689,8 @@ class testCustomTopologies( unittest.TestCase ):
         dropped = net.run( net.pingAll )
         self.assertEqual( dropped, 0 )
 
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
     def testNATWithTreeTopology( self ):
         # In order to test the NAT we spin up another network on the host which
         # is only accessible through a NAT in the Mininet network.
