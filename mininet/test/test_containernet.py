@@ -690,20 +690,49 @@ class testCustomTopologies( unittest.TestCase ):
         self.assertEqual( dropped, 0 )
 
     def testNATWithTreeTopology( self ):
+        # In order to test the NAT we spin up another network on the host which
+        # is only accessible through a NAT in the Mininet network.
+        dockerClient = docker.from_env()
+        dockerClient.networks.create(
+            "test-nat-network",
+            driver="bridge",
+            labels={"com.containernet": ""}
+        )
+        otherContainer = dockerClient.containers.run(
+            "ubuntu:trusty",
+            network="test-nat-network",
+            stdin_open=True,
+            detach=True,
+            tty=True,
+            labels=["com.containernet"]
+        )
+        # Reload the container to fetch all attributes:
+        otherContainer.reload()
+        otherContainerIp = otherContainer.attrs['NetworkSettings']['Networks']['test-nat-network']['IPAddress']
+
         net = TreeContainerNet(2, 2, dimage="ubuntu:trusty")
         net.addNAT().configDefault()
         net.start()
-        pingLostPercentage = net.hosts[0].cmd("ping -c 1 8.8.8.8 | grep -oP '\\d+(?=% packet loss)'").strip()
+
+        # Assert that we can reach a container in the other network.
+        pingLostPercentage = net.hosts[0].cmd(f"ping -c 1 {otherContainerIp} | grep -oP '\\d+(?=% packet loss)'").strip()
         self.assertEqual(pingLostPercentage, "0")
+
+        # We only stop this network, tearDown will take care of the extra container.
         net.stop()
 
     @staticmethod
     def tearDown():
         cleanup()
-        # make sure that all pending docker containers are killed
+        # make sure that all pending docker containers and networks are killed
         with open(os.devnull, 'w') as devnull:
             subprocess.call(
                 "docker rm -f $(docker ps --filter 'label=com.containernet' -a -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
+            subprocess.call(
+                "docker network rm $(docker network ls --filter 'label=com.containernet' -q)",
                 stdout=devnull,
                 stderr=devnull,
                 shell=True)
