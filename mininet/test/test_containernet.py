@@ -715,8 +715,8 @@ class testCustomTopologies( unittest.TestCase ):
         net.start()
 
         # Assert that we can reach a container in the other network.
-        pingLostPercentage = net.hosts[0].cmd(f"ping -c 1 {otherContainerIp} | grep -oP '\\d+(?=% packet loss)'").strip()
-        self.assertEqual(pingLostPercentage, "0")
+        pingResult = net.ping([net.hosts[0]], manualdestip=otherContainerIp)
+        self.assertEqual(pingResult, 0)
 
         # We only stop this network, tearDown will take care of the extra container.
         net.stop()
