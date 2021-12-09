@@ -1,15 +1,12 @@
 import pytest
 import unittest
 import os
-import time
 import subprocess
 import docker
 from mininet.net import Containernet
-from mininet.node import Host, Controller, OVSSwitch, Docker
+from mininet.node import Controller
 from mininet.link import TCLink
-from mininet.topo import SingleSwitchTopo, LinearTopo
-from mininet.log import setLogLevel
-from mininet.util import quietRun
+from mininet.topolib import TreeContainerNet
 from mininet.clean import cleanup
 
 
@@ -681,6 +678,66 @@ class testContainernetContainerStorageOptAPI( simpleTestTopology ):
         self.assertEqual(d1.cmd("df -h | grep overlay").split()[1], "1.0G")
         # stop Mininet network
         self.stopNet()
+
+class testCustomTopologies( unittest.TestCase ):
+    """
+    Test the behaviour of custom containernet topologies.
+    """
+
+    def testTreeTopology( self ):
+        net = TreeContainerNet(2, 2, dimage="ubuntu:trusty")
+        dropped = net.run( net.pingAll )
+        self.assertEqual( dropped, 0 )
+
+    @pytest.mark.skipif(os.environ.get("CONTAINERNET_NESTED") is not None,
+                        reason="not in nested Docker deployment")
+    def testNATWithTreeTopology( self ):
+        # In order to test the NAT we spin up another network on the host which
+        # is only accessible through a NAT in the Mininet network.
+        dockerClient = docker.from_env()
+        dockerClient.networks.create(
+            "test-nat-network",
+            driver="bridge",
+            labels={"com.containernet": ""}
+        )
+        otherContainer = dockerClient.containers.run(
+            "ubuntu:trusty",
+            network="test-nat-network",
+            stdin_open=True,
+            detach=True,
+            tty=True,
+            labels=["com.containernet"]
+        )
+        # Reload the container to fetch all attributes:
+        otherContainer.reload()
+        otherContainerIp = otherContainer.attrs['NetworkSettings']['Networks']['test-nat-network']['IPAddress']
+
+        net = TreeContainerNet(2, 2, dimage="ubuntu:trusty")
+        net.addNAT().configDefault()
+        net.start()
+
+        # Assert that we can reach a container in the other network.
+        pingResult = net.ping([net.hosts[0]], manualdestip=otherContainerIp)
+        self.assertEqual(pingResult, 0)
+
+        # We only stop this network, tearDown will take care of the extra container.
+        net.stop()
+
+    @staticmethod
+    def tearDown():
+        cleanup()
+        # make sure that all pending docker containers and networks are killed
+        with open(os.devnull, 'w') as devnull:
+            subprocess.call(
+                "docker rm -f $(docker ps --filter 'label=com.containernet' -a -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
+            subprocess.call(
+                "docker network rm $(docker network ls --filter 'label=com.containernet' -q)",
+                stdout=devnull,
+                stderr=devnull,
+                shell=True)
 
 
 if __name__ == '__main__':
