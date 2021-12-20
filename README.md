@@ -110,6 +110,8 @@ Containernet already provides a simple Python server for testing purposes. To bu
 docker build -f example-containers/webserver_curl/Dockerfile.server -t test_server:latest example-containers/webserver_curl/
 ```
 
+If you have not added your user to the `docker` group as described [here](https://docs.docker.com/engine/install/linux-postinstall/), you will need to prepend `sudo`. 
+
 We further need a basic client to make a CURL request. Containernet provides that as well. Please run
 
 ```bash
@@ -121,6 +123,13 @@ script `containernet_example_server_client.py` first or run it directly:
 
 ```bash
 sudo python3 containernet_example_server_curl.py
+```
+
+If everything worked, you should be able to see following output:
+
+```txt
+Execute: client.cmd("time curl 10.0.0.251")
+Hello world.
 ```
 
 ### Customizing topologies
