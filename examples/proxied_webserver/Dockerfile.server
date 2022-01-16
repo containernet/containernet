@@ -17,3 +17,5 @@ RUN pip install Flask redis uwsgi
 
 WORKDIR /app
 COPY server.py /app
+COPY uwsgi.ini /app
+

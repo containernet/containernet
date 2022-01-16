@@ -70,8 +70,7 @@ net.addLink(switch2, db)
 # ----
 
 net.start()
-server.cmd(
-    "uwsgi --socket 20.0.0.2:3031 --wsgi-file server.py --callable app --daemonize /tmp/uwsgi.log"
-)
+# Start uwsgi server after container is fully setup.
+server.cmd("uwsgi uwsgi.ini")
 CLI(net)
 net.stop()
