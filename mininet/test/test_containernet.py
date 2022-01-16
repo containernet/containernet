@@ -10,7 +10,7 @@ from mininet.topolib import TreeContainerNet
 from mininet.clean import cleanup
 
 
-def find_test_container(filename):
+def find_test_container(filename=""):
     """
     Returns absolute path to given file in misc/ folder.
     """
@@ -24,21 +24,21 @@ class testImageBuilding( unittest.TestCase ):
 
     def testaddDocker(self):
         net = Containernet(controller=Controller)
-        path = find_test_container("webserver_curl")
+        path = find_test_container()
         d2 = net.addDocker("d2", ip='10.0.0.252',
-                           build_params={"dockerfile": "Dockerfile.server",
+                           build_params={"dockerfile": "Dockerfile.alpine3",
                                          "path": path})
         self.assertTrue(d2._check_image_exists(_id=d2.dimage))
         d3 = net.addDocker("d3", ip='10.0.0.253',
-                           dimage="webserver_curl_test",
-                           build_params={"dockerfile": "Dockerfile.server",
+                           dimage="alpine_test",
+                           build_params={"dockerfile": "Dockerfile.alpine3",
                                          "path": path})
-        self.assertTrue(d3._check_image_exists("webserver_curl_test"))
+        self.assertTrue(d3._check_image_exists("alpine_test"))
         d4 = net.addDocker("d4", ip='10.0.0.254',
-                           build_params={"dockerfile": "Dockerfile.server",
-                                         "tag": "webserver_curl_test2",
+                           build_params={"dockerfile": "Dockerfile.alpine3",
+                                         "tag": "alpine_test_2",
                                          "path": path})
-        self.assertTrue(d4._check_image_exists("webserver_curl_test2"))
+        self.assertTrue(d4._check_image_exists("alpine_test_2"))
 
     @staticmethod
     def tearDown():

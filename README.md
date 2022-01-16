@@ -102,12 +102,12 @@ You can exit the CLI using `containernet> exit`.
 ### Running a client-server example
 
 Let's simulate a webserver and a client making requests. For that, we need a server and client image.
-First, change into the `containernet/examples` directory.
+First, change into the `containernet/examples/basic_webserver` directory.
 
 Containernet already provides a simple Python server for testing purposes. To build the server image, just run
 
 ```bash
-docker build -f example-containers/webserver_curl/Dockerfile.server -t test_server:latest example-containers/webserver_curl/
+docker build -f Dockerfile.server -t test_server:latest .
 ```
 
 If you have not added your user to the `docker` group as described [here](https://docs.docker.com/engine/install/linux-postinstall/), you will need to prepend `sudo`. 
@@ -115,14 +115,14 @@ If you have not added your user to the `docker` group as described [here](https:
 We further need a basic client to make a CURL request. Containernet provides that as well. Please run
 
 ```bash
-docker build -f example-containers/Dockerfile.curl -t test_client:latest example-containers/
+docker build -f Dockerfile.client -t test_client:latest .
 ```
 
 Now that we have a server and client image, we can create hosts using them. You can either checkout the topology
-script `containernet_example_server_client.py` first or run it directly:
+script `demo.py` first or run it directly:
 
 ```bash
-sudo python3 containernet_example_server_curl.py
+sudo python3 demo.py
 ```
 
 If everything worked, you should be able to see following output:

@@ -1,9 +1,7 @@
-FROM ubuntu:focal
+FROM redis
 
+# Install dependencies required for Containernet.
 RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
-    iproute2 \
-    curl
-
-CMD /bin/bash
+    iproute2

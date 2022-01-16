@@ -1113,7 +1113,7 @@ class Docker ( Host ):
                     debug("Image '{}' exists.\n".format(imageTag))
                     return True
             if image.get("Id", None):
-                print("; ".join([str(repo), str(tag), str(_id), str(image.get("Id"))]))
+                debug("; ".join([str(repo), str(tag), str(_id), str(image.get("Id"))]))
                 if image.get("Id") == _id:
                     return True
         return False
