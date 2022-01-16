@@ -5,7 +5,8 @@ RUN apt-get update && apt-get install -y \
     net-tools \
     iputils-ping \
     iproute2 \
-    build-essential
+    build-essential \
+    htop
 
 # Use a virtual environment to avoid running pip as root
 ENV VIRTUAL_ENV=/opt/venv

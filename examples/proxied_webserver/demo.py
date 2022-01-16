@@ -20,7 +20,7 @@ net.addController("c0")
 # ----
 
 # Setup some clients.
-numberOfClients = 5
+numberOfClients = 3
 clients = []
 for i in range(numberOfClients):
     clients.append(
