@@ -28,7 +28,7 @@ def pmonitorTest( N=3, seconds=10 ):
         if h:
             info( '<%s>: %s' % ( h.name, line ) )
         if time() >= endTime:
-            for p in popens.values():
+            for p in list(popens.values()):
                 p.send_signal( SIGINT )
     net.stop()
 

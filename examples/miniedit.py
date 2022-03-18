@@ -25,12 +25,12 @@ from subprocess import call
 from sys import exit  # pylint: disable=redefined-builtin
 
 from mininet.log import info, debug, warn, setLogLevel
-from mininet.net import Mininet, VERSION
+from mininet.net import Mininet, VERSION, Containernet
 from mininet.util import (netParse, ipAdd, quietRun,
                           buildTopo, custom, customClass )
 from mininet.term import makeTerm, cleanUpScreens
 from mininet.node import (Controller, RemoteController, NOX, OVSController,
-                          CPULimitedHost, Host, Node,
+                          CPULimitedHost, Host, Node, Docker,
                           OVSSwitch, UserSwitch, IVSSwitch )
 from mininet.link import TCLink, Intf, Link
 from mininet.cli import CLI
@@ -77,7 +77,7 @@ MINIEDIT_VERSION = '2.2.0.1'
 if 'PYTHONPATH' in os.environ:
     sys.path = os.environ[ 'PYTHONPATH' ].split( ':' ) + sys.path
 
-info( 'MiniEdit running against Mininet '+VERSION, '\n' )
+info( 'MiniEdit running against Containernet '+VERSION, '\n' )
 MININET_VERSION = re.sub(r'[^\d\.]', '', VERSION)
 
 TOPODEF = 'none'
@@ -99,7 +99,8 @@ LINKS = { 'default': Link,
 HOSTDEF = 'proc'
 HOSTS = { 'proc': Host,
           'rt': custom( CPULimitedHost, sched='rt' ),
-          'cfs': custom( CPULimitedHost, sched='cfs' ) }
+          'cfs': custom( CPULimitedHost, sched='cfs' ),
+          'docker': custom( Docker ) }
 
 
 class InbandController( RemoteController ):
@@ -622,6 +623,98 @@ class HostDialog(CustomDialog):
                    'externalInterfaces':externalInterfaces,
                    'vlanInterfaces':vlanInterfaces}
         self.result = results
+
+
+class DockerDialog(CustomDialog):
+
+    def __init__(self, master, title, prefDefaults):
+
+        self.prefValues = prefDefaults
+        self.result = None
+
+        CustomDialog.__init__(self, master, title)
+
+    def body(self, master):
+        self.rootFrame = master
+        n = Notebook(self.rootFrame)
+        self.propFrame = Frame(n)
+        self.ifaceFrame = Frame(n)
+        n.add(self.propFrame, text='Properties')
+        n.add(self.ifaceFrame, text='Multihoming IPs')
+        n.pack()
+
+        ### TAB 1
+        # Field for Hostname
+        Label(self.propFrame, text="Hostname:").grid(row=0, sticky=E)
+        self.hostnameEntry = Entry(self.propFrame)
+        self.hostnameEntry.grid(row=0, column=1)
+        if 'hostname' in self.prefValues:
+            self.hostnameEntry.insert(0, self.prefValues['hostname'])
+
+        # Field for Docker image
+        Label(self.propFrame, text="Docker image:").grid(row=1, sticky=E)
+        self.dimageEntry = Entry(self.propFrame)
+        self.dimageEntry.grid(row=1, column=1)
+        if 'dimage' in self.prefValues:
+            self.dimageEntry.insert(0, self.prefValues['dimage'])
+
+        # Field for Switch IP
+        Label(self.propFrame, text="IP Address:").grid(row=2, sticky=E)
+        self.ipEntry = Entry(self.propFrame)
+        self.ipEntry.grid(row=2, column=1)
+        if 'ip' in self.prefValues:
+            self.ipEntry.insert(0, self.prefValues['ip'])
+
+        # Start command
+        Label(self.propFrame, text="Start Command:").grid(row=3, sticky=E)
+        self.startEntry = Entry(self.propFrame)
+        self.startEntry.grid(row=3, column=1, sticky='nswe', columnspan=3)
+        if 'startCommand' in self.prefValues:
+            self.startEntry.insert(0, str(self.prefValues['startCommand']))
+
+        # Field for default route
+        #Label(self.propFrame, text="Default Route:").grid(row=2, sticky=E)
+        #self.routeEntry = Entry(self.propFrame)
+        #self.routeEntry.grid(row=2, column=1)
+        #if 'defaultRoute' in self.prefValues:
+        #    self.routeEntry.insert(0, self.prefValues['defaultRoute'])
+
+        ### TAB 2
+        # Interfaces
+        #self.vlanInterfaces = 0
+        Label(self.ifaceFrame, text="").grid(row=0, column=0, sticky=E)
+        self.ifaceButton = Button( self.ifaceFrame, text='add IP/subnet', command=self.addIpAndSubnet)
+        self.ifaceButton.grid(row=0, column=1)
+
+        self.ifaceFrame = VerticalScrolledTable(self.ifaceFrame, rows=0, columns=1, title='IPs/subnets for add. interfaces')
+        self.ifaceFrame.grid(row=1, column=0, sticky='nswe', columnspan=2)
+        self.ifaceTableFrame = self.ifaceFrame.interior
+        self.ifaceTableFrame.addRow(value=['IP/Subnet'], readonly=True)
+
+        # fill table based on connected link
+        multiInterfaces = []
+        if 'multiInterfaces' in self.prefValues:
+            multiInterfaces = self.prefValues['multiInterfaces']
+        for subnet in multiInterfaces:
+            self.ifaceTableFrame.addRow(value=[subnet])
+
+    def addIpAndSubnet( self ):
+        self.ifaceTableFrame.addRow()
+
+    def apply(self):
+        multiInterfaces = []
+        for row in range(self.ifaceTableFrame.rows):
+            if (len(self.ifaceTableFrame.get(row, 0)) > 0 and
+                row > 0):
+                multiInterfaces.append(self.ifaceTableFrame.get(row, 0))
+        results = {'hostname':self.hostnameEntry.get(),
+                   'dimage':self.dimageEntry.get(),
+                   'ip':self.ipEntry.get(),
+                   #'defaultRoute':self.routeEntry.get(),
+                   'startCommand':self.startEntry.get(),
+                   'multiInterfaces':multiInterfaces}
+        self.result = results
+
 
 class SwitchDialog(CustomDialog):
 
@@ -1149,8 +1242,15 @@ class MiniEdit( Frame ):
         self.images = miniEditImages()
         self.buttons = {}
         self.active = None
-        self.tools = ( 'Select', 'Host', 'Switch', 'LegacySwitch', 'LegacyRouter', 'NetLink', 'Controller' )
-        self.customColors = { 'Switch': 'darkGreen', 'Host': 'blue' }
+        self.tools = ( 'Select',
+                       'Host',
+                       'Docker',
+                       'Switch',
+                       'LegacySwitch',
+                       'LegacyRouter',
+                       'NetLink',
+                       'Controller' )
+        self.customColors = { 'Switch': 'darkGreen', 'Host': 'blue', 'Docker': 'darkBlue' }
         self.toolbar = self.createToolbar()
 
         # Layout
@@ -1165,7 +1265,7 @@ class MiniEdit( Frame ):
 
         # Initialize node data
         self.nodeBindings = self.createNodeBindings()
-        self.nodePrefixes = { 'LegacyRouter': 'r', 'LegacySwitch': 's', 'Switch': 's', 'Host': 'h' , 'Controller': 'c'}
+        self.nodePrefixes = { 'LegacyRouter': 'r', 'LegacySwitch': 's', 'Switch': 's', 'Host': 'h' , 'Docker': 'd' , 'Controller': 'c'}
         self.widgetToItem = {}
         self.itemToWidget = {}
 
@@ -1186,10 +1286,20 @@ class MiniEdit( Frame ):
         self.hostPopup.add_separator()
         self.hostPopup.add_command(label='Properties', font=self.font, command=self.hostDetails )
 
+        self.dockerPopup = Menu(self.top, tearoff=0)
+        self.dockerPopup.add_command(label='Docker Options', font=self.font)
+        self.dockerPopup.add_separator()
+        self.dockerPopup.add_command(label='Properties', font=self.font, command=self.dockerDetails )
+
         self.hostRunPopup = Menu(self.top, tearoff=0)
         self.hostRunPopup.add_command(label='Host Options', font=self.font)
         self.hostRunPopup.add_separator()
         self.hostRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
+
+        self.dockerRunPopup = Menu(self.top, tearoff=0)
+        self.dockerRunPopup.add_command(label='Docker Options', font=self.font)
+        self.dockerRunPopup.add_separator()
+        self.dockerRunPopup.add_command(label='Terminal', font=self.font, command=self.xterm )
 
         self.legacyRouterRunPopup = Menu(self.top, tearoff=0)
         self.legacyRouterRunPopup.add_command(label='Router Options', font=self.font)
@@ -1232,6 +1342,7 @@ class MiniEdit( Frame ):
         self.hostOpts = {}
         self.switchOpts = {}
         self.hostCount = 0
+        self.dockerCount = 0
         self.switchCount = 0
         self.controllerCount = 0
         self.net = None
@@ -1400,10 +1511,12 @@ class MiniEdit( Frame ):
 
     def addNode( self, node, nodeNum, x, y, name=None):
         "Add a new node to our canvas."
-        if node == 'Switch':
+        if node == 'Switch' or node == 'LegacySwitch' or node == 'LegacyRouter':
             self.switchCount += 1
         if node == 'Host':
             self.hostCount += 1
+        if node == 'Docker':
+            self.dockerCount += 1
         if node == 'Controller':
             self.controllerCount += 1
         if name is None:
@@ -1445,7 +1558,7 @@ class MiniEdit( Frame ):
         if f is None:
             return
         self.newTopology()
-        loadedTopology = self.convertJsonUnicode(json.load(f))
+        loadedTopology = json.load(f)
 
         # Load application preferences
         if 'application' in loadedTopology:
@@ -1499,7 +1612,10 @@ class MiniEdit( Frame ):
                 host['opts']['nodeNum'] = int(nodeNum)
             x = host['x']
             y = host['y']
-            self.addNode('Host', nodeNum, float(x), float(y), name=hostname)
+            if host['opts'].get('nodeType') == 'Docker':
+                self.addNode('Docker', nodeNum, float(x), float(y), name=hostname)
+            else:
+                self.addNode('Host', nodeNum, float(x), float(y), name=hostname)
 
             # Fix JSON converting tuple to list when saving
             if 'privateDirectory' in host['opts']:
@@ -1512,7 +1628,10 @@ class MiniEdit( Frame ):
                 host['opts']['privateDirectory'] = newDirList
             self.hostOpts[hostname] = host['opts']
             icon = self.findWidgetByName(hostname)
-            icon.bind('<Button-3>', self.do_hostPopup )
+            if host['opts'].get('nodeType') == 'Docker':
+                icon.bind('<Button-3>', self.do_dockerPopup )
+            else:
+                icon.bind('<Button-3>', self.do_hostPopup )
 
         # Load switches
         switches = loadedTopology['switches']
@@ -1610,10 +1729,12 @@ class MiniEdit( Frame ):
         for widget in tuple( self.widgetToItem ):
             self.deleteItem( self.widgetToItem[ widget ] )
         self.hostCount = 0
+        self.dockerCount = 0
         self.switchCount = 0
         self.controllerCount = 0
         self.links = {}
         self.hostOpts = {}
+        self.dockerOpts = {}
         self.switchOpts = {}
         self.controllers = {}
         self.appPrefs["ipBase"]= self.defaultIpBase
@@ -1646,7 +1767,7 @@ class MiniEdit( Frame ):
                                   'y':str(y1),
                                   'opts':self.switchOpts[name] }
                     switchesToSave.append(nodeToSave)
-                elif 'Host' in tags:
+                elif 'Host' in tags or 'Docker' in tags:
                     nodeNum = self.hostOpts[name]['nodeNum']
                     nodeToSave = {'number':str(nodeNum),
                                   'x':str(x1),
@@ -1666,7 +1787,7 @@ class MiniEdit( Frame ):
 
             # Save Links
             linksToSave = []
-            for link in self.links.values():
+            for link in list(self.links.values()):
                 src = link['src']
                 dst = link['dest']
                 linkopts = link['linkOpts']
@@ -2154,6 +2275,16 @@ class MiniEdit( Frame ):
             self.hostOpts[name] = {'sched':'host'}
             self.hostOpts[name]['nodeNum']=self.hostCount
             self.hostOpts[name]['hostname']=name
+            self.hostOpts[name]['nodeType']=node
+        if node == 'Docker':
+            self.dockerCount += 1
+            name = self.nodePrefixes[ node ] + str( self.dockerCount )
+            self.hostOpts[name] = {'sched':'host'}
+            self.hostOpts[name]['nodeNum']=self.hostCount
+            self.hostOpts[name]['hostname']=name
+            self.hostOpts[name]['dimage']='ubuntu:trusty'
+            self.hostOpts[name]['startCommand']='/bin/bash'
+            self.hostOpts[name]['nodeType']=node
         if node == 'Controller':
             name = self.nodePrefixes[ node ] + str( self.controllerCount )
             ctrlr = { 'controllerType': 'ref',
@@ -2180,6 +2311,8 @@ class MiniEdit( Frame ):
             icon.bind('<Button-3>', self.do_legacySwitchPopup )
         if node == 'Host':
             icon.bind('<Button-3>', self.do_hostPopup )
+        if node == 'Docker':
+            icon.bind('<Button-3>', self.do_dockerPopup )
         if node == 'Controller':
             icon.bind('<Button-3>', self.do_controllerPopup )
 
@@ -2190,6 +2323,10 @@ class MiniEdit( Frame ):
     def clickHost( self, event ):
         "Add a new host to our canvas."
         self.newNode( 'Host', event )
+
+    def clickDocker( self, event ):
+        "Add a new Docker to our canvas."
+        self.newNode( 'Docker', event )
 
     def clickLegacyRouter( self, event ):
         "Add a new switch to our canvas."
@@ -2231,7 +2368,7 @@ class MiniEdit( Frame ):
             '<Leave>': self.leaveNode
         }
         l = Label()  # lightweight-ish owner for bindings
-        for event, binding in bindings.items():
+        for event, binding in list(bindings.items()):
             l.bind( event, binding )
         return l
 
@@ -2375,6 +2512,7 @@ class MiniEdit( Frame ):
             self.releaseNetLink( event )
             return
         # For now, don't allow hosts to be directly linked
+        # but allow docker containers
         stags = self.canvas.gettags( self.widgetToItem[ source ] )
         dtags = self.canvas.gettags( target )
         # TODO: Make this less confusing
@@ -2389,6 +2527,8 @@ class MiniEdit( Frame ):
            ('Controller' in stags and 'Controller' in dtags)):
             self.releaseNetLink( event )
             return
+
+        #print("Creating link s={} t={}".format(self.widgetToItem[ source ], target))
 
         # Set link type
         linkType='data'
@@ -2485,6 +2625,7 @@ class MiniEdit( Frame ):
         self.master.wait_window(hostBox.top)
         if hostBox.result:
             newHostOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newHostOpts['nodeType'] = "Host"
             newHostOpts['sched'] = hostBox.result['sched']
             if len(hostBox.result['startCommand']) > 0:
                 newHostOpts['startCommand'] = hostBox.result['startCommand']
@@ -2510,6 +2651,41 @@ class MiniEdit( Frame ):
                 newHostOpts['privateDirectory'] = hostBox.result['privateDirectory']
             self.hostOpts[name] = newHostOpts
             info( 'New host details for ' + name + ' = ' + str(newHostOpts), '\n' )
+
+    def dockerDetails( self, _ignore=None ):
+        if ( self.selection is None or
+             self.net is not None or
+             self.selection not in self.itemToWidget ):
+            return
+        widget = self.itemToWidget[ self.selection ]
+        name = widget[ 'text' ]
+        tags = self.canvas.gettags( self.selection )
+        if 'Docker' not in tags:
+            return
+
+        prefDefaults = self.hostOpts[name]
+        dockerBox = DockerDialog(self, title='Docker Details', prefDefaults=prefDefaults)
+        self.master.wait_window(dockerBox.top)
+        if dockerBox.result:
+            newDockerOpts = {'nodeNum':self.hostOpts[name]['nodeNum']}
+            newDockerOpts['nodeType'] = "Docker"
+            if len(dockerBox.result['startCommand']) > 0:
+                newDockerOpts['startCommand'] = dockerBox.result['startCommand']
+            if len(dockerBox.result['dimage']) > 0:
+                newDockerOpts['dimage'] = dockerBox.result['dimage']
+            if len(dockerBox.result['hostname']) > 0:
+                newDockerOpts['hostname'] = dockerBox.result['hostname']
+                name = dockerBox.result['hostname']
+                widget[ 'text' ] = name
+            #if len(dockerBox.result['defaultRoute']) > 0:
+            #    newDockerOpts['defaultRoute'] = dockerBox.result['defaultRoute']
+            if len(dockerBox.result['ip']) > 0:
+                newDockerOpts['ip'] = dockerBox.result['ip']
+            # TODO apply the IPs to the right interfaces
+            if len(dockerBox.result['multiInterfaces']) > 0:
+                newDockerOpts['multiInterfaces'] = dockerBox.result['multiInterfaces']
+            self.hostOpts[name] = newDockerOpts
+            info( 'New host details for ' + name + ' = ' + str(self.hostOpts[name]), '\n' )
 
     def switchDetails( self, _ignore=None ):
         if ( self.selection is None or
@@ -2839,6 +3015,30 @@ class MiniEdit( Frame ):
                         info( 'Checking that OS is VLAN prepared\n' )
                         self.pathCheck('vconfig', moduleName='vlan package')
                         moduleDeps( add='8021q' )
+            elif 'Docker' in tags:
+                # start docker container
+                opts = self.hostOpts[name]
+                #print str(opts)
+                ip = None
+                if 'ip' in opts and len(opts['ip']) > 0:
+                    ip = opts['ip']
+                else:
+                    nodeNum = self.hostOpts[name]['nodeNum']
+                    ipBaseNum, prefixLen = netParse( self.appPrefs['ipBase'] )
+                    ip = ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
+                dimage = "ubuntu:trusty"
+                if 'dimage' in opts and len(opts['dimage']) > 0:
+                    dimage = opts['dimage']
+                startCommand = "/bin/bash"
+                if 'startCommand' in opts and len(opts['startCommand']) > 0:
+                    startCommand = opts['startCommand']
+                print(("Starting Docker with opts={}".format(opts)))
+                newHost = net.addDocker( name,
+                                         ip=ip,
+                                         dimage=dimage,
+                                         dcmd=startCommand
+                                        )
+
             elif 'Controller' in tags:
                 opts = self.controllers[name]
 
@@ -2896,13 +3096,51 @@ class MiniEdit( Frame ):
         info( "Getting Links.\n" )
         for key,link in self.links.items():
             tags = self.canvas.gettags(key)
+            # start links
             if 'data' in tags:
                 src=link['src']
                 dst=link['dest']
                 linkopts=link['linkOpts']
+                multilink = None
                 srcName, dstName = src[ 'text' ], dst[ 'text' ]
                 srcNode, dstNode = net.nameToNode[ srcName ], net.nameToNode[ dstName ]
-                if linkopts:
+                
+                # MULTIHOMING support
+                #print("srcName: {} intfList: {}".format(srcName, srcNode.intfList()))
+                #print("dstName: {} intfList: {}".format(dstName, dstNode.intfList()))
+                # if have a multihoming node (link no. 2 or greater)
+                # this means we apply IP configs from the multihoming
+                # node options
+                if len(srcNode.intfList()) > 0 and srcName in self.hostOpts:
+                    opts = self.hostOpts[srcName]
+                    if opts:
+                        srcIP = None
+                        if (opts.get("multiInterfaces")
+                            and len(opts.get("multiInterfaces")) >= len(srcNode.intfList())):
+                                srcIP = opts.get("multiInterfaces")[len(srcNode.intfList()) -1]
+                        #print("Multihome detected srcIP: {}".format(srcIP))
+                        if not multilink:
+                            multilink = dict()
+                        if srcIP:
+                            multilink.update({"params1": {"ip": srcIP}})
+                if len(dstNode.intfList()) > 0 and dstName in self.hostOpts:
+                    opts = self.hostOpts[dstName]
+                    if opts:
+                        dstIP = None
+                        if (opts.get("multiInterfaces")
+                            and len(opts.get("multiInterfaces")) >= len(dstNode.intfList())):
+                                dstIP = opts.get("multiInterfaces")[len(dstNode.intfList()) -1]
+                        #print("Multihome detected dstIP: {}".format(dstIP))
+                        if not multilink:
+                            multilink = dict()
+                        if dstIP:
+                            multilink.update({"params2": {"ip": dstIP}})
+
+                # TODO combination between TCLink and multilink does not work right now
+                if multilink:
+                    print(("Adding multihome link: {}".format(multilink)))
+                    net.addLink(srcNode, dstNode, **multilink)
+                elif linkopts:
                     net.addLink(srcNode, dstNode, cls=TCLink, **linkopts)
                 else:
                     # debug( str(srcNode) )
@@ -2917,9 +3155,8 @@ class MiniEdit( Frame ):
         dpctl = None
         if len(self.appPrefs['dpctl']) > 0:
             dpctl = int(self.appPrefs['dpctl'])
-        net = Mininet( topo=None,
+        net = Containernet( topo=None,
                        listenPort=dpctl,
-                       build=False,
                        ipBase=self.appPrefs['ipBase'] )
 
         self.buildNodes(net)
@@ -3125,6 +3362,21 @@ class MiniEdit( Frame ):
             finally:
                 # make sure to release the grab (Tk 8.0a1 only)
                 self.hostRunPopup.grab_release()
+
+    def do_dockerPopup(self, event):
+        # display the popup menu
+        if self.net is None:
+            try:
+                self.dockerPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.dockerPopup.grab_release()
+        else:
+            try:
+                self.dockerRunPopup.tk_popup(event.x_root, event.y_root, 0)
+            finally:
+                # make sure to release the grab (Tk 8.0a1 only)
+                self.dockerRunPopup.grab_release()
 
     def do_legacySwitchPopup(self, event):
         # display the popup menu
@@ -3573,7 +3825,118 @@ gGPLHwLwcMIo12Qxu0ABAQA7
             ACH5BAEAAAAALAAAAAAWABYAAAhIAAEIHEiwoEGBrhIeXEgwoUKG
             Cx0+hGhQoiuKBy1irChxY0GNHgeCDAlgZEiTHlFuVImRJUWXEGEy
             lBmxI8mSNknm1Dnx5sCAADs=
-        """ )
+        """ ),
+### icon height: 32px, png
+        'Docker': PhotoImage ( data=r"""
+            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
+""" ),
+
+    'VM': PhotoImage ( data=r"""
+    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        
+""" )
+
     }
 
 def addDictOption( opts, choicesDict, default, name, helpStr=None ):

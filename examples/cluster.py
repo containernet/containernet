@@ -621,7 +621,7 @@ class RoundRobinPlacer( Placer ):
             node: node"""
         assert node  # please pylint
         # This may be slow with lots of servers
-        server = self.servers[ self.next ]
+        server = self.servers[ self.__next__ ]
         self.next = ( self.next + 1 ) % len( self.servers )
         return server
 
@@ -839,7 +839,7 @@ class MininetCluster( Mininet ):
         for node in nodes:
             config = self.topo.nodeInfo( node )
             # keep local server name consistent accross nodes
-            if 'server' in config.keys() and config[ 'server' ] is None:
+            if 'server' in list(config.keys()) and config[ 'server' ] is None:
                 config[ 'server' ] = 'localhost'
             server = config.setdefault( 'server', placer.place( node ) )
             if server:
@@ -1044,10 +1044,10 @@ def signalTest( remote=remoteServer):
 
 if __name__ == '__main__':
     setLogLevel( 'info' )
-    remoteLink = RemoteSSHLink
-    testRemoteTopo(link=remoteLink)
-    testNsTunnels( remote=remoteServer, link=remoteLink )
-    testRemoteNet( remote=remoteServer, link=remoteLink)
-    testMininetCluster( remote=remoteServer, link=remoteLink)
-    testRemoteSwitches( remote=remoteServer, link=remoteLink)
-    signalTest( remote=remoteServer )
+    # remoteLink = RemoteSSHLink
+    # testRemoteTopo(link=remoteLink)
+    # testNsTunnels( remote=remoteServer, link=remoteLink )
+    # testRemoteNet( remote=remoteServer, link=remoteLink)
+    # testMininetCluster( remote=remoteServer, link=remoteLink)
+    # testRemoteSwitches( remote=remoteServer, link=remoteLink)
+    # signalTest( remote=remoteServer )

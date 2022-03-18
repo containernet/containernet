@@ -35,6 +35,7 @@ import sys
 import time
 import os
 import atexit
+import string
 
 from mininet.log import info, output, error
 from mininet.term import makeTerms, runX11
@@ -44,7 +45,7 @@ from mininet.util import ( quietRun, dumpNodeConnections,
 class CLI( Cmd ):
     "Simple command-line interface to talk to nodes."
 
-    prompt = 'mininet> '
+    prompt = 'containernet> '
 
     def __init__( self, mininet, stdin=sys.stdin, script=None,
                   **kwargs ):
@@ -60,6 +61,8 @@ class CLI( Cmd ):
         self.inPoller.register( stdin )
         self.inputFile = script
         Cmd.__init__( self, stdin=stdin, **kwargs )
+        # Containernet allows '.' in host identifiers to build human readable hierarchical name spaces:
+        self.identchars = string.ascii_letters + string.digits + '_' + '.'
         info( '*** Starting CLI:\n' )
 
         if self.inputFile:
@@ -451,8 +454,8 @@ class CLI( Cmd ):
         if self.isatty():
             # Buffer by character, so that interactive
             # commands sort of work
-            quietRun( 'stty -icanon min 1' )
-        while True:
+            quietRun( 'stty -isig -icanon min 1' )
+        while node.shell:
             try:
                 bothPoller.poll()
                 # XXX BL: this doesn't quite do what we want.
@@ -469,6 +472,7 @@ class CLI( Cmd ):
                     data = node.monitor()
                     output( data )
                 if not node.waiting:
+                    quietRun( 'stty isig' )
                     break
             except KeyboardInterrupt:
                 # There is an at least one race condition here, since

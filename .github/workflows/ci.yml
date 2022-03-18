@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        ubuntu: ["18.04", "20.04"]
+
+    name: Run tests on Ubuntu ${{ matrix.ubuntu }}
+    runs-on: ubuntu-${{ matrix.ubuntu }}
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run Ansible Playbook
+      run: |
+        sudo apt-get -y install ansible vlan 
+        cd ansible
+        sudo ansible-playbook -i "localhost," -c local install.yml
+    - name: Run Tests
+      run: |
+        sudo pytest -v mininet/test
+
+  test-in-nested-container:
+    strategy:
+      matrix:
+        container:
+        - system: Ubuntu 18.04
+          tag: containernet/containernet:ubuntu
+          dockerfile: ./Dockerfile
+        - system: CentOS 7
+          tag: containernet/containernet:centos7
+          dockerfile: ./Dockerfile.centos
+
+    name: Run tests in ${{ matrix.container.system }} container
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+    # OVS needs to install a kernel module. We do not want to allow
+    # the container to modify the kernel so we install it before.
+    - name: Install OVS
+      run: |
+        sudo apt-get -y install openvswitch-switch
+    - name: Build container
+      run: |
+        docker build -t ${{ matrix.container.tag }} -f ${{ matrix.container.dockerfile }} .
+    - name: Run tests in container
+      run: |
+        docker run --name containernet -i --rm --privileged \
+          --pid='host' \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          ${{ matrix.container.tag }} \
+          py.test -v mininet/test/

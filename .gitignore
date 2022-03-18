@@ -1,4 +1,8 @@
+venv/
+venv3/
 mnexec
+.cache/
+*.log
 *.pyc
 *~
 *.1
@@ -11,4 +15,5 @@ dist
 doc/html
 doc/latex
 trunk
-
+.vagrant/
+.idea

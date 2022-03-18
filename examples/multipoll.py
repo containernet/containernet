@@ -29,7 +29,7 @@ def monitorFiles( outfiles, seconds, timeoutms ):
         fdToHost[ fd ] = h
     # Prepare to poll output files
     readable = poll()
-    for t in tails.values():
+    for t in list(tails.values()):
         readable.register( t.stdout.fileno(), POLLIN )
     # Run until a set number of seconds have elapsed
     endTime = time() + seconds
@@ -45,7 +45,7 @@ def monitorFiles( outfiles, seconds, timeoutms ):
         else:
             # If we timed out, return nothing
             yield None, ''
-    for t in tails.values():
+    for t in list(tails.values()):
         t.terminate()
     devnull.close()  # Not really necessary
 

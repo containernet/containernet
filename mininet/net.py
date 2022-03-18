@@ -91,6 +91,8 @@ import re
 import select
 import signal
 import random
+import shlex
+import ipaddress
 
 from sys import exit  # pylint: disable=redefined-builtin
 from time import sleep
@@ -99,8 +101,8 @@ from math import ceil
 
 from mininet.cli import CLI
 from mininet.log import info, error, debug, output, warn
-from mininet.node import ( Node, Host, OVSKernelSwitch, DefaultController,
-                           Controller )
+from mininet.node import ( Node, Docker, Host, OVSKernelSwitch,
+                           DefaultController, Controller, OVSSwitch, OVSBridge )
 from mininet.nodelib import NAT
 from mininet.link import Link, Intf
 from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
@@ -108,8 +110,15 @@ from mininet.util import ( quietRun, fixLimits, numCores, ensureRoot,
                            waitListening, BaseString )
 from mininet.term import cleanUpScreens, makeTerms
 
+from subprocess import Popen
+
 # Mininet version: should be consistent with README and LICENSE
 VERSION = "2.3.0"
+CONTAINERNET_VERSION = "3.0"
+
+# If an external SAP (Service Access Point) is made, it is deployed with this prefix in the name,
+# so it can be removed at a later time
+SAP_PREFIX = 'sap.'
 
 class Mininet( object ):
     "Network emulation with hosts spawned in network namespaces."
@@ -209,6 +218,13 @@ class Mininet( object ):
                 remaining.remove( switch )
         return not remaining
 
+    def getNextIp( self ):
+        ip = ipAdd( self.nextIP,
+                    ipBaseNum=self.ipBaseNum,
+                    prefixLen=self.prefixLen ) + '/%s' % self.prefixLen
+        self.nextIP += 1
+        return ip
+
     def addHost( self, name, cls=None, **params ):
         """Add host.
            name: name of host to add
@@ -233,6 +249,27 @@ class Mininet( object ):
         self.hosts.append( h )
         self.nameToNode[ name ] = h
         return h
+
+    def removeHost( self, name, **params):
+        """
+        Remove a host from the network at runtime.
+        """
+        if not isinstance( name, BaseString ) and name is not None:
+            name = name.name  # if we get a host object
+        try:
+            h = self.get(name)
+        except:
+            error("Host: %s not found. Cannot remove it.\n" % name)
+            return False
+        if h is not None:
+            if h in self.hosts:
+                self.hosts.remove(h)
+            if name in self.nameToNode:
+                del self.nameToNode[name]
+            h.stop( deleteIntfs=True )
+            debug("Removed: %s\n" % name)
+            return True
+        return False
 
     def delNode( self, node, nodes=None):
         """Delete node
@@ -404,8 +441,47 @@ class Mininet( object ):
         options.setdefault( 'addr2', self.randMac() )
         cls = self.link if cls is None else cls
         link = cls( node1, node2, **options )
+
+        # Allow to add links at runtime
+        # (needs attach method provided by OVSSwitch)
+        if isinstance( node1, OVSSwitch ):
+            node1.attach(link.intf1)
+        if isinstance( node2, OVSSwitch ):
+            node2.attach(link.intf2)
+
         self.links.append( link )
         return link
+
+    def removeLink(self, link=None, node1=None, node2=None):
+        """
+        Removes a link. Can either be specified by link object,
+        or the nodes the link connects.
+        """
+        if link is None:
+            if (isinstance( node1, BaseString )
+                    and isinstance( node2, BaseString )):
+                try:
+                    node1 = self.get(node1)
+                except:
+                    error("Host: %s not found.\n" % node1)
+                try:
+                    node2 = self.get(node2)
+                except:
+                    error("Host: %s not found.\n" % node2)
+            # try to find link by nodes
+            for l in self.links:
+                if l.intf1.node == node1 and l.intf2.node == node2:
+                    link = l
+                    break
+                if l.intf1.node == node2 and l.intf2.node == node1:
+                    link = l
+                    break
+        if link is None:
+            error("Couldn't find link to be removed.\n")
+            return
+        # tear down the link
+        link.delete()
+        self.links.remove(link)
 
     def delLink( self, link ):
         "Remove a link from this network"
@@ -484,8 +560,8 @@ class Mininet( object ):
             # A bit ugly: add batch parameter if appropriate
             params = topo.nodeInfo( switchName)
             cls = params.get( 'cls', self.switch )
-            if hasattr( cls, 'batchStartup' ):
-                params.setdefault( 'batch', True )
+            #if hasattr( cls, 'batchStartup' ):
+            #    params.setdefault( 'batch', True )
             self.addSwitch( switchName, **params )
             info( switchName + ' ' )
 
@@ -601,6 +677,7 @@ class Mininet( object ):
             host.terminate()
         info( '\n*** Done\n' )
 
+
     def run( self, test, *args, **kwargs ):
         "Perform a complete start/test/stop cycle."
         self.start()
@@ -651,10 +728,11 @@ class Mininet( object ):
         sent, received = int( m.group( 1 ) ), int( m.group( 2 ) )
         return sent, received
 
-    def ping( self, hosts=None, timeout=None ):
+    def ping( self, hosts=None, timeout=None, manualdestip=None ):
         """Ping between all specified hosts.
            hosts: list of hosts
            timeout: time to wait for a response, as string
+           manualdestip: sends pings from each h in hosts to manualdestip
            returns: ploss packet loss percentage"""
         # should we check if running?
         packets = 0
@@ -665,25 +743,41 @@ class Mininet( object ):
             output( '*** Ping: testing ping reachability\n' )
         for node in hosts:
             output( '%s -> ' % node.name )
-            for dest in hosts:
-                if node != dest:
-                    opts = ''
-                    if timeout:
-                        opts = '-W %s' % timeout
-                    if dest.intfs:
-                        result = node.cmd( 'LANG=C ping -c1 %s %s' %
-                                           (opts, dest.IP()) )
-                        sent, received = self._parsePing( result )
-                    else:
-                        sent, received = 0, 0
-                    packets += sent
-                    if received > sent:
-                        error( '*** Error: received too many packets' )
-                        error( '%s' % result )
-                        node.cmdPrint( 'route' )
-                        exit( 1 )
-                    lost += sent - received
-                    output( ( '%s ' % dest.name ) if received else 'X ' )
+            if manualdestip is not None:
+                opts = ''
+                if timeout:
+                    opts = '-W %s' % timeout
+                result = node.cmd( 'LANG=c ping -c1 %s %s' %
+                                   (opts, manualdestip) )
+                sent, received = self._parsePing( result )
+                packets += sent
+                if received > sent:
+                    error( '*** Error: received too many packets' )
+                    error( '%s' % result )
+                    node.cmdPrint( 'route' )
+                    exit( 1 )
+                lost += sent - received
+                output( ( '%s ' % manualdestip ) if received else 'X ' )
+            else:
+                for dest in hosts:
+                    if node != dest:
+                        opts = ''
+                        if timeout:
+                            opts = '-W %s' % timeout
+                        if dest.intfs:
+                            result = node.cmd( 'LANG=C ping -c1 %s %s' %
+                                                (opts, dest.IP()) )
+                            sent, received = self._parsePing( result )
+                        else:
+                            sent, received = 0, 0
+                        packets += sent
+                        if received > sent:
+                            error( '*** Error: received too many packets' )
+                            error( '%s' % result )
+                            node.cmdPrint( 'route' )
+                            exit( 1 )
+                        lost += sent - received
+                        output( ( '%s ' % dest.name ) if received else 'X ' )
             output( '\n' )
         if packets > 0:
             ploss = 100.0 * lost / packets
@@ -726,7 +820,7 @@ class Mininet( object ):
         rttdev = float( m.group( 4 ) )
         return sent, received, rttmin, rttavg, rttmax, rttdev
 
-    def pingFull( self, hosts=None, timeout=None ):
+    def pingFull( self, hosts=None, timeout=None, manualdestip=None ):
         """Ping between all specified hosts and return all data.
            hosts: list of hosts
            timeout: time to wait for a response, as string
@@ -739,17 +833,27 @@ class Mininet( object ):
             output( '*** Ping: testing ping reachability\n' )
         for node in hosts:
             output( '%s -> ' % node.name )
-            for dest in hosts:
-                if node != dest:
-                    opts = ''
-                    if timeout:
-                        opts = '-W %s' % timeout
-                    result = node.cmd( 'ping -c1 %s %s' % (opts, dest.IP()) )
-                    outputs = self._parsePingFull( result )
-                    sent, received, rttmin, rttavg, rttmax, rttdev = outputs
-                    all_outputs.append( (node, dest, outputs) )
-                    output( ( '%s ' % dest.name ) if received else 'X ' )
-            output( '\n' )
+            if manualdestip is not None:
+                opts = ''
+                if timeout:
+                    opts = '-W %s' % timeout
+                result = node.cmd( 'ping -c1 %s %s' % (opts, manualdestip) )
+                outputs = self._parsePingFull( result )
+                sent, received, rttmin, rttavg, rttmax, rttdev = outputs
+                all_outputs.append( (node, manualdestip, outputs) )
+                output( ( '%s ' % manualdestip ) if received else 'X ' )
+                output( '\n' )
+            else:
+                for dest in hosts:
+                    if node != dest:
+                        opts = ''
+                        if timeout:
+                            opts = '-W %s' % timeout
+                        result = node.cmd( 'ping -c1 %s %s' % (opts, dest.IP()) )
+                        outputs = self._parsePingFull( result )
+                        sent, received, rttmin, rttavg, rttmax, rttdev = outputs
+                        all_outputs.append( (node, dest, outputs) )
+                        output( ( '%s ' % dest.name ) if received else 'X ' )
         output( "*** Results: \n" )
         for outputs in all_outputs:
             src, dest, ping_outputs = outputs
@@ -935,6 +1039,120 @@ class Mininet( object ):
         ensureRoot()
         fixLimits()
         cls.inited = True
+
+
+class Containernet( Mininet ):
+    """
+    A Mininet with Docker related methods.
+    Inherits Mininet.
+    This class is not more than API beautification.
+    """
+
+    def __init__(self, **params):
+        # call original Mininet.__init__ with build=False
+        # still provide any topo objects and init node lists
+        Mininet.__init__(self, **params)
+        self.SAPswitches = dict()
+
+    def addDocker( self, name, cls=Docker, **params ):
+        """
+        Wrapper for addHost method that adds a
+        Docker container as a host.
+        """
+        return self.addHost( name, cls=cls, **params)
+
+    def removeDocker( self, name, **params):
+        """
+        Wrapper for removeHost. Just to be complete.
+        """
+        return self.removeHost(name, **params)
+
+
+    def addExtSAP(self, sapName, sapIP, dpid=None, **params):
+        """
+        Add an external Service Access Point, implemented as an OVSBridge
+        :param sapName:
+        :param sapIP: str format: x.x.x.x/x
+        :param dpid:
+        :param params:
+        :return:
+        """
+        SAPswitch = self.addSwitch(sapName, cls=OVSBridge, prefix=SAP_PREFIX,
+                       dpid=dpid, ip=sapIP, **params)
+        self.SAPswitches[sapName] = SAPswitch
+
+        NAT = params.get('NAT', False)
+        if NAT:
+            self.addSAPNAT(SAPswitch)
+
+        return SAPswitch
+
+    def removeExtSAP(self, sapName):
+        SAPswitch = self.SAPswitches[sapName]
+        info( 'stopping external SAP:' + SAPswitch.name + ' \n' )
+        SAPswitch.stop()
+        SAPswitch.terminate()
+
+        self.removeSAPNAT(SAPswitch)
+
+
+    def addSAPNAT(self, SAPSwitch):
+        """
+        Add NAT to the Containernet, so external SAPs can reach the outside internet through the host
+        :param SAPSwitch: Instance of the external SAP switch
+        :param SAPNet: Subnet of the external SAP as str (eg. '10.10.1.0/30')
+        :return:
+        """
+        SAPip = SAPSwitch.ip
+        SAPNet = str(ipaddress.IPv4Network(unicode(SAPip), strict=False))
+        # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
+        # so we use the iptables tool
+        # create NAT rule
+        rule0_ = "iptables -t nat -A POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
+        p = Popen(shlex.split(rule0_))
+        p.communicate()
+
+        # create FORWARD rule
+        rule1_ = "iptables -A FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule1_))
+        p.communicate()
+
+        rule2_ = "iptables -A FORWARD -i {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule2_))
+        p.communicate()
+
+        info("added SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
+
+
+    def removeSAPNAT(self, SAPSwitch):
+
+        SAPip = SAPSwitch.ip
+        SAPNet = str(ipaddress.IPv4Network(unicode(SAPip), strict=False))
+        # due to a bug with python-iptables, removing and finding rules does not succeed when the mininet CLI is running
+        # so we use the iptables tool
+        rule0_ = "iptables -t nat -D POSTROUTING ! -o {0} -s {1} -j MASQUERADE".format(SAPSwitch.deployed_name, SAPNet)
+        p = Popen(shlex.split(rule0_))
+        p.communicate()
+
+        rule1_ = "iptables -D FORWARD -o {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule1_))
+        p.communicate()
+
+        rule2_ = "iptables -D FORWARD -i {0} -j ACCEPT".format(SAPSwitch.deployed_name)
+        p = Popen(shlex.split(rule2_))
+        p.communicate()
+
+        info("remove SAP NAT rules for: {0} - {1}\n".format(SAPSwitch.name, SAPNet))
+
+
+    def stop(self):
+        super(Containernet, self).stop()
+
+        info('*** Removing NAT rules of %i SAPs\n' % len(self.SAPswitches))
+        for SAPswitch in self.SAPswitches:
+            self.removeSAPNAT(self.SAPswitches[SAPswitch])
+        info("\n")
+
 
 
 class MininetWithControlNet( Mininet ):

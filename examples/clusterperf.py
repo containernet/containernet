@@ -17,7 +17,6 @@ def perf(Link):
     net.iperf()
     net.stop()
 
-
 if __name__ == '__main__':
     setLogLevel('info')
     perf( RemoteSSHLink )

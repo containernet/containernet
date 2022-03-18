@@ -28,6 +28,7 @@ import re
 
 from mininet.log import info, error, debug
 from mininet.util import makeIntfPair
+import mininet.node
 
 # Make pylint happy:
 # pylint: disable=too-many-arguments
@@ -73,19 +74,25 @@ class Intf( object ):
         "Configure ourselves using ifconfig"
         return self.cmd( 'ifconfig', self.name, *args )
 
-    def setIP( self, ipstr, prefixLen=None ):
+    def setIP( self, ipstr, prefixLen=None, overwrite=True ):
         """Set our IP address"""
         # This is a sign that we should perhaps rethink our prefix
         # mechanism and/or the way we specify IP addresses
+
+        # remove all old adresses (to remove side effects)
+        # this is needed after the swtich from "ifconfig" to "ip"
+        if overwrite:
+            self.cmd("ip", "address", "flush", "dev", self.name)
+        # add the new address
         if '/' in ipstr:
             self.ip, self.prefixLen = ipstr.split( '/' )
-            return self.ifconfig( ipstr, 'up' )
+            return self.cmd('ip', 'address', 'add', ipstr, 'dev', self.name)
         else:
             if prefixLen is None:
                 raise Exception( 'No prefix length set for IP address %s'
                                  % ( ipstr, ) )
             self.ip, self.prefixLen = ipstr, prefixLen
-            return self.ifconfig( '%s/%s' % ( ipstr, prefixLen ) )
+            return self.cmd('ip', 'address', 'add', '%s/%s' % (ipstr, prefixLen), 'dev', self.name)
 
     def setMAC( self, macstr ):
         """Set the MAC address for an interface.
@@ -140,8 +147,9 @@ class Intf( object ):
         "Return whether interface is up"
         if setUp:
             cmdOutput = self.ifconfig( 'up' )
-            # no output indicates success
-            if cmdOutput:
+            # no output / command output indicates success
+            if (len(cmdOutput) > 0
+                    and "ifconfig" not in cmdOutput):
                 error( "Error setting %s up: %s " % ( self.name, cmdOutput ) )
                 return False
             else:
@@ -212,6 +220,10 @@ class Intf( object ):
         # quietRun( 'ip link del ' + self.name )
         self.node.delIntf( self )
         self.link = None
+
+        # call detach if we have a OVSSwitch (just to be sure)
+        if isinstance( self.node, mininet.node.OVSSwitch ):
+            self.node.detach(self)
 
     def status( self ):
         "Return intf status as a string"
@@ -394,7 +406,7 @@ class TCIntf( Intf ):
         debug("at map stage w/cmds: %s\n" % cmds)
         tcoutputs = [ self.tc(cmd) for cmd in cmds ]
         for output in tcoutputs:
-            if output != '':
+            if output != '' and output != 'RTNETLINK answers: No such file or directory\r\n':
                 error( "*** Error: %s" % output )
         debug( "cmds:", cmds, '\n' )
         debug( "outputs:", tcoutputs, '\n' )

@@ -246,29 +246,40 @@ def makeIntfPair( intf1, intf2, addr1=None, addr2=None, node1=None, node2=None,
        deleteIntfs: delete intfs before creating them
        runCmd: function to run shell commands (quietRun)
        raises Exception on failure"""
-    if not runCmd:
-        runCmd = quietRun if not node1 else node1.cmd
-        runCmd2 = quietRun if not node2 else node2.cmd
+
+    """
+        Containernet: Major changes in this method
+        The problem here is that we can not add a link to another
+        netns within a Docker container since it does not know
+        the other process (process not found error).
+        So we have to do it different:
+        We create the veth pair inside the default netns and move them
+        into their netns (container) afterwards.
+    """
     if deleteIntfs:
         # Delete any old interfaces with the same names
-        runCmd( 'ip link del ' + intf1 )
-        runCmd2( 'ip link del ' + intf2 )
-    # Create new pair
-    netns = 1 if not node2 else node2.pid
+        quietRun( 'ip link del ' + intf1, shell=True )
+        quietRun( 'ip link del ' + intf2, shell=True )
+
+    # first: create the veth pair in default namespace
     if addr1 is None and addr2 is None:
-        cmdOutput = runCmd( 'ip link add name %s '
-                            'type veth peer name %s '
-                            'netns %s' % ( intf1, intf2, netns ) )
+        cmdOutput = quietRun( 'ip link add name %s '
+                              'type veth peer name %s ' %
+                              ( intf1, intf2 ),
+                              shell=True )
     else:
-        cmdOutput = runCmd( 'ip link add name %s '
-                            'address %s '
-                            'type veth peer name %s '
-                            'address %s '
-                            'netns %s' %
-                            (  intf1, addr1, intf2, addr2, netns ) )
+        cmdOutput = quietRun( 'ip link add name %s '
+                              'address %s '
+                              'type veth peer name %s '
+                              'address %s ' %
+                              (  intf1, addr1, intf2, addr2 ),
+                              shell=True )
     if cmdOutput:
         raise Exception( "Error creating interface pair (%s,%s): %s " %
                          ( intf1, intf2, cmdOutput ) )
+    # second: move both endpoints into the corresponding namespaces
+    moveIntf(intf1, node1)
+    moveIntf(intf2, node2)
 
 def retry( retries, delaySecs, fn, *args, **keywords ):
     """Try something several times before giving up.

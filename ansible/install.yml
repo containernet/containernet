@@ -1,0 +1,77 @@
+- hosts: localhost
+  tasks:
+   - name: updates apt
+     apt:
+      update_cache: yes
+
+   - name: install basic packages
+     apt: name={{item}} state=present
+     with_items:
+       - aptitude
+       - apt-transport-https
+       - ca-certificates
+       - curl
+       - python3-setuptools
+       - python3-dev
+       - build-essential
+       - python3-pip
+       - iptables
+       - software-properties-common
+
+   - name: "Check if Docker-CE is installed"
+     package_facts:
+      manager: "auto"
+
+   - name: install Docker CE repos (1/3)
+     apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: install Docker CE repos (2/3)
+     shell: add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: install Docker CE repos (3/3)
+     apt:
+        update_cache: yes
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: install Docker CE
+     apt: name=docker-ce state=present
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: find pip executable
+     shell: "which pip3"
+     register: pip_path     
+
+   - name: install python-backports.ssl-match-hostname
+     pip: name=backports.ssl-match-hostname executable={{pip_path.stdout}}
+
+   - name: install pytest
+     pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
+
+   - name: install docker py
+     pip: name=docker version=4.4.1 executable={{pip_path.stdout}}
+
+   - name: install python-iptables
+     pip: name=python-iptables state=latest executable={{pip_path.stdout}}
+
+   - name: install pexpect
+     pip: name=pexpect executable={{pip_path.stdout}}
+
+   - name: build and install Containernet (using Mininet installer)
+     shell: PYTHON=python3 containernet/util/install.sh -fnv
+     args:
+       chdir: ../../
+
+   - name: install Containernet Python egg etc.
+     shell: make -f Makefile develop
+     args:
+       chdir: ../
+
+   - name: download 'ubuntu' docker image for Containernet example
+     shell: docker pull ubuntu:trusty
+     tags:
+        - notindocker
+        - nopull

@@ -101,6 +101,7 @@ CLI = None  # Set below if needed
 # Locally defined tests
 def allTest( net ):
     "Run ping and iperf tests"
+    net.waitConnected()
     net.start()
     net.ping()
     net.iperf()
@@ -108,7 +109,6 @@ def allTest( net ):
 def nullTest( _net ):
     "Null 'test' (does nothing)"
     pass
-
 
 TESTS.update( all=allTest, none=nullTest, build=nullTest )
 
@@ -130,6 +130,7 @@ def runTests( mn, options ):
             if callable( testfn ):
                 testfn( mn, *args, **kwargs )
             elif hasattr( mn, test ):
+                mn.waitConnected()
                 getattr( mn, test )( *args, **kwargs )
             else:
                 raise Exception( 'Test %s is unknown - please specify one of '

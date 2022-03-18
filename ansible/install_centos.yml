@@ -1,0 +1,83 @@
+- hosts: localhost
+  tasks:
+   - name: epel release
+     yum:
+       name: epel-release
+       state: latest
+
+   - name: openstack repo (for OVS)
+     yum:
+       name: centos-release-openstack-rocky
+       state: latest
+   
+   - name: updates yum
+     yum:
+       name: '*'
+       state: latest
+
+   - name: install basic packages
+     yum:
+       state: latest
+       name: 
+       - net-tools
+       - python3-setuptools
+       - python3-devel
+       - python3-pip
+       - curl
+       - iptables
+       - initscripts
+       - yum-utils
+       - device-mapper-persistent-data
+       - lvm2
+       - ca-certificates
+       - gcc
+       - sudo
+       - which
+       - libibverbs
+
+   - name: "Check if Docker-CE is installed"
+     package_facts:
+      manager: "auto"
+
+   - name: install Docker CE (1/3)
+     shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: install Docker CE (2/3)
+     yum:
+       name: docker-ce
+       state: latest
+     when: "'docker-ce' not in ansible_facts.packages"
+
+   - name: install Docker CE (3/3)
+     systemd: name=docker state=started
+     tags:
+        - notindocker
+
+   - name: find pip executable
+     shell: "which pip3"
+     register: pip_path 
+
+   - name: install pytest
+     pip: name=pytest version=4.6.4 executable={{pip_path.stdout}}
+
+   - name: install docker-py
+     pip: name=docker version=4.1.0 executable={{pip_path.stdout}}
+
+   - name: install python-iptables
+     pip: name=python-iptables state=latest executable={{pip_path.stdout}}
+
+   - name: build and install Containernet (using Mininet installer)
+     shell: PYTHON=python3 containernet/util/install.sh -fnv
+     args:
+       chdir: ../../
+
+   - name: install Containernet Python egg etc.
+     shell: make develop
+     args:
+       chdir: ../
+
+   - name: download 'ubuntu' docker image for Containernet example
+     shell: docker pull ubuntu:trusty
+     tags:
+        - notindocker

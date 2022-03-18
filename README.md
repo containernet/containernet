@@ -1,138 +1,245 @@
-Mininet: Rapid Prototyping for Software Defined Networks
-========================================================
-*The best way to emulate almost any network on your laptop!*
+# Containernet
 
-Mininet 2.3.0
+<img align="left" width="200" height="200" style="margin: 30px 30px 0 0;" src="/assets/logo.png" />
 
-[![Build Status][1]](https://github.com/mininet/mininet/actions)
+Containernet is a fork of the famous [Mininet](http://mininet.org) network emulator and allows to use [Docker](https://www.docker.com) containers as hosts in emulated network topologies. This enables interesting functionalities to build networking/cloud emulators and testbeds. Containernet is actively used by the research community, focussing on experiments in the field of cloud computing, fog computing, network function virtualization (NFV) and multi-access edge computing (MEC). One example for this is the [NFV multi-PoP infrastructure emulator](https://github.com/sonata-nfv/son-emu) which was created by the SONATA-NFV project and is now part of the [OpenSource MANO (OSM)](https://osm.etsi.org) project.
 
+## Features
 
-### What is Mininet?
+- Add, remove Docker containers to Mininet topologies
+- Connect Docker containers to topology (to switches, other containers, or legacy Mininet hosts)
+- Execute commands inside containers by using the Mininet CLI
+- Dynamic topology changes
+  - Add hosts/containers to a _running_ Mininet topology
+  - Connect hosts/docker containers to a _running_ Mininet topology
+  - Remove Hosts/Docker containers/links from a _running_ Mininet topology
+- Resource limitation of Docker containers
+  - CPU limitation with Docker CPU share option
+  - CPU limitation with Docker CFS period/quota options
+  - Memory/swap limitation
+  - Change CPU/mem limitations at runtime!
+- Expose container ports and set environment variables of containers through Python API
+- Traffic control links (delay, bw, loss, jitter)
+- Automated installation based on Ansible playbook
 
-Mininet emulates a complete network of hosts, links, and switches
-on a single machine.  To create a sample two-host, one-switch network,
-just run:
+## Installation
 
-  `sudo mn`
+Containernet comes with two installation and deployment options.
 
-Mininet is useful for interactive development, testing, and demos,
-especially those using OpenFlow and SDN.  OpenFlow-based network
-controllers prototyped in Mininet can usually be transferred to
-hardware with minimal changes for full line-rate execution.
+### Option 1: Bare-metal installation
 
-### How does it work?
+This option is the most flexible. Your machine should run Ubuntu **20.04 LTS** and **Python3**.
 
-Mininet creates virtual networks using process-based virtualization
-and network namespaces - features that are available in recent Linux
-kernels.  In Mininet, hosts are emulated as `bash` processes running in
-a network namespace, so any code that would normally run on a Linux
-server (like a web server or client program) should run just fine
-within a Mininet "Host".  The Mininet "Host" will have its own private
-network interface and can only see its own processes.  Switches in
-Mininet are software-based switches like Open vSwitch or the OpenFlow
-reference switch.  Links are virtual ethernet pairs, which live in the
-Linux kernel and connect our emulated switches to emulated hosts
-(processes).
+First install Ansible:
 
-### Features
+```bash
+sudo apt-get install ansible
+```
 
-Mininet includes:
+Then clone the repository:
 
-* A command-line launcher (`mn`) to instantiate networks.
+```bash
+git clone https://github.com/containernet/containernet.git
+```
 
-* A handy Python API for creating networks of varying sizes and
-  topologies.
+Finally run the Ansible playbook to install required dependencies:
 
-* Examples (in the `examples/` directory) to help you get started.
+```bash
+sudo ansible-playbook -i "localhost," -c local containernet/ansible/install.yml
+```
 
-* Full API documentation via Python `help()` docstrings, as well as
-  the ability to generate PDF/HTML documentation with `make doc`.
+After the installation finishes, you should be able to [get started](#get-started).
 
-* Parametrized topologies (`Topo` subclasses) using the Mininet
-  object.  For example, a tree network may be created with the
-  command:
+### Option 2: Nested Docker deployment
 
-  `mn --topo tree,depth=2,fanout=3`
+Containernet can be executed within a privileged Docker container (nested container deployment). There is also a pre-build Docker image available on [Docker Hub](https://hub.docker.com/r/containernet/containernet/).
 
-* A command-line interface (`CLI` class) which provides useful
-  diagnostic commands (like `iperf` and `ping`), as well as the
-  ability to run a command to a node. For example,
+**Attention:** Container resource limitations, e.g. CPU share limits, are not supported in the nested container deployment. Use bare-metal installations if you need those features.
 
-  `mininet> h11 ifconfig -a`
+You can build the container locally:
 
-  tells host h11 to run the command `ifconfig -a`
+```bash
+docker build -t containernet/containernet .
+```
 
-* A "cleanup" command to get rid of junk (interfaces, processes, files
-  in /tmp, etc.) which might be left around by Mininet or Linux. Try
-  this if things stop working!
+or alternatively pull the latest pre-build container:
 
-  `mn -c`
+```bash
+docker pull containernet/containernet
+```
 
-### Python 3 Support
+You can then directly start the default containernet example:
 
-- Mininet 2.3.0 supports Python 3 and Python 2!
+```bash
+docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet
+```
 
-- You can install both the Python 3 and Python 2 versions of
-Mininet side by side, but the most recent installation will
-determine which Python version is used by default by `mn`.
+or run an interactive container and drop to the shell:
 
-- You can run `mn` directly with Python 2 or Python 3,
-  as long as the appropriate version of Mininet is installed,
-  e.g.
+```bash
+docker run --name containernet -it --rm --privileged --pid='host' -v /var/run/docker.sock:/var/run/docker.sock containernet/containernet /bin/bash
+```
 
-      $ sudo python2 `which mn`
+## Get started
 
-- More information regarding Python 3 and Python 2 support
-  may be found in the release notes on http://docs.mininet.org.
+Using Containernet is very similar to using Mininet.
 
-### Other Enhancements and Information
+### Running a basic example
 
-- Support for Ubuntu 20.04 LTS (and 18.04 and 16.04)
+Make sure you are in the `containernet` directory. You can start an example topology with some empty Docker containers connected to the network:
 
-- More reliable testing and CI via github actions
+```bash
+sudo python3 examples/containernet_example.py
+```
 
-- Additional information about this release and previous releases
-  may be found in the release notes on http://docs.mininet.org.
+After launching the emulated network, you can interact with the involved containers through Mininet's interactive CLI. You can for example:
 
-### Installation
+- use `containernet> d1 ifconfig` to see the config of container `d1`
+- use `containernet> d1 ping -c4 d2` to ping between containers
 
-See `INSTALL` for installation instructions and details.
+You can exit the CLI using `containernet> exit`.
 
-### Documentation
+### Running a client-server example
 
-In addition to the API documentation (`make doc`), much useful
-information, including a Mininet walkthrough and an introduction
-to the Python API, is available on the
-[Mininet Web Site](http://mininet.org).
-There is also a wiki which you are encouraged to read and to
-contribute to, particularly the Frequently Asked Questions
-(FAQ) at http://faq.mininet.org.
+Let's simulate a webserver and a client making requests. For that, we need a server and client image.
+First, change into the `containernet/examples/basic_webserver` directory.
+
+Containernet already provides a simple Python server for testing purposes. To build the server image, just run
+
+```bash
+docker build -f Dockerfile.server -t test_server:latest .
+```
+
+If you have not added your user to the `docker` group as described [here](https://docs.docker.com/engine/install/linux-postinstall/), you will need to prepend `sudo`. 
+
+We further need a basic client to make a CURL request. Containernet provides that as well. Please run
+
+```bash
+docker build -f Dockerfile.client -t test_client:latest .
+```
+
+Now that we have a server and client image, we can create hosts using them. You can either checkout the topology
+script `demo.py` first or run it directly:
+
+```bash
+sudo python3 demo.py
+```
+
+If everything worked, you should be able to see following output:
+
+```txt
+Execute: client.cmd("time curl 10.0.0.251")
+Hello world.
+```
+
+### Customizing topologies
+
+You can also add hosts with resource restrictions or mounted volumes:
+
+```python
+# ...
+
+d1 = net.addDocker('d1', ip='10.0.0.251', dimage="ubuntu:trusty")
+d2 = net.addDocker('d2', ip='10.0.0.252', dimage="ubuntu:trusty", cpu_period=50000, cpu_quota=25000)
+d3 = net.addHost('d3', ip='11.0.0.253', cls=Docker, dimage="ubuntu:trusty", cpu_shares=20)
+d4 = net.addDocker('d4', dimage="ubuntu:trusty", volumes=["/:/mnt/vol1:rw"])
+
+# ...
+```
+
+## Documentation
+
+Containernet's documentation can be found in the [GitHub wiki](https://github.com/containernet/containernet/wiki). The documentation for the underlying Mininet project can be found on the [Mininet website](http://mininet.org/).
+
+## Research
+
+Containernet has been used for a variety of research tasks and networking projects. If you use Containernet, let us know!
+
+### Cite this work
+
+If you use Containernet for your work, please cite the following publication:
+
+M. Peuster, H. Karl, and S. v. Rossem: [**MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments**](http://ieeexplore.ieee.org/document/7919490/). IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Palo Alto, CA, USA, pp. 148-153. doi: 10.1109/NFV-SDN.2016.7919490. (2016)
+
+Bibtex:
+
+```bibtex
+@inproceedings{peuster2016medicine,
+    author={M. Peuster and H. Karl and S. van Rossem},
+    booktitle={2016 IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN)},
+    title={MeDICINE: Rapid prototyping of production-ready network services in multi-PoP environments},
+    year={2016},
+    volume={},
+    number={},
+    pages={148-153},
+    doi={10.1109/NFV-SDN.2016.7919490},
+    month={Nov}
+}
+```
+
+### Publications
+
+- M. Peuster, H. Karl, and S. v. Rossem: [MeDICINE: Rapid Prototyping of Production-Ready Network Services in Multi-PoP Environments](http://ieeexplore.ieee.org/document/7919490/). IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Palo Alto, CA, USA, pp. 148-153. doi: 10.1109/NFV-SDN.2016.7919490. IEEE. (2016)
+
+- S. v. Rossem, W. Tavernier, M. Peuster, D. Colle, M. Pickavet and P. Demeester: [Monitoring and debugging using an SDK for NFV-powered telecom applications](https://biblio.ugent.be/publication/8521281/file/8521284.pdf). IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Palo Alto, CA, USA, Demo Session. IEEE. (2016)
+
+- Qiao, Yuansong, et al. [Doopnet: An emulator for network performance analysis of Hadoop clusters using Docker and Mininet.](http://ieeexplore.ieee.org/document/7543832/) Computers and Communication (ISCC), 2016 IEEE Symposium on. IEEE. (2016)
+
+- M. Peuster, S. Dräxler, H. Razzaghi, S. v. Rossem, W. Tavernier and H. Karl: [A Flexible Multi-PoP Infrastructure Emulator for Carrier-grade MANO Systems](https://cs.uni-paderborn.de/fileadmin/informatik/fg/cn/Publications_Conference_Paper/Publications_Conference_Paper_2017/peuster_netsoft_demo_paper_2017.pdf). In IEEE 3rd Conference on Network Softwarization (NetSoft) Demo Track . (2017) **Best demo award!**
+
+- M. Peuster and H. Karl: [Profile Your Chains, Not Functions: Automated Network Service Profiling in DevOps Environments](http://ieeexplore.ieee.org/document/8169826/). IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Berlin, Germany. IEEE. (2017)
+
+- M. Peuster, H. Küttner and H. Karl: [Let the state follow its flows: An SDN-based flow handover protocol to support state migration](https://ris.uni-paderborn.de/publication/3345). In IEEE 4th Conference on Network Softwarization (NetSoft). IEEE. (2018) **Best student paper award!**
+
+- M. Peuster, J. Kampmeyer and H. Karl: [Containernet 2.0: A Rapid Prototyping Platform for Hybrid Service Function Chains](https://ris.uni-paderborn.de/publication/3346). In IEEE 4th Conference on Network Softwarization (NetSoft) Demo, Montreal, Canada. (2018)
+
+- M. Peuster, M. Marchetti, G. García de Blas, H. Karl: [Emulation-based Smoke Testing of NFV Orchestrators in Large Multi-PoP Environments](https://ris.uni-paderborn.de/publication/3347). In IEEE European Conference on Networks and Communications (EuCNC), Lubljana, Slovenia. (2018)
+
+- S. Schneider, M. Peuster,Wouter Tvernier and H. Karl: [A Fully Integrated Multi-Platform NFV SDK](https://ris.uni-paderborn.de/record/6974). In IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN) Demo, Verona, Italy. (2018)
+
+- M. Peuster, S. Schneider, Frederic Christ and H. Karl: [A Prototyping Platform to Validate and Verify Network Service Header-based Service Chains](https://ris.uni-paderborn.de/record/6483). In IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN) 5GNetApp, Verona, Italy. (2018)
+
+- S. Schneider, M. Peuster and H. Karl: [A Generic Emulation Framework for Reusing and Evaluating VNF Placement Algorithms](https://ris.uni-paderborn.de/record/6972). In IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN), Verona, Italy. (2018)
+
+- M. Peuster, S. Schneider, D. Behnke, M. Müller, P-B. Bök, and H. Karl: [Prototyping and Demonstrating 5G Verticals: The Smart Manufacturing Case](https://ris.uni-paderborn.de/record/8792). In IEEE 5th Conference on Network Softwarization (NetSoft) Demo, Paris, France. (2019)
+
+- M. Peuster, M. Marchetti, G. Garcia de Blas, Holger Karl: [Automated testing of NFV orchestrators against carrier-grade multi-PoP scenarios using emulation-based smoke testing](https://ris.uni-paderborn.de/record/10325). In EURASIP Journal on Wireless Communications and Networking (2019)
+
+## Other projects and links
+
+There is an extension of Containernet called [vim-emu](https://github.com/containernet/vim-emu) which is a full-featured multi-PoP emulation platform for NFV scenarios. Vim-emu was developed as part of the [SONATA-NFV](http://www.sonata-nfv.eu) project and is now hosted by the [OpenSource MANO project](https://osm.etsi.org/):
+
+<p align="center">
+    <a href="https://osm.etsi.org/wikipub/index.php/Research" target="_blank">
+        <img align="center" width="200" src="/assets/osm_ecosystem_research.png">
+    </a>
+</p>
+
+For running Mininet or Containernet distributed in a cluster, checkout [Maxinet](http://maxinet.github.io).
+
+You can also find an alternative/teaching-focused approach for Container-based Network Emulation by TU Dresden in [their repository](https://git.comnets.net/public-repo/comnetsemu).
+
+## Contact
 
 ### Support
 
-Mininet is community-supported. We encourage you to join the
-Mininet mailing list, `mininet-discuss` at:
+If you have any questions, please use GitHub's [issue system](https://github.com/containernet/containernet/issues).
 
-<https://mailman.stanford.edu/mailman/listinfo/mininet-discuss>
+### Contribute
 
-### Join Us
+Your contributions are very welcome! Please fork the GitHub repository and create a pull request.
 
-Thanks again to all of the Mininet contributors and users!
+Please make sure to test your code using
 
-Mininet is an open source project and is currently hosted
-at <https://github.com/mininet>.  You are encouraged to download
-the code, examine it, modify it, and submit bug reports, bug fixes,
-feature requests, new features and other issues and pull requests.
-Thanks to everyone who has contributed code to the Mininet project
-(see CONTRIBUTORS for more info!) It is because of everyone's
-hard work that Mininet continues to grow and improve.
+```bash
+sudo make test
+```
 
-### Enjoy Mininet
+### Lead developer
 
-Have fun! We look forward to seeing what you will do with Mininet
-to change the networking world.
+Manuel Peuster
 
-Bob Lantz,
-on behalf of the Mininet Contributors
-
-[1]: https://github.com/mininet/mininet/workflows/mininet-tests/badge.svg
+- Mail: <manuel (at) peuster (dot) de>
+- Twitter: [@ManuelPeuster](https://twitter.com/ManuelPeuster)
+- GitHub: [@mpeuster](https://github.com/mpeuster)
+- Website: [https://peuster.de](https://peuster.de)

@@ -32,7 +32,7 @@ class testPopen( unittest.TestCase ):
                 break
         self.assertTrue( len(pings) > 0 )
         # verify that each host has gotten results
-        for count in pings.values():
+        for count in list(pings.values()):
             self.assertEqual( count, 1 )
 
     def testPopen( self ):
