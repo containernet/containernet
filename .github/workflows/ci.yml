@@ -34,7 +34,7 @@ jobs:
           dockerfile: ./Dockerfile
         - system: Ubuntu 20.04
           tag: containernet/containernet:ubuntu2004
-          dockerfile: ./Dockerfile
+          dockerfile: ./Dockerfile.focal
         - system: CentOS 7
           tag: containernet/containernet:centos7
           dockerfile: ./Dockerfile.centos
