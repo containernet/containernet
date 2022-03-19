@@ -46,8 +46,11 @@ jobs:
       run: |
         sudo apt-get -y install openvswitch-switch
     - name: Build container
-      run: |
-        docker build -t ${{ matrix.container.tag }} -f ${{ matrix.container.dockerfile }} .
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ${{ matrix.container.dockerfile }}
+        tags: ${{ matrix.container.tag }}
     - name: Run tests in container
       run: |
         docker run --name containernet -i --rm --privileged \
