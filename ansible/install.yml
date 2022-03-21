@@ -24,27 +24,27 @@
 
    - name: Add Docker CE repository key
      shell: "curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
-     when: "'docker-ce' not in ansible_facts.packages"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
 
    - name: Check system architecture
      shell: "dpkg --print-architecture"
      register: arch
-     when: "'docker-ce' not in ansible_facts.packages"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
    
    - name: Check OS Codename
      shell: "lsb_release -cs"
      register: codename
-     when: "'docker-ce' not in ansible_facts.packages"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
      
    - name: Install Docker CE repository
      apt_repository:
        repo: "deb [arch={{arch.stdout}} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{codename.stdout}} stable"
        filename: "docker"
-     when: "'docker-ce' not in ansible_facts.packages"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
 
    - name: install Docker CE
      apt: name=docker-ce state=present
-     when: "'docker-ce' not in ansible_facts.packages"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
 
    - name: find pip executable
      shell: "which pip3"
