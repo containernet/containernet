@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu }}
     steps:
     - uses: actions/checkout@v2
+    - name: Update APT
+      run: sudo apt-get update
     - name: Run Ansible Playbook
       run: |
         sudo apt-get -y install ansible vlan 
@@ -42,7 +44,9 @@ jobs:
     name: Run tests in ${{ matrix.container.system }} container
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+    - name: Update APT
+      run: sudo apt-get update
     # OVS needs to install a kernel module. We do not want to allow
     # the container to modify the kernel so we install it before.
     - name: Install OVS
