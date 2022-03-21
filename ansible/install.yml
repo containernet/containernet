@@ -5,12 +5,13 @@
       update_cache: yes
 
    - name: install basic packages
-     apt: name={{item}} state=present
-     name: [
-       'aptitude', 'apt-transport-https', 'ca-certificates',
-       'curl', 'python3-setuptools', 'python3-dev', 'build-essential',
-       'python3-pip','iptables','software-properties-common'
-       ]
+     apt:
+      name: [
+        'aptitude', 'apt-transport-https', 'ca-certificates',
+        'curl', 'python3-setuptools', 'python3-dev', 'build-essential',
+        'python3-pip','iptables','software-properties-common'
+        ]
+      state: present
 
    - name: "Check if Docker-CE is installed"
      package_facts:
