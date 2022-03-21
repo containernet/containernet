@@ -6,17 +6,11 @@
 
    - name: install basic packages
      apt: name={{item}} state=present
-     with_items:
-       - aptitude
-       - apt-transport-https
-       - ca-certificates
-       - curl
-       - python3-setuptools
-       - python3-dev
-       - build-essential
-       - python3-pip
-       - iptables
-       - software-properties-common
+     name: [
+       'aptitude', 'apt-transport-https', 'ca-certificates',
+       'curl', 'python3-setuptools', 'python3-dev', 'build-essential',
+       'python3-pip','iptables','software-properties-common'
+       ]
 
    - name: "Check if Docker-CE is installed"
      package_facts:
