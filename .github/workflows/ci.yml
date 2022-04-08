@@ -11,7 +11,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ubuntu: ["18.04", "20.04"]
+        ubuntu: ["18.04"]
+        flaky: [false]
+        include:
+          ubuntu: "20.04"
+          flaky: true
 
     name: Run tests on Ubuntu ${{ matrix.ubuntu }}
     runs-on: ubuntu-${{ matrix.ubuntu }}
@@ -23,6 +27,7 @@ jobs:
         cd ansible
         sudo ansible-playbook -i "localhost," -c local install.yml
     - name: Run Tests
+      continue-on-error: ${{ matrix.flaky }}
       run: |
         sudo pytest -v mininet/test
 
