@@ -1107,7 +1107,7 @@ class Docker ( Host ):
         Checks if the repo:tag image exists locally
         :return: True if the image exists locally. Else false.
         """
-        print("1: ")
+        debug("Checking if the image exists locally.")
         images = self.dcli.images()
         imageTag = "%s:%s" % (repo, tag)
         for image in images:
