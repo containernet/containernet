@@ -763,7 +763,8 @@ class Docker ( Host ):
                      'devices': [],
                      'cap_add': ['net_admin'],  # we need this to allow mininet network setup
                      'storage_opt': None,
-                     'sysctls': {}
+                     'sysctls': {},
+                     'runtime': None
                      }
         defaults.update( kwargs )
 
@@ -794,6 +795,7 @@ class Docker ( Host ):
         self.cap_add = defaults['cap_add']
         self.sysctls = defaults['sysctls']
         self.storage_opt = defaults['storage_opt']
+        self.runtime = defaults['runtime']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -840,7 +842,8 @@ class Docker ( Host ):
             storage_opt=self.storage_opt,
             # Assuming Docker uses the cgroupfs driver, we set the parent to safely
             # access cgroups when modifying resource limits.
-            cgroup_parent='/docker'
+            cgroup_parent='/docker',
+            runtime=self.runtime
         )
 
         if kwargs.get("rm", False):
