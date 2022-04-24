@@ -16,6 +16,8 @@ jobs:
     runs-on: ubuntu-${{ matrix.ubuntu }}
     steps:
     - uses: actions/checkout@v2
+    - name: Update APT
+      run: sudo apt-get update
     - name: Run Ansible Playbook
       run: |
         sudo apt-get -y install ansible vlan 
@@ -32,6 +34,9 @@ jobs:
         - system: Ubuntu 18.04
           tag: containernet/containernet:ubuntu
           dockerfile: ./Dockerfile
+        - system: Ubuntu 20.04
+          tag: containernet/containernet:ubuntu2004
+          dockerfile: ./Dockerfile.focal
         - system: CentOS 7
           tag: containernet/containernet:centos7
           dockerfile: ./Dockerfile.centos
@@ -39,15 +44,20 @@ jobs:
     name: Run tests in ${{ matrix.container.system }} container
     runs-on: ubuntu-18.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
+    - name: Update APT
+      run: sudo apt-get update
     # OVS needs to install a kernel module. We do not want to allow
     # the container to modify the kernel so we install it before.
     - name: Install OVS
       run: |
         sudo apt-get -y install openvswitch-switch
     - name: Build container
-      run: |
-        docker build -t ${{ matrix.container.tag }} -f ${{ matrix.container.dockerfile }} .
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ${{ matrix.container.dockerfile }}
+        tags: ${{ matrix.container.tag }}
     - name: Run tests in container
       run: |
         docker run --name containernet -i --rm --privileged \
