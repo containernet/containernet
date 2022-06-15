@@ -1,0 +1,31 @@
+name: Container Test
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'examples/example-containers/*'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'examples/example-containers/*'
+
+jobs:
+  container-test:
+    name: Container Image Test
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v3
+    - name: Update APT
+      run: sudo apt-get update
+    - name: Run Ansible Playbook
+      run: |
+        sudo apt-get -y install ansible vlan 
+        cd ansible
+        sudo ansible-playbook -i "localhost," -c local install.yml
+    - name: Build example containers
+      run: ./build.sh
+      working-directory: ./examples/example-containers
+    - name: Test example containers
+      run: sudo python3 containernet_container_test.py
+      working-directory: ./examples
