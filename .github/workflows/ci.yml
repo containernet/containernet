@@ -9,6 +9,7 @@ on:
 jobs:
   test:
     strategy:
+      fail-fast: false
       matrix:
         ubuntu: ["18.04", "20.04"]
 
@@ -29,6 +30,7 @@ jobs:
 
   test-in-nested-container:
     strategy:
+      fail-fast: false
       matrix:
         container:
         - system: Ubuntu 18.04
