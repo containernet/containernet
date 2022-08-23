@@ -820,6 +820,11 @@ class Docker ( Host ):
         debug("image: %s\n" % str(self.dimage))
         debug("dcmd: %s\n" % str(self.dcmd))
         info("%s: kwargs %s\n" % (name, str(kwargs)))
+        
+        cgroup_parent = '/docker'
+        if os.environ.get("CONTAINERNET_NESTED") == "1":  # Check if containernet is in a docker container and remove cgoup_parent if true
+            cgroup_parent = None
+
 
         # creats host config for container
         # see: https://docker-py.readthedocs.io/en/stable/api.html#docker.api.container.ContainerApiMixin.create_host_config
@@ -840,7 +845,7 @@ class Docker ( Host ):
             storage_opt=self.storage_opt,
             # Assuming Docker uses the cgroupfs driver, we set the parent to safely
             # access cgroups when modifying resource limits.
-            cgroup_parent='/docker'
+            cgroup_parent=cgroup_parent
         )
 
         if kwargs.get("rm", False):
