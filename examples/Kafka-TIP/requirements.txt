@@ -1,0 +1,2 @@
+kafka-python3==3.0.0
+mininet

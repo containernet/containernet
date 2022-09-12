@@ -1,0 +1,22 @@
+FROM python:3.9-alpine3.13
+
+RUN apk add --update --no-cache \
+        bash \
+        tcpdump \
+        iperf \
+        busybox-extras \
+        iproute2 \
+        iputils
+
+ENV VIRTUAL_ENV=/opt/venv
+RUN python -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+WORKDIR /app
+
+COPY . /app
+
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+
+CMD /bin/bash

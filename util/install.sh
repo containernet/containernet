@@ -214,7 +214,7 @@ function mn_deps {
     fi
 
     echo "Installing Mininet core"
-    pushd $MININET_DIR/containernet
+    pushd $MININET_DIR/containernet-TIP
     sudo PYTHON=${PYTHON} make install
     popd
 }
@@ -250,7 +250,7 @@ function of {
     cd $BUILD_DIR/openflow
 
     # Patch controller to handle more than 16 switches
-    patch -p1 < $MININET_DIR/containernet/util/openflow-patches/controller.patch
+    patch -p1 < $MININET_DIR/containernet-TIP/util/openflow-patches/controller.patch
 
     # Resume the install:
     ./boot.sh
@@ -318,7 +318,7 @@ function install_wireshark {
     # Copy coloring rules: OF is white-on-blue:
     echo "Optionally installing wireshark color filters"
     mkdir -p $HOME/.wireshark
-    cp -n $MININET_DIR/containernet/util/colorfilters $HOME/.wireshark
+    cp -n $MININET_DIR/containernet-TIP/util/colorfilters $HOME/.wireshark
 
     echo "Checking Wireshark version"
     WSVER=`wireshark -v | egrep -o '[0-9\.]+' | head -1`
@@ -583,9 +583,9 @@ function nox {
 
     # Apply patches
     git checkout -b tutorial-destiny
-    git am $MININET_DIR/containernet/util/nox-patches/*tutorial-port-nox-destiny*.patch
+    git am $MININET_DIR/containernet-TIP/util/nox-patches/*tutorial-port-nox-destiny*.patch
     if [ "$DIST" = "Ubuntu" ] && version_ge $RELEASE 12.04; then
-        git am $MININET_DIR/containernet/util/nox-patches/*nox-ubuntu12-hacks.patch
+        git am $MININET_DIR/containernet-TIP/util/nox-patches/*nox-ubuntu12-hacks.patch
     fi
 
     # Build
