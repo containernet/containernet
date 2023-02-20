@@ -29,7 +29,7 @@ test: $(MININET) $(TEST)
 
 mnexec: mnexec.c $(MN) mininet/net.py
 	$(CC) $(CFLAGS) $(LDFLAGS) \
-	-DVERSION=\"`PYTHONPATH=. $(PYMN) --version 2>&1`\" $< -o $@
+	-DVERSION=\"`PYTHONPATH=. XTABLES_LIBDIR=/usr/lib/x86_64-linux-gnu/xtables $(PYMN) --version 2>&1`\" $< -o $@
 
 install-mnexec: $(MNEXEC)
 	install -D $(MNEXEC) $(BINDIR)/$(MNEXEC)
