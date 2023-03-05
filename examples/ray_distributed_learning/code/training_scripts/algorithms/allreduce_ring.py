@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from .base_algorithm import Algorithm
 
 
-@ray.remote(num_cpus=1)
+@ray.remote
 class RingWorker:
     def __init__(self, rank: int, num_workers: int, backend: str, model: nn.Module,
                  train_loader: torch.utils.data.DataLoader, optimizer=torch.optim.SGD):
@@ -75,7 +75,6 @@ def get_all_gradients(workers):
     grads = ray.get(results)
     return grads
 
-# def equalize_weights(workers)
 
 def perform_all_reduce(workers, model):
     num_parameters = sum(1 for _ in model.parameters())
