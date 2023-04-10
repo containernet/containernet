@@ -58,6 +58,7 @@ import re
 import signal
 import select
 import docker
+import docker.types
 import json
 from distutils.version import StrictVersion
 from re import findall
@@ -848,7 +849,8 @@ class Docker ( Host ):
             # access cgroups when modifying resource limits.
             cgroup_parent='/docker',
             shm_size=self.shm_size,
-            nano_cpus=self.cpus
+            nano_cpus=self.cpus,
+            device_requests=[docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])],
         )
 
         if kwargs.get("rm", False):
@@ -873,7 +875,7 @@ class Docker ( Host ):
             ports=defaults['ports'],
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
-            hostname=name
+            hostname=name,
         )
 
         # start the container
