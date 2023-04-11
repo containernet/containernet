@@ -25,11 +25,11 @@ class ConvNet(nn.Module):
     def get_gradients(self):
         grads = []
         for param in self.parameters():
-            grad = None if param.grad is None else param.grad.data.cpu().numpy()
+            grad = None if param.grad is None else param.grad.data
             grads.append(grad)
         return grads
 
     def set_gradients(self, gradients):
         for g, param in zip(gradients, self.parameters()):
             if g is not None:
-                param.grad = torch.from_numpy(g)
+                param.grad = g

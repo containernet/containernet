@@ -20,6 +20,6 @@ algorithm = algorithm_from_name(args.algorithm)(model, data_loader)
 # set evaluation method
 evaluation = utils.evaluate
 # setup and initiliaze workers
-algorithm.setup(args.num_workers)
+algorithm.setup(args.num_workers, args.use_gpu)
 # run algorithm
 algorithm.run(args.iter, evaluation)

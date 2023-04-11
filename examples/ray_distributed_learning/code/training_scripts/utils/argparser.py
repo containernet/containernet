@@ -32,7 +32,7 @@ def get_argparser():
         "--dataset", type=str, default="mnist", help="Set Dataset"
     )
     parser.add_argument(
-        "--algorithm", type=str, choices=algorithm_names(), help="Set distributed training algorithm"
+        "--algorithm", type=str, required=True, choices=algorithm_names(), help="Set distributed training algorithm"
     )
 
     return parser

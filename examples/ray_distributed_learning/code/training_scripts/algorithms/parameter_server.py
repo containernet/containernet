@@ -1,20 +1,20 @@
 import torch
 import torch.nn.functional as F
-import numpy as np
 import ray
 
 from .base_algorithm import Algorithm
 
 
 @ray.remote
-class ParameterServer():
-    def __init__(self, model, optimizer, lr):
-        self.model = model
+class ParameterServer:
+    def __init__(self, model, use_gpu: bool, optimizer, lr):
+        self.device = torch.device('cuda' if torch.cuda.is_available() and use_gpu else 'cpu')
+        self.model = model.to(self.device)
         self.optimizer = optimizer(self.model.parameters(), lr=lr)
 
     def apply_gradients(self, *gradients):
         summed_gradients = [
-            np.stack(gradient_zip).sum(axis=0) for gradient_zip in zip(*gradients)
+            torch.stack(gradient_zip).sum(dim=0) for gradient_zip in zip(*gradients)
         ]
         self.optimizer.zero_grad()
         self.model.set_gradients(summed_gradients)
@@ -26,9 +26,10 @@ class ParameterServer():
 
 
 @ray.remote
-class DataWorker():
-    def __init__(self, model, train_loader):
-        self.model = model
+class DataWorker:
+    def __init__(self, model, use_gpu: bool, train_loader):
+        self.device = torch.device('cuda' if torch.cuda.is_available() and use_gpu else 'cpu')
+        self.model = model.to(self.device)
         self.train_loader = train_loader
         self.data_iterator = iter(train_loader)
 
@@ -39,6 +40,7 @@ class DataWorker():
         except StopIteration:  # When the epoch ends, start a new epoch.
             self.data_iterator = iter(self.train_loader)
             data, target = next(self.data_iterator)
+        data, target = data.to(self.device), target.to(self.device)
         self.model.zero_grad()
         output = self.model(data)
         loss = F.nll_loss(output, target)
@@ -46,27 +48,41 @@ class DataWorker():
         return self.model.get_gradients()
 
 
-def setup_nodes(cluster, model: str, num_workers: int, train_loader, optimizer=torch.optim.SGD, unlock_head: bool = False, lr: float = 0.01,
-                head_ip: str = "172.20.40.52"):
+def setup_nodes(model: str, num_workers: int, train_loader, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01):
 
-    head_node = [c['NodeID'] for c in cluster if c['NodeName'] == head_ip]
-    worker_nodes = [c['NodeID'] for c in cluster if not c['NodeName'] == head_ip][:num_workers]
-    if unlock_head:
-        ps = ParameterServer.remote(model, optimizer, lr=lr)
+    cluster = ray.nodes()
+    head_node_ip = ray.worker.global_worker.node_ip_address
+    head_node = [c['NodeID'] for c in cluster if c['NodeName'] == head_node_ip]
+    worker_nodes = [c['NodeID'] for c in cluster if not c['NodeName'] == head_node_ip][:num_workers]
+
+    if len(cluster) < num_workers:
+        print(f"Not enough nodes to create {num_workers} workers. Created only 1 Parameter Server and"
+              f" {len(worker_nodes)} worker nodes.")
+
+    if use_gpu:
+        num_gpu = 1. / num_workers
+        num_cpu = 0.
     else:
-        ps = ParameterServer.options(
-            scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
-                node_id=head_node[0],
-                soft=False
-            )
-        ).remote(model, optimizer, lr=lr)
+        num_gpu = 0.
+        num_cpu = 1.
+
+    ps = ParameterServer.options(
+        scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
+            node_id=head_node[0],
+            soft=False
+        ),
+        num_cpus=num_cpu,
+        num_gpus=num_gpu,
+    ).remote(model, use_gpu, optimizer, lr=lr)
 
     workers = [DataWorker.options(
         scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
             node_id=node,
             soft=False
-        )
-    ).remote(model, train_loader) for node in worker_nodes]
+        ),
+        num_cpus=num_cpu,
+        num_gpus=num_gpu,
+    ).remote(model, use_gpu, train_loader) for node in worker_nodes]
     return ps, workers
 
 
@@ -74,8 +90,8 @@ class ParameterServerSync(Algorithm):
 
     name = "ps_sync"
 
-    def setup(self, num_workers: int, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(ray.nodes(), self.model, num_workers, self.train_loader)
+    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.train_loader, use_gpu)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):
@@ -100,8 +116,8 @@ class ParameterServerASync(Algorithm):
 
     name = "ps_async"
 
-    def setup(self, num_workers: int, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(ray.nodes(), self.model, num_workers, self.train_loader)
+    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.train_loader, use_gpu)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):
@@ -112,6 +128,7 @@ class ParameterServerASync(Algorithm):
         for worker in self.workers:
             gradients[worker.compute_gradients.remote(current_weights)] = worker
 
+        accuracy = 0
         for i in range(iterations * len(self.workers)):
             ready_gradient_list, _ = ray.wait(list(gradients))
             ready_gradient_id = ready_gradient_list[0]
