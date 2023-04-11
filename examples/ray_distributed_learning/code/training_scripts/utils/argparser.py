@@ -1,5 +1,6 @@
 import argparse
 from ..algorithms import algorithm_names
+from ..data import dataset_classes
 
 
 def get_argparser():
@@ -29,7 +30,7 @@ def get_argparser():
     )
 
     parser.add_argument(
-        "--dataset", type=str, default="mnist", help="Set Dataset"
+        "--dataset", type=str, default="cifar100", choices=list(dataset_classes.keys()), help="Set Dataset"
     )
     parser.add_argument(
         "--algorithm", type=str, required=True, choices=algorithm_names(), help="Set distributed training algorithm"

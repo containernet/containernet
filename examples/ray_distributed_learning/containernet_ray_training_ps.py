@@ -12,12 +12,12 @@ net = Containernet(controller=Controller)
 info('*** Adding controller\n')
 net.addController('c0')
 info('*** Adding docker containers\n')
-# torch_fashion_mnist_example.py --data
-head_commands = "/bin/bash -c 'python3 ./code/training_scripts/data/data.py --data fashion_mnist; \
-                /bin/bash code/utils/edit_hosts.sh ;" \
+dataset = "fashion_mnist"
+head_commands = f"/bin/bash -c 'python3 ./code/training_scripts/data/data.py --data {dataset}; \
+                /bin/bash code/utils/edit_hosts.sh;" \
                "ray start --head --node-ip-address 10.0.0.251 --disable-usage-stats ;" \
                "exec /bin/bash'"
-worker_commands = "/bin/bash -c 'python3 ./code/training_scripts/data/data.py --data fashion_mnist;" \
+worker_commands = f"/bin/bash -c 'python3 ./code/training_scripts/data/data.py --data {dataset};" \
                   "/bin/bash ./code/utils/edit_hosts.sh;" \
                   "ray start --address 10.0.0.251:6379 --disable-usage-stats;" \
                   "exec /bin/bash'"

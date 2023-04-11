@@ -4,27 +4,65 @@ import torch
 from torchvision import datasets, transforms
 from torchvision.transforms import ToTensor
 
-mnist_transforms = transforms.Compose(
-    [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+dataset_classes = {
+    "mnist": {
+        "class": datasets.MNIST,
+        "num_classes": 10,
+        "shape": (1, 1, 28, 28),
+        "transforms": {
+            "train": transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]),
+            "test": transforms.Compose(
+                [transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))]),
+        },
+    },
+    "fashion_mnist": {
+        "class": datasets.FashionMNIST,
+        "num_classes": 10,
+        "shape": (1, 1, 28, 28),
+        "transforms": {
+            "train": ToTensor(),
+            "test": ToTensor(),
+        },
+    },
+    "cifar100": {
+        "class": datasets.CIFAR100,
+        "num_classes": 100,
+        "shape": (1, 3, 32, 32),
+        "transforms": {
+            "train": transforms.Compose([
+                transforms.RandomCrop(32, padding=4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+            ]),
+            "test": transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+            ]),
+        },
+    },
+}
 
 
-def get_data_loader(dataset: str, batch_size: int = 64, shuffle_data: bool = True):
-    if dataset == "mnist":
-        train_dataset = datasets.MNIST("~/data", train=True, download=True, transform=mnist_transforms)
-        test_dataset = datasets.MNIST("~/data", train=False, download=True, transform=mnist_transforms)
-    else:
-        train_dataset = datasets.FashionMNIST(
-            root="~/data",
-            train=True,
-            download=True,
-            transform=ToTensor(),
-        )
-        test_dataset = datasets.FashionMNIST(
-            root="~/data",
-            train=True,
-            download=True,
-            transform=ToTensor(),
-        )
+def get_shape_and_classes(dataset_name: str):
+    return dataset_classes[dataset_name]["num_classes"], dataset_classes[dataset_name]["shape"]
+
+
+def get_dataset(dataset_name: str, data_dir: str = "~/data"):
+
+    dataset_info = dataset_classes[dataset_name]
+    dataset_class = dataset_info["class"]
+
+    train_dataset = dataset_class(data_dir, train=True, download=True, transform=dataset_info["transforms"]["train"])
+    test_dataset = dataset_class(data_dir, train=False, download=True, transform=dataset_info["transforms"]["test"])
+
+    return train_dataset, test_dataset
+
+
+def get_data_loader(dataset: str, batch_size: int = 64, shuffle_data: bool = True, data_dir="~/data"):
+
+    train_dataset, test_dataset = get_dataset(dataset, data_dir)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_data)
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle_data)
@@ -35,28 +73,15 @@ def get_data_loader(dataset: str, batch_size: int = 64, shuffle_data: bool = Tru
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--data", type=str, required=True, help="Specify dataset to download. Choices: [mnist, fashion_mnist]"
+        "--data", type=str, required=True, choices=list(dataset_classes.keys()) + ['all'], help="Specify dataset to download."
     )
 
     args, _ = parser.parse_known_args()
 
-    if args.data == "mnist":
-        datasets.MNIST(
-            "~/data", train=True, download=True, transform=mnist_transforms
-        )
+    if args.data == "all":
+        datasets_to_download = dataset_classes.keys()
+    else:
+        datasets_to_download = [args.data]
 
-        datasets.MNIST("~/data", download=True, train=False, transform=mnist_transforms)
-
-    elif args.data == "fashion_mnist":
-        datasets.FashionMNIST(
-            root="~/data",
-            train=True,
-            download=True,
-            transform=ToTensor(),
-        )
-        datasets.FashionMNIST(
-            root="~/data",
-            train=False,
-            download=True,
-            transform=ToTensor(),
-        )
+    for dataset_name in datasets_to_download:
+        get_dataset(dataset_name)

@@ -3,8 +3,9 @@ from typing import Type
 from torch import nn
 
 from .convnet import ConvNet
+from .lenet import LeNet
 
-models = [ConvNet]
+models = [ConvNet, LeNet]
 
 
 def model_from_name(name: str) -> Type[nn.Module]:

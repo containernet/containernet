@@ -4,30 +4,36 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-class ConvNet(nn.Module):
-    """Small ConvNet."""
 
+class LeNet(nn.Module):
     def __init__(self, num_classes: int, input_shape: Tuple[int]):
-        super(ConvNet, self).__init__()
-        self.conv1 = nn.Conv2d(input_shape[1], 3, kernel_size=3)
-        self.pool = nn.MaxPool2d(3)
+        super(LeNet, self).__init__()
+        self.conv1 = nn.Conv2d(input_shape[1], 6, kernel_size=5)
+        self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.flatten = nn.Flatten()
 
         # Calculate output size after convolution and pooling layers
-        pool_out = self._calculate_output_size(input_shape)
+        conv_out = self._calculate_output_size(input_shape)
 
-        self.fc = nn.Linear(pool_out, num_classes)
+        self.fc1 = nn.Linear(conv_out, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84, num_classes)
 
     def forward(self, x):
-        x = F.relu(self.pool(self.conv1(x)))
+        x = self.pool(F.relu(self.conv1(x)))
+        x = self.pool(F.relu(self.conv2(x)))
         x = self.flatten(x)
-        x = self.fc(x)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
         return F.log_softmax(x, dim=1)
 
     def _calculate_output_size(self, input_shape: Tuple[int]):
         with torch.no_grad():
             dummy_input = torch.zeros(1, *input_shape[1:])
-            dummy_output = self.pool(self.conv1(dummy_input))
+            dummy_output = self.pool(F.relu(self.conv1(dummy_input)))
+            dummy_output = self.pool(F.relu(self.conv2(dummy_output)))
             return dummy_output.numel()
 
     def get_weights(self):
