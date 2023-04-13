@@ -71,7 +71,7 @@ class BaseWorker:
 
     def replace_bag(self, iteration: int = 0):
         bag_rank = (self.prev_rank - iteration) % self.num_workers
-        bag_tensor = self.recv_bag(self.bags[bag_rank].shape).div_(self.num_workers)
+        bag_tensor = self.recv_bag(self.bags[bag_rank].shape)  # .div_(self.num_workers)
         self.bags[bag_rank].copy_(bag_tensor)
 
 
@@ -164,11 +164,17 @@ class AllReduceRing(Algorithm):
             num_cpus = 1
             worker_class = RingWorker
             runtime_env = {}
+
+        worker_nodes = [c['NodeID'] for c in ray.nodes()]
         self.workers = [worker_class.options(
+            scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
+                node_id=node,
+                soft=False
+            ),
             num_cpus=num_cpus,
             num_gpus=num_gpus,
             runtime_env=runtime_env
-        ).remote(i, num_workers, self.model, self.train_loader) for i in range(num_workers)]
+        ).remote(i, num_workers, self.model, self.train_loader) for i, node in enumerate(worker_nodes)]
         init_rets = []
         for w in self.workers:
             init_rets.append(w.setup.remote())
@@ -212,7 +218,7 @@ def perform_all_reduce(workers, model):
     for param in range(num_parameters):
         # select current parameter
         for w in workers:
-            ray.get(w.set_bag.remote(param))
+            w.set_bag.remote(param)
         # scatter-reduce stage
         for i in range(num_workers):
             for worker_id in range(num_workers):
