@@ -22,10 +22,12 @@ worker_commands = f"/bin/bash -c 'python ./code/training_scripts/data/data.py --
                   "ray start --address 10.0.0.251:6379 --disable-usage-stats;" \
                   "exec /bin/bash'"
 # ray:2.2.0_net_utils
-m01 = net.addDocker('d1', ip='10.0.0.251', dimage="ray:GPU", dcmd=head_commands, cpuset_cpus='0', cpus=1, shm_size="1000mb", dns=["8.8.8.8"])
-m1 = net.addDocker('d2', ip='10.0.0.252', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='1', cpus=1, shm_size="1000mb", dns=["8.8.8.8"])
-m2 = net.addDocker('d3', ip='10.0.0.253', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='2', cpus=1, shm_size="1000mb", dns=["8.8.8.8"])
-m3 = net.addDocker('d4', ip='10.0.0.254', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='3', cpus=1, shm_size="1000mb", dns=["8.8.8.8"])
+host_data_folder='/home/sysgen/data'
+workers_data_folder='/root/data'
+m01 = net.addDocker('d1', ip='10.0.0.251', dimage="ray:GPU", dcmd=head_commands, cpuset_cpus='0', cpus=1, shm_size="1000mb", dns=["8.8.8.8"], volumes=[f'{host_data_folder}:{workers_data_folder}'])
+m1 = net.addDocker('d2', ip='10.0.0.252', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='1', cpus=1, shm_size="1000mb", dns=["8.8.8.8"], volumes=[f'{host_data_folder}:{workers_data_folder}'])
+m2 = net.addDocker('d3', ip='10.0.0.253', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='2', cpus=1, shm_size="1000mb", dns=["8.8.8.8"], volumes=[f'{host_data_folder}:{workers_data_folder}'])
+m3 = net.addDocker('d4', ip='10.0.0.254', dimage="ray:GPU", dcmd=worker_commands, cpuset_cpus='3', cpus=1, shm_size="1000mb", dns=["8.8.8.8"], volumes=[f'{host_data_folder}:{workers_data_folder}'])
 info('*** Adding switches\n')
 s1 = net.addSwitch('s1')
 info('*** Creating links\n')
