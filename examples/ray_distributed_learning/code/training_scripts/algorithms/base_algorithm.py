@@ -9,10 +9,10 @@ class Algorithm:
         self.test_loader = data_loaders[1]
         self.model = model
 
-    def setup(self, num_workers: int, use_gpue: bool, *args, **kwargs):
+    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
         raise NotImplementedError(
             "Implement this function for setting up the workers and initialize all that is needed.")
 
-    def run(self, iterations: int, evaluate: Callable,  *args):
+    def run(self, iterations: int, evaluate: Callable):
         raise NotImplementedError(
             "Implement this function for running the algorithm")
