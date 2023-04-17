@@ -11,7 +11,7 @@ class Algorithm:
         self.test_loader = get_test_loader(self.dataset_name)
         self.model = model
 
-    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
         raise NotImplementedError(
             "Implement this function for setting up the workers and initialize all that is needed.")
 

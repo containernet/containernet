@@ -22,6 +22,10 @@ def get_argparser():
     )
 
     parser.add_argument(
+        "--lr", type=float, default=0.01, help="Set the learning rate"
+    )
+
+    parser.add_argument(
         "--model", required=True, type=str, default="convnet", help="The model to use for training and inference"
     )
 

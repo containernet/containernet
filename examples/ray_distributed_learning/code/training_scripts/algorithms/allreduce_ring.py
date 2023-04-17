@@ -13,11 +13,12 @@ from mpi4py import MPI
 
 from .base_algorithm import Algorithm
 from ..data import get_train_loader
+from ..utils import log_manager
 
 
 class BaseWorker:
     def __init__(self, rank: int, num_workers: int, model: nn.Module,
-                 train_loader: torch.utils.data.DataLoader, optimizer=torch.optim.SGD, device=torch.device("cpu")):
+                 train_loader: torch.utils.data.DataLoader, lr: float, optimizer=torch.optim.SGD, device=torch.device("cpu")):
         self.num_workers = num_workers
         self.rank = rank
         self.next_rank = (rank + 1) % self.num_workers
@@ -27,7 +28,7 @@ class BaseWorker:
         self.train_loader = train_loader
         self.data_iterator = iter(self.train_loader)
         self.params = list(self._model.parameters())
-        self.optimizer = optimizer(self._model.parameters(), lr=0.01)
+        self.optimizer = optimizer(self._model.parameters(), lr=lr)
 
     def compute_gradients(self):
         try:
@@ -79,15 +80,15 @@ class BaseWorker:
 @ray.remote
 class RingWorker(BaseWorker):
     def __init__(self, rank: int, num_workers: int, model: nn.Module,
-                 train_loader: torch.utils.data.DataLoader, optimizer=torch.optim.SGD):
-        super().__init__(rank, num_workers, model, train_loader, optimizer)
+                 train_loader: torch.utils.data.DataLoader, lr: float, optimizer=torch.optim.SGD):
+        super().__init__(rank, num_workers, model, train_loader, lr, optimizer)
 
     def setup(self):
         col.init_collective_group(self.num_workers, self.rank, "gloo")
         return True
 
     def recv_bag(self, tensor_shape):
-        tensor = torch.empty(tensor_shape)  # , dtype=np.float32)
+        tensor = torch.empty(tensor_shape)
         col.recv(tensor, self.prev_rank)
         return tensor
 
@@ -98,8 +99,8 @@ class RingWorker(BaseWorker):
 @ray.remote
 class MPIWorker(BaseWorker):
     def __init__(self, rank: int, num_workers: int, model: nn.Module,
-                 train_loader: torch.utils.data.DataLoader, optimizer=torch.optim.SGD):
-        super().__init__(rank, num_workers, model, train_loader, optimizer, device=torch.device("cuda"))
+                 train_loader: torch.utils.data.DataLoader, lr: float, optimizer=torch.optim.SGD):
+        super().__init__(rank, num_workers, model, train_loader, lr, optimizer, device=torch.device("cuda"))
         self.intercomms = dict()
 
     def setup(self):
@@ -130,7 +131,7 @@ class MPIWorker(BaseWorker):
         MPI.Unpublish_name(f"client_{self.rank}", self.port, MPI.INFO_NULL)
 
     def recv_bag(self, tensor_shape):
-        tensor = torch.empty(tensor_shape).to(self.device)  # , dtype=np.float32)
+        tensor = torch.empty(tensor_shape).to(self.device)
         self.intercomms[self.prev_rank].Recv(tensor, source=MPI.ANY_SOURCE)
         return tensor
 
@@ -150,7 +151,7 @@ def get_all_gradients(workers):
 class AllReduceRing(Algorithm):
     name = "all_reduce_ring"
 
-    def setup(self, num_workers: int, use_gpu: bool = False, *args, **kwargs):
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
         if use_gpu:
             worker_class = MPIWorker
             num_gpus = 1 / num_workers
@@ -175,7 +176,7 @@ class AllReduceRing(Algorithm):
             num_cpus=num_cpus,
             num_gpus=num_gpus,
             runtime_env=runtime_env
-        ).remote(i, num_workers, self.model, get_train_loader(self.dataset_name, num_workers=num_workers, worker_rank=i)) for i, node in enumerate(worker_nodes)]
+        ).remote(i, num_workers, self.model, get_train_loader(self.dataset_name, num_workers=num_workers, worker_rank=i), lr=lr) for i, node in enumerate(worker_nodes)]
         init_rets = []
         for w in self.workers:
             init_rets.append(w.setup.remote())
@@ -207,8 +208,10 @@ class AllReduceRing(Algorithm):
                 self.model.set_weights(ray.get(self.workers[0].get_weights.remote()))
                 accuracy = evaluate(self.model, self.test_loader)
                 print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
+                log_manager.update("accuracy", accuracy)
 
         print("Final accuracy is {:.1f}.".format(accuracy))
+        log_manager.update("final_accuracy", accuracy)
         ray.shutdown()
 
 

@@ -4,6 +4,7 @@ import ray
 
 from .base_algorithm import Algorithm
 from ..data import get_train_loader
+from ..utils import log_manager
 
 
 @ray.remote
@@ -93,8 +94,8 @@ class ParameterServerSync(Algorithm):
 
     name = "ps_sync"
 
-    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu)
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):
@@ -110,8 +111,10 @@ class ParameterServerSync(Algorithm):
                 self.model.set_weights(ray.get(current_weights))
                 accuracy = evaluate(self.model, self.test_loader)
                 print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
+                log_manager.update("accuracy", accuracy)
 
         print("Final accuracy is {:.1f}.".format(accuracy))
+        log_manager.update("final_accuracy", accuracy)
         ray.shutdown()
 
 
@@ -119,8 +122,8 @@ class ParameterServerASync(Algorithm):
 
     name = "ps_async"
 
-    def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu)
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):
@@ -146,8 +149,10 @@ class ParameterServerASync(Algorithm):
                 self.model.set_weights(ray.get(current_weights))
                 accuracy = evaluate(self.model, self.test_loader)
                 print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
+                log_manager.update("accuracy", accuracy)
 
         print("Final accuracy is {:.1f}.".format(accuracy))
+        log_manager.update("final_accuracy", accuracy)
         ray.shutdown()
 
 
