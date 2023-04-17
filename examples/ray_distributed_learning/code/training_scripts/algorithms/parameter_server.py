@@ -3,12 +3,14 @@ import torch.nn.functional as F
 import ray
 
 from .base_algorithm import Algorithm
+from ..data import get_train_loader
 
 
 @ray.remote
 class ParameterServer:
-    def __init__(self, model, use_gpu: bool, optimizer, lr):
+    def __init__(self, model, num_workers: int, use_gpu: bool, optimizer, lr):
         self.device = torch.device('cuda' if torch.cuda.is_available() and use_gpu else 'cpu')
+        self.num_workers = num_workers
         self.model = model.to(self.device)
         self.optimizer = optimizer(self.model.parameters(), lr=lr)
 
@@ -16,8 +18,9 @@ class ParameterServer:
         summed_gradients = [
             torch.stack(gradient_zip).sum(dim=0) for gradient_zip in zip(*gradients)
         ]
+        averaged_gradients = [grad / self.num_workers for grad in summed_gradients]
         self.optimizer.zero_grad()
-        self.model.set_gradients(summed_gradients)
+        self.model.set_gradients(averaged_gradients)
         self.optimizer.step()
         return self.model.get_weights()
 
@@ -48,7 +51,7 @@ class DataWorker:
         return self.model.get_gradients()
 
 
-def setup_nodes(model: str, num_workers: int, train_loader, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01):
+def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01):
 
     cluster = ray.nodes()
     head_node_ip = ray.worker.global_worker.node_ip_address
@@ -73,7 +76,7 @@ def setup_nodes(model: str, num_workers: int, train_loader, use_gpu: bool, optim
         ),
         num_cpus=num_cpu,
         num_gpus=num_gpu,
-    ).remote(model, use_gpu, optimizer, lr=lr)
+    ).remote(model, num_workers, use_gpu, optimizer, lr=lr)
 
     workers = [DataWorker.options(
         scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
@@ -82,7 +85,7 @@ def setup_nodes(model: str, num_workers: int, train_loader, use_gpu: bool, optim
         ),
         num_cpus=num_cpu,
         num_gpus=num_gpu,
-    ).remote(model, use_gpu, train_loader) for node in worker_nodes]
+    ).remote(model, use_gpu, get_train_loader(dataset_name, num_workers=num_workers, worker_rank=i)) for i, node in enumerate(worker_nodes)]
     return ps, workers
 
 
@@ -91,7 +94,7 @@ class ParameterServerSync(Algorithm):
     name = "ps_sync"
 
     def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.train_loader, use_gpu)
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):
@@ -117,7 +120,7 @@ class ParameterServerASync(Algorithm):
     name = "ps_async"
 
     def setup(self, num_workers: int, use_gpu: bool, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.train_loader, use_gpu)
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu)
         print(self.workers)
 
     def run(self, iterations: int, evaluate, *args, **kwargs):

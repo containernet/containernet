@@ -1,1 +1,1 @@
-from .data import get_data_loader, dataset_classes, get_shape_and_classes
+from .data import dataset_classes, get_shape_and_classes, get_train_loader, get_test_loader

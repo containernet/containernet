@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from mpi4py import MPI
 
 from .base_algorithm import Algorithm
+from ..data import get_train_loader
 
 
 class BaseWorker:
@@ -71,7 +72,7 @@ class BaseWorker:
 
     def replace_bag(self, iteration: int = 0):
         bag_rank = (self.prev_rank - iteration) % self.num_workers
-        bag_tensor = self.recv_bag(self.bags[bag_rank].shape)  # .div_(self.num_workers)
+        bag_tensor = self.recv_bag(self.bags[bag_rank].shape).div_(self.num_workers)
         self.bags[bag_rank].copy_(bag_tensor)
 
 
@@ -174,7 +175,7 @@ class AllReduceRing(Algorithm):
             num_cpus=num_cpus,
             num_gpus=num_gpus,
             runtime_env=runtime_env
-        ).remote(i, num_workers, self.model, self.train_loader) for i, node in enumerate(worker_nodes)]
+        ).remote(i, num_workers, self.model, get_train_loader(self.dataset_name, num_workers=num_workers, worker_rank=i)) for i, node in enumerate(worker_nodes)]
         init_rets = []
         for w in self.workers:
             init_rets.append(w.setup.remote())
