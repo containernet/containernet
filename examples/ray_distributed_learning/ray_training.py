@@ -75,7 +75,7 @@ if __name__ == "__main__":
     host_data_folder = args.data_dir
     host_results_folder = args.results_dir
     num_nodes = args.num_nodes
-    delay = args.delay
+    delay = args.delay * 2
 
     setLogLevel('info')
 
