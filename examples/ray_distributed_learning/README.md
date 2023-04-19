@@ -106,8 +106,9 @@ The available options for the script are:
 
 - `--address`: The address to use for Ray (default: None).
 - `--num-workers` or `-n`: Sets the number of workers for training (default: 3).
-- `--iter`: Set the number of iterations for training (default: 30).
+- `--epochs`: Set the number of epochs for training (default: 3).
 - `--lr`: Set the learning rate (default: 0.01).
+- `--batch-size`: Set the batch size for training (default: 64).
 - `--model`: The model to use for training and inference (required).
 - `--use-gpu`: Enables GPU training (default: False).
 - `--dataset`: Set the dataset to use, with available choices: `mnist`, `fashion_mnist`, `cifar100` (default: "cifar100").

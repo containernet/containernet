@@ -27,7 +27,7 @@ class LeNet(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1)
+        return x
 
     def _calculate_output_size(self, input_shape: Tuple[int]):
         with torch.no_grad():

@@ -50,7 +50,8 @@ RUN pip install torch torchvision && \
     pip install mpi4py && \
     pip install ray==${RAY_VERSION} && \
     pip install protobuf==3.20.* && \
-    pip install --force-reinstall numpy==1.23.*
+    pip install --force-reinstall numpy==1.23.* && \
+    pip install tqdm
 
 # Install pygloo
 RUN git clone https://github.com/ray-project/pygloo.git && \

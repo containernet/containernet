@@ -20,16 +20,16 @@ algorithm = algorithm_from_name(args.algorithm)(model, args.dataset)
 # set evaluation method
 evaluation = utils.evaluate
 # setup and initiliaze workers
-algorithm.setup(args.num_workers, args.use_gpu, args.lr)
+algorithm.setup(args.num_workers, args.use_gpu, args.lr, args.batch_size)
 # run algorithm
 start_time = time.perf_counter()
-algorithm.run(args.iter, evaluation)
+algorithm.run(args.epochs, evaluation)
 elapsed_time = time.perf_counter() - start_time
 # log results
-log_manager.update("train_time", elapsed_time)
+log_manager.update("training_time", elapsed_time)
 log_manager.update("learning_rate", args.lr)
 log_manager.update("training_algorithm", args.algorithm)
 log_manager.update("dataset", args.dataset)
 log_manager.update("gpu_training", args.use_gpu)
-log_manager.update("iterations", args.iter)
+log_manager.update("epochs", args.epochs)
 log_manager.save()

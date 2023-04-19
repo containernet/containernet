@@ -66,7 +66,7 @@ def parse_args():
     parser.add_argument('--data-dir', default=Path(f'/home/{sudo_user}') / 'data', help="Host directory for data folder")
     parser.add_argument('--results-dir', default=Path(f'/home/{sudo_user}') / 'results', help="Host directory for results folder")
     parser.add_argument('--num_nodes', type=int, default=4, help="Number of nodes (including the head node)")
-    parser.add_argument('--delay', type=float, default=0.004, help="Delay between nodes in milliseconds")
+    parser.add_argument('--delay', type=float, default=0., help="Delay between nodes in milliseconds")
     return parser.parse_args()
 
 

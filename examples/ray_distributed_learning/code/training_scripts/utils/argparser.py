@@ -8,9 +8,6 @@ def get_argparser():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--address", required=False, type=str, default=None, help="the address to use for Ray"
-    )
-    parser.add_argument(
         "--num-workers",
         "-n",
         type=int,
@@ -18,7 +15,7 @@ def get_argparser():
         help="Sets number of workers for training.",
     )
     parser.add_argument(
-        "--iter", type=int, default=30, help="Set number of iterations for training"
+        "--epochs", type=int, default=3, help="Set number of epochs for training"
     )
 
     parser.add_argument(
@@ -26,7 +23,11 @@ def get_argparser():
     )
 
     parser.add_argument(
-        "--model", required=True, type=str, default="convnet", help="The model to use for training and inference"
+        "--batch-size", type=int, default=64, help="Set the batch size for training and testing"
+    )
+
+    parser.add_argument(
+        "--model", required=True, type=str, default="convnet", help="The model to use for training and testing"
     )
 
     parser.add_argument(

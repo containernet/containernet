@@ -1,6 +1,9 @@
+import time
+
 import torch
 import torch.nn.functional as F
 import ray
+from tqdm import trange
 
 from .base_algorithm import Algorithm
 from ..data import get_train_loader
@@ -13,7 +16,7 @@ class ParameterServer:
         self.device = torch.device('cuda' if torch.cuda.is_available() and use_gpu else 'cpu')
         self.num_workers = num_workers
         self.model = model.to(self.device)
-        self.optimizer = optimizer(self.model.parameters(), lr=lr)
+        self.optimizer = optimizer(self.model.parameters(), lr=lr, momentum=0.9)
 
     def apply_gradients(self, *gradients):
         summed_gradients = [
@@ -47,12 +50,12 @@ class DataWorker:
         data, target = data.to(self.device), target.to(self.device)
         self.model.zero_grad()
         output = self.model(data)
-        loss = F.nll_loss(output, target)
+        loss = F.cross_entropy(output, target)
         loss.backward()
         return self.model.get_gradients()
 
 
-def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01):
+def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01, batch_size: int = 64):
 
     cluster = ray.nodes()
     head_node_ip = ray.worker.global_worker.node_ip_address
@@ -86,7 +89,7 @@ def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optim
         ),
         num_cpus=num_cpu,
         num_gpus=num_gpu,
-    ).remote(model, use_gpu, get_train_loader(dataset_name, num_workers=num_workers, worker_rank=i)) for i, node in enumerate(worker_nodes)]
+    ).remote(model, use_gpu, get_train_loader(dataset_name, num_workers=num_workers, worker_rank=i, batch_size=batch_size)) for i, node in enumerate(worker_nodes)]
     return ps, workers
 
 
@@ -94,27 +97,30 @@ class ParameterServerSync(Algorithm):
 
     name = "ps_sync"
 
-    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr)
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, batch_size: int, *args, **kwargs):
+        super().setup(num_workers, use_gpu, lr, batch_size, *args, **kwargs)
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr, batch_size=batch_size)
         print(self.workers)
 
-    def run(self, iterations: int, evaluate, *args, **kwargs):
+    def run(self, num_epochs: int, evaluate, *args, **kwargs):
         print("Running synchronous parameter server training.")
         current_weights = self.ps.get_weights.remote()
-        for i in range(iterations):
-            gradients = [worker.compute_gradients.remote(current_weights) for worker in self.workers]
-            # Calculate update after all gradients are available.
-            current_weights = self.ps.apply_gradients.remote(*gradients)
+        for epoch in range(num_epochs):
+            start_time_epoch = time.perf_counter()
+            for _ in trange(self.iterations_per_epoch):
+                gradients = [worker.compute_gradients.remote(current_weights) for worker in self.workers]
+                # Wait for all remote workers to finish computing gradients.
+                gradients = ray.get(gradients)
+                # Calculate update after all gradients are available.
+                current_weights = self.ps.apply_gradients.remote(*gradients)
+            elapsed_time_epoch = time.perf_counter() - start_time_epoch
+            log_manager.update("epoch_time", elapsed_time_epoch)
 
-            if i % 10 == 0:
-                # Evaluate the current model.
-                self.model.set_weights(ray.get(current_weights))
-                accuracy = evaluate(self.model, self.test_loader)
-                print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
-                log_manager.update("accuracy", accuracy)
-
-        print("Final accuracy is {:.1f}.".format(accuracy))
-        log_manager.update("final_accuracy", accuracy)
+            # Evaluate the current model.
+            self.model.set_weights(ray.get(current_weights))
+            accuracy = evaluate(self.model, self.test_loader)
+            print("Epoch {}: \taccuracy is {:.1f}".format(epoch, accuracy))
+            log_manager.update("accuracy", accuracy)
         ray.shutdown()
 
 
@@ -122,37 +128,39 @@ class ParameterServerASync(Algorithm):
 
     name = "ps_async"
 
-    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, batch_size: int, *args, **kwargs):
+        super().setup(num_workers, use_gpu, lr, batch_size, *args, **kwargs)
         self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr)
         print(self.workers)
 
-    def run(self, iterations: int, evaluate, *args, **kwargs):
+    def run(self, num_epochs: int, evaluate, *args, **kwargs):
         print("Running Asynchronous Parameter Server Training.")
         current_weights = self.ps.get_weights.remote()
 
-        gradients = {}
-        for worker in self.workers:
-            gradients[worker.compute_gradients.remote(current_weights)] = worker
+        for epoch in range(num_epochs):
+            start_time_epoch = time.perf_counter()
+            gradients = {}
+            for worker in self.workers:
+                gradients[worker.compute_gradients.remote(current_weights)] = worker
 
-        accuracy = 0
-        for i in range(iterations * len(self.workers)):
-            ready_gradient_list, _ = ray.wait(list(gradients))
-            ready_gradient_id = ready_gradient_list[0]
-            worker = gradients.pop(ready_gradient_id)
+            for _ in trange(self.iterations_per_epoch * len(self.workers)):
+                ready_gradient_list, _ = ray.wait(list(gradients))
+                ready_gradient_id = ready_gradient_list[0]
+                worker = gradients.pop(ready_gradient_id)
 
-            # Compute and apply gradients.
-            current_weights = self.ps.apply_gradients.remote(*[ready_gradient_id])
-            gradients[worker.compute_gradients.remote(current_weights)] = worker
+                # Compute and apply gradients.
+                current_weights = self.ps.apply_gradients.remote(*[ready_gradient_id])
+                gradients[worker.compute_gradients.remote(current_weights)] = worker
 
-            if i % 10 == 0:
-                # Evaluate the current model after every 10 updates.
-                self.model.set_weights(ray.get(current_weights))
-                accuracy = evaluate(self.model, self.test_loader)
-                print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
-                log_manager.update("accuracy", accuracy)
+            elapsed_time_epoch = time.perf_counter() - start_time_epoch
+            log_manager.update("epoch_time", elapsed_time_epoch)
 
-        print("Final accuracy is {:.1f}.".format(accuracy))
-        log_manager.update("final_accuracy", accuracy)
+            # Evaluate the current model after every 10 updates.
+            self.model.set_weights(ray.get(current_weights))
+            accuracy = evaluate(self.model, self.test_loader)
+            print("Epoch {}: \taccuracy is {:.1f}".format(epoch, accuracy))
+            log_manager.update("accuracy", accuracy)
+
         ray.shutdown()
 
 

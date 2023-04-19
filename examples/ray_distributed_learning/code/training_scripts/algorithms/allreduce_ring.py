@@ -10,6 +10,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from mpi4py import MPI
+from tqdm import trange
 
 from .base_algorithm import Algorithm
 from ..data import get_train_loader
@@ -28,7 +29,7 @@ class BaseWorker:
         self.train_loader = train_loader
         self.data_iterator = iter(self.train_loader)
         self.params = list(self._model.parameters())
-        self.optimizer = optimizer(self._model.parameters(), lr=lr)
+        self.optimizer = optimizer(self._model.parameters(), lr=lr, momentum=0.9)
 
     def compute_gradients(self):
         try:
@@ -151,7 +152,8 @@ def get_all_gradients(workers):
 class AllReduceRing(Algorithm):
     name = "all_reduce_ring"
 
-    def setup(self, num_workers: int, use_gpu: bool, lr: float, *args, **kwargs):
+    def setup(self, num_workers: int, use_gpu: bool, lr: float, batch_size: int, *args, **kwargs):
+        super().setup(num_workers, use_gpu, lr, batch_size, *args, **kwargs)
         if use_gpu:
             worker_class = MPIWorker
             num_gpus = 1 / num_workers
@@ -167,7 +169,7 @@ class AllReduceRing(Algorithm):
             worker_class = RingWorker
             runtime_env = {}
 
-        worker_nodes = [c['NodeID'] for c in ray.nodes()]
+        worker_nodes = [c['NodeID'] for c in ray.nodes()][:num_workers]
         self.workers = [worker_class.options(
             scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
                 node_id=node,
@@ -176,7 +178,7 @@ class AllReduceRing(Algorithm):
             num_cpus=num_cpus,
             num_gpus=num_gpus,
             runtime_env=runtime_env
-        ).remote(i, num_workers, self.model, get_train_loader(self.dataset_name, num_workers=num_workers, worker_rank=i), lr=lr) for i, node in enumerate(worker_nodes)]
+        ).remote(i, num_workers, self.model, get_train_loader(self.dataset_name, num_workers=num_workers, worker_rank=i, batch_size=batch_size), lr=lr) for i, node in enumerate(worker_nodes)]
         init_rets = []
         for w in self.workers:
             init_rets.append(w.setup.remote())
@@ -193,25 +195,27 @@ class AllReduceRing(Algorithm):
             ompi_server_process.terminate()
             ompi_server_process.wait()
 
-    def run(self, iterations: int, evaluate):
-
+    def run(self, num_epochs: int, evaluate):
         # run training
-        for i in range(iterations):
-            for w in self.workers:
-                w.compute_gradients.remote()
-            perform_all_reduce(self.workers, self.model)
-            # run optimizer
-            for w in self.workers:
-                ray.get(w.update_weights.remote())
-            if i % 10 == 0:
-                # Evaluate the current model.
-                self.model.set_weights(ray.get(self.workers[0].get_weights.remote()))
-                accuracy = evaluate(self.model, self.test_loader)
-                print("Iter {}: \taccuracy is {:.1f}".format(i, accuracy))
-                log_manager.update("accuracy", accuracy)
+        for epoch in range(num_epochs):
+            start_time_epoch = time.perf_counter()
+            for _ in trange(self.iterations_per_epoch):
+                for w in self.workers:
+                    w.compute_gradients.remote()
+                perform_all_reduce(self.workers, self.model)
+                # run optimizer
+                for w in self.workers:
+                    ray.get(w.update_weights.remote())
 
-        print("Final accuracy is {:.1f}.".format(accuracy))
-        log_manager.update("final_accuracy", accuracy)
+            elapsed_time_epoch = time.perf_counter() - start_time_epoch
+            log_manager.update("epoch_time", elapsed_time_epoch)
+
+            # Evaluate the current model.
+            self.model.set_weights(ray.get(self.workers[0].get_weights.remote()))
+            accuracy = evaluate(self.model, self.test_loader)
+            print("Epoch {}: \taccuracy is {:.1f}".format(epoch, accuracy))
+            log_manager.update("accuracy", accuracy)
+
         ray.shutdown()
 
 
