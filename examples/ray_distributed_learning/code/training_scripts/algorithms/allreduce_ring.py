@@ -40,7 +40,7 @@ class BaseWorker:
         data, target = data.to(self.device), target.to(self.device)
         self._model.zero_grad()
         output = self._model(data)
-        loss = F.nll_loss(output, target)
+        loss = F.cross_entropy(output, target)
         loss.backward()
 
     def update_weights(self):
@@ -231,12 +231,12 @@ def perform_all_reduce(workers, model):
         for i in range(num_workers):
             for worker_id in range(num_workers):
                 workers[worker_id].send_bag.remote(i)
-                ray.get(workers[(worker_id + 1) % num_workers].add_bag.remote(i))
+                workers[(worker_id + 1) % num_workers].add_bag.remote(i)
         # all-gather stage
         for i in range(-1, num_workers - 2):
             for worker_id in range(num_workers):
                 workers[worker_id].send_bag.remote(i)
-                ray.get(workers[(worker_id + 1) % num_workers].replace_bag.remote(i))
+                workers[(worker_id + 1) % num_workers].replace_bag.remote(i)
 
 
 def get_server_process_and_uri():

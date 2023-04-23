@@ -22,7 +22,7 @@ class ConvNet(nn.Module):
         x = F.relu(self.pool(self.conv1(x)))
         x = self.flatten(x)
         x = self.fc(x)
-        return F.log_softmax(x, dim=1)
+        return x
 
     def _calculate_output_size(self, input_shape: Tuple[int]):
         with torch.no_grad():

@@ -98,8 +98,8 @@ class ParameterServerSync(Algorithm):
     name = "ps_sync"
 
     def setup(self, num_workers: int, use_gpu: bool, lr: float, batch_size: int, *args, **kwargs):
-        super().setup(num_workers, use_gpu, lr, batch_size, *args, **kwargs)
-        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr, batch_size=batch_size)
+        super().setup(num_workers - 1, use_gpu, lr, batch_size, *args, **kwargs)
+        self.ps, self.workers = setup_nodes(self.model, num_workers - 1, self.dataset_name, use_gpu, lr=lr, batch_size=batch_size)
         print(self.workers)
 
     def run(self, num_epochs: int, evaluate, *args, **kwargs):
