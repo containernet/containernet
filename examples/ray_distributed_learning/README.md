@@ -13,57 +13,57 @@ This folder contains code and examples for executing distributed Machine Learnin
 * Install Containernet
 * On some systems, there are issues with the systemd cgroup driver. 
 	* ```bash
-sudo systemctl edit --full docker.service
-```
+		sudo systemctl edit --full docker.service 
+		```
 	* ```bash
-# Append the following line to ExecStart=
---exec-opt native.cgroupdriver=cgroupfs
-```
+ 		# Append the following line to ExecStart=
+		--exec-opt native.cgroupdriver=cgroupfs
+		```
 	* Apply configuration and restart Docker
-	```bash
-sudo systemctl daemon-reload
-sudo systemctl restart docker.service
-```
+		```bash
+		sudo systemctl daemon-reload
+		sudo systemctl restart docker.service
+		```
 
 ### Nvidia Container Toolkit
 * Running the Containers with GPU support requires the [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#setting-up-nvidia-container-toolkit).
 	* ```bash
-	distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
-      && curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
-      && curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
-            sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
-            sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
-	```
-	```bash
-	sudo apt-get update
-	sudo apt-get install -y nvidia-container-toolkit
-	sudo nvidia-ctk runtime configure --runtime=docker
-	sudo systemctl restart docker
-	```
+		distribution=$(. /etc/os-release;echo $ID$VERSION_ID) \
+		&& curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+		&& curl -s -L https://nvidia.github.io/libnvidia-container/$distribution/libnvidia-container.list | \
+			sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+			sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+		```
+		```bash
+			sudo apt-get update
+			sudo apt-get install -y nvidia-container-toolkit
+			sudo nvidia-ctk runtime configure --runtime=docker
+			sudo systemctl restart docker
+		```
 
 ### OpenMPI
 
 * Install OpenMPI for testing the Allreduce Implementation on GPUs.
 	* ```bash
-	wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.gz
-	tar -xzf openmpi-4.1.5.tar.gz
-	cd openmpi-4.1.5
-	# Load the appropriate CUDA paths:
-	export PATH=/usr/local/cuda/bin:$PATH
-	export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
-	# Configure and build OpenMPI with CUDA support:
-	./configure --prefix=/usr/local --with-cuda
-	make -j $(nproc)
-	# Install OpenMPI:
-	sudo make install
-	# Update the dynamic linker cache and environment variables:
-	sudo ldconfig
-	echo "export PATH=/usr/local/bin:$PATH" >> ~/.bashrc
-	echo "export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
-	source ~/.bashrc
-	# test CUDA-aware MPI (OpenMPI)
-	ompi_info --parsable --all | grep mpi_built_with_cuda_support:value
-	```
+		wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.5.tar.gz
+		tar -xzf openmpi-4.1.5.tar.gz
+		cd openmpi-4.1.5
+		# Load the appropriate CUDA paths:
+		export PATH=/usr/local/cuda/bin:$PATH
+		export LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+		# Configure and build OpenMPI with CUDA support:
+		./configure --prefix=/usr/local --with-cuda
+		make -j $(nproc)
+		# Install OpenMPI:
+		sudo make install
+		# Update the dynamic linker cache and environment variables:
+		sudo ldconfig
+		echo "export PATH=/usr/local/bin:$PATH" >> ~/.bashrc
+		echo "export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH" >> ~/.bashrc
+		source ~/.bashrc
+		# test CUDA-aware MPI (OpenMPI)
+		ompi_info --parsable --all | grep mpi_built_with_cuda_support:value
+		```
 
 ### Dockerfile
 Build the dockerfile with
