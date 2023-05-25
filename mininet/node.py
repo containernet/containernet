@@ -749,6 +749,7 @@ class Docker ( Host ):
                      'cpu_period': None,
                      'cpu_shares': None,
                      'cpuset_cpus': None,
+                     'domainname': None,
                      'mem_limit': None,
                      'memswap_limit': None,
                      'environment': {},
@@ -780,6 +781,7 @@ class Docker ( Host ):
             memswap_limit=defaults['memswap_limit']
         )
 
+        self.domainname = defaults['domainname']
         self.volumes = defaults['volumes']
         self.tmpfs = defaults['tmpfs']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
@@ -856,6 +858,7 @@ class Docker ( Host ):
             name="%s.%s" % (self.dnameprefix, name),
             image=self.dimage,
             command=self.dcmd,
+            domainname=self.domainname,
             entrypoint=list(),  # overwrite (will be executed manually at the end)
             stdin_open=True,  # keep container open
             tty=True,  # allocate pseudo tty
