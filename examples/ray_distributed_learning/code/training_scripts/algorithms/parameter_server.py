@@ -57,17 +57,19 @@ class DataWorker:
 
 def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optimizer=torch.optim.SGD, lr: float = 0.01, batch_size: int = 64):
 
+    num_data_workers = num_workers - 1
+
     cluster = ray.nodes()
     head_node_ip = ray.worker.global_worker.node_ip_address
     head_node = [c['NodeID'] for c in cluster if c['NodeName'] == head_node_ip]
-    worker_nodes = [c['NodeID'] for c in cluster if not c['NodeName'] == head_node_ip][:num_workers]
+    worker_nodes = [c['NodeID'] for c in cluster if not c['NodeName'] == head_node_ip][:num_data_workers]
 
     if len(cluster) < num_workers:
         print(f"Not enough nodes to create {num_workers} workers. Created only 1 Parameter Server and"
               f" {len(worker_nodes)} worker nodes.")
 
     if use_gpu:
-        num_gpu = 1. / num_workers
+        num_gpu = 1.
         num_cpu = 0.
     else:
         num_gpu = 0.
@@ -89,7 +91,7 @@ def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optim
         ),
         num_cpus=num_cpu,
         num_gpus=num_gpu,
-    ).remote(model, use_gpu, get_train_loader(dataset_name, num_workers=num_workers, worker_rank=i, batch_size=batch_size)) for i, node in enumerate(worker_nodes)]
+    ).remote(model, use_gpu, get_train_loader(dataset_name, num_workers=num_data_workers, worker_rank=i, batch_size=batch_size)) for i, node in enumerate(worker_nodes)]
     return ps, workers
 
 
@@ -99,7 +101,7 @@ class ParameterServerSync(Algorithm):
 
     def setup(self, num_workers: int, use_gpu: bool, lr: float, batch_size: int, *args, **kwargs):
         super().setup(num_workers - 1, use_gpu, lr, batch_size, *args, **kwargs)
-        self.ps, self.workers = setup_nodes(self.model, num_workers - 1, self.dataset_name, use_gpu, lr=lr, batch_size=batch_size)
+        self.ps, self.workers = setup_nodes(self.model, num_workers, self.dataset_name, use_gpu, lr=lr, batch_size=batch_size)
         print(self.workers)
 
     def run(self, num_epochs: int, evaluate, *args, **kwargs):
@@ -162,5 +164,3 @@ class ParameterServerASync(Algorithm):
             log_manager.update("accuracy", accuracy)
 
         ray.shutdown()
-
-

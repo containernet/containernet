@@ -50,7 +50,7 @@ class BaseWorker:
         raise NotImplementedError(
             "Implement this function for setting up the workers.")
 
-    def set_bag(self, parameter_id: int):
+    def create_bags(self, parameter_id: int):
         self.bags = torch.tensor_split(self.params[parameter_id].grad.data, self.num_workers)
 
     def get_gradients(self):
@@ -70,13 +70,15 @@ class BaseWorker:
     def add_bag(self, iteration: int = 0):
         bag_rank = (self.prev_rank - iteration) % self.num_workers
         bag_tensor = self.recv_bag(self.bags[bag_rank].shape)
-        torch.add(self.bags[bag_rank], bag_tensor, out=self.bags[bag_rank])
+        self.bags[bag_rank].add_(bag_tensor)
 
     def replace_bag(self, iteration: int = 0):
         bag_rank = (self.prev_rank - iteration) % self.num_workers
-        bag_tensor = self.recv_bag(self.bags[bag_rank].shape).div_(self.num_workers)
+        bag_tensor = self.recv_bag(self.bags[bag_rank].shape)
         self.bags[bag_rank].copy_(bag_tensor)
 
+    def normalize_bag(self, bag_rank: int):
+        self.bags[bag_rank].div_(self.num_workers)
 
 @ray.remote
 class RingWorker(BaseWorker):
@@ -105,11 +107,15 @@ class MPIWorker(BaseWorker):
         self.intercomms = dict()
 
     def setup(self):
-        self.publish_port()
+        pass
 
-    def publish_port(self):
+    def publish_name(self):
         self.port = MPI.Open_port(MPI.INFO_NULL)
         MPI.Publish_name(f"client_{self.rank}", self.port, MPI.INFO_NULL)
+
+    def unpublish_name(self):
+        MPI.Close_port(self.port)
+        MPI.Unpublish_name(f"client_{self.rank}", self.port, MPI.INFO_NULL)
 
     def connect_intercomm(self, other_rank: int):
         comm = MPI.COMM_SELF
@@ -119,6 +125,7 @@ class MPIWorker(BaseWorker):
         self.intercomms[other_rank] = intercomm
 
     def accept_intercomms(self, num_clients: int):
+        self.publish_name()
         comm = MPI.COMM_SELF
         for _ in range(num_clients):
             own_port = MPI.Lookup_name(f"client_{self.rank}", MPI.INFO_NULL)
@@ -126,10 +133,6 @@ class MPIWorker(BaseWorker):
             other_rank = intercomm.recv(source=0)
             self.intercomms[other_rank] = intercomm
         self.unpublish_name()
-
-    def unpublish_name(self):
-        MPI.Close_port(self.port)
-        MPI.Unpublish_name(f"client_{self.rank}", self.port, MPI.INFO_NULL)
 
     def recv_bag(self, tensor_shape):
         tensor = torch.empty(tensor_shape).to(self.device)
@@ -226,12 +229,16 @@ def perform_all_reduce(workers, model):
     for param in range(num_parameters):
         # select current parameter
         for w in workers:
-            w.set_bag.remote(param)
+            w.create_bags.remote(param)
         # scatter-reduce stage
-        for i in range(num_workers):
+        for i in range(num_workers - 1):
             for worker_id in range(num_workers):
                 workers[worker_id].send_bag.remote(i)
                 workers[(worker_id + 1) % num_workers].add_bag.remote(i)
+        # normalize the bag each worker will send in the first gather step
+        for worker_id in range(num_workers):
+            worker_rank = workers[worker_id].rank
+            workers[worker_id].normalize_bag.remote((worker_rank + 1) % num_workers)
         # all-gather stage
         for i in range(-1, num_workers - 2):
             for worker_id in range(num_workers):

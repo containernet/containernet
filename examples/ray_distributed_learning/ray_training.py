@@ -20,7 +20,7 @@ def create_net():
     return net
 
 
-def add_docker_containers(net, host_data_folder, host_results_folder, num_nodes):
+def add_docker_containers(net, host_data_folder, host_results_folder, num_nodes, gpu_instances):
     info('*** Adding docker containers\n')
     head_commands = (
         f"/bin/bash -c 'python ./training_scripts/data/data.py --data all; "
@@ -39,13 +39,13 @@ def add_docker_containers(net, host_data_folder, host_results_folder, num_nodes)
     workers_results_folder = '/root/results'
 
     head = net.addDocker('head', ip='10.0.0.100', dimage="ray:GPU", dcmd=head_commands, cpuset_cpus='0', cpus=1,
-                         shm_size="5000mb", dns=["8.8.8.8"], device_requests=[docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])],
+                         shm_size="5000mb", dns=["8.8.8.8"], device_requests=[docker.types.DeviceRequest(device_ids=[gpu_instances[0]], capabilities=[['gpu']])],
                          volumes=[f'{host_data_folder}:{workers_data_folder}', f'{host_results_folder}:{workers_results_folder}'])
     workers = []
     for i in range(1, num_nodes):
         workers.append(net.addDocker(f'worker_{i}', ip=f'10.0.0.{i + 100}', dimage="ray:GPU", dcmd=worker_commands,
                                      cpuset_cpus=f'{i}', cpus=1, shm_size="5000mb", dns=["8.8.8.8"],
-                                     device_requests=[docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])],
+                                     device_requests=[docker.types.DeviceRequest(device_ids=[gpu_instances[i]], capabilities=[['gpu']])],
                                      volumes=[f'{host_data_folder}:{workers_data_folder}',
                                               f'{host_results_folder}:{workers_results_folder}']))
 
@@ -69,6 +69,7 @@ def parse_args():
     parser.add_argument('--results-dir', default=Path(f'/home/{sudo_user}') / 'results', help="Host directory for results folder")
     parser.add_argument('--num_nodes', type=int, default=4, help="Number of nodes (including the head node)")
     parser.add_argument('--delay', type=float, default=0., help="Delay between nodes in milliseconds")
+    parser.add_argument('--gpu-instances', nargs='+', type=str, help="Space separated list of nvidia gpu ids. Should be exactly num_nodes many. Use nvidia-smi -L to view ids on your system")
     return parser.parse_args()
 
 
@@ -78,11 +79,13 @@ if __name__ == "__main__":
     host_results_folder = args.results_dir
     num_nodes = args.num_nodes
     delay = args.delay * 2
+    gpu_instances = args.gpu_instances
+    assert len(gpu_instances) == num_nodes
 
     setLogLevel('info')
 
     net = create_net()
-    head, workers = add_docker_containers(net, host_data_folder, host_results_folder, num_nodes)
+    head, workers = add_docker_containers(net, host_data_folder, host_results_folder, num_nodes, gpu_instances)
     create_links(net, head, workers, delay)
 
     info('*** Starting network\n')
