@@ -116,6 +116,5 @@ The available options for the script are:
 
 For example, to run the script with 4 workers, 50 iterations, a learning rate of 0.02, the "lenet" model, GPU training enabled, the "cifar10" dataset, and the "algorithm1" distributed training algorithm, use the following command:
 ```bash
-head python train.py --num-workers 4 --iter 50 --lr 0.02 --model lenet --use-gpu --dataset cifar10 --algorithm all_reduce_ring
+head python train.py --num-workers 4 --iter 50 --lr 0.02 --model lenet --use-gpu --dataset cifar100 --algorithm all_reduce_ring
 ```
-
