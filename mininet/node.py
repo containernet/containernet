@@ -58,7 +58,6 @@ import re
 import signal
 import select
 import docker
-import docker.types
 import json
 from distutils.version import StrictVersion
 from re import findall
@@ -766,7 +765,8 @@ class Docker ( Host ):
                      'storage_opt': None,
                      'sysctls': {},
                      'shm_size': '64mb',
-                     'cpus': None
+                     'cpus': None,
+                     'device_requests': []
                      }
         defaults.update( kwargs )
 
@@ -783,10 +783,8 @@ class Docker ( Host ):
             memswap_limit=defaults['memswap_limit']
         )
         self.shm_size = defaults['shm_size']
-        self.cpus = defaults['cpus']
-        # Multiply requested cpus by 10^9
-        if self.cpus:
-            self.cpus = self.cpus * 1000000000
+        self.nano_cpus = defaults['cpus'] * 1_000_000_000 if defaults['cpus'] else defaults['cpus']
+        self.device_requests = defaults['device_requests']
         self.volumes = defaults['volumes']
         self.tmpfs = defaults['tmpfs']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
@@ -849,8 +847,8 @@ class Docker ( Host ):
             # access cgroups when modifying resource limits.
             cgroup_parent='/docker',
             shm_size=self.shm_size,
-            nano_cpus=self.cpus,
-            device_requests=[docker.types.DeviceRequest(count=-1, capabilities=[['gpu']])],
+            nano_cpus=self.nano_cpus,
+            device_requests=self.device_requests,
         )
 
         if kwargs.get("rm", False):
