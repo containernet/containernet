@@ -39,12 +39,12 @@ def add_docker_containers(net, host_data_folder, host_results_folder, num_nodes,
     workers_results_folder = '/root/results'
 
     head = net.addDocker('head', ip='10.0.0.100', dimage="ray:GPU", dcmd=head_commands, cpuset_cpus='0', cpus=1,
-                         shm_size="5000mb", dns=["8.8.8.8"], device_requests=[docker.types.DeviceRequest(device_ids=[gpu_instances[0]], capabilities=[['gpu']])],
+                         shm_size="10240mb", dns=["8.8.8.8"], device_requests=[docker.types.DeviceRequest(device_ids=[gpu_instances[0]], capabilities=[['gpu']])],
                          volumes=[f'{host_data_folder}:{workers_data_folder}', f'{host_results_folder}:{workers_results_folder}'])
     workers = []
     for i in range(1, num_nodes):
         workers.append(net.addDocker(f'worker_{i}', ip=f'10.0.0.{i + 100}', dimage="ray:GPU", dcmd=worker_commands,
-                                     cpuset_cpus=f'{i}', cpus=1, shm_size="5000mb", dns=["8.8.8.8"],
+                                     cpuset_cpus=f'{i}', cpus=1, shm_size="10240mb", dns=["8.8.8.8"],
                                      device_requests=[docker.types.DeviceRequest(device_ids=[gpu_instances[i]], capabilities=[['gpu']])],
                                      volumes=[f'{host_data_folder}:{workers_data_folder}',
                                               f'{host_results_folder}:{workers_results_folder}']))

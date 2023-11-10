@@ -62,11 +62,13 @@ def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optim
     cluster = ray.nodes()
     head_node_ip = ray.worker.global_worker.node_ip_address
     head_node = [c['NodeID'] for c in cluster if c['NodeName'] == head_node_ip]
+    if len(head_node) != 1:
+        print(f"Could not create exactly one head node. Created {len(head_node)} instead")
+    head_node = head_node[0]
     worker_nodes = [c['NodeID'] for c in cluster if not c['NodeName'] == head_node_ip][:num_data_workers]
 
     if len(cluster) < num_workers:
-        print(f"Not enough nodes to create {num_workers} workers. Created only 1 Parameter Server and"
-              f" {len(worker_nodes)} worker nodes.")
+        print(f"Not enough nodes to create {num_workers} workers. Created only {len(worker_nodes)} worker nodes.")
 
     if use_gpu:
         num_gpu = 1.
@@ -77,7 +79,7 @@ def setup_nodes(model: str, num_workers: int, dataset_name, use_gpu: bool, optim
 
     ps = ParameterServer.options(
         scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
-            node_id=head_node[0],
+            node_id=head_node,
             soft=False
         ),
         num_cpus=num_cpu,
