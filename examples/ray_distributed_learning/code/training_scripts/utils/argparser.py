@@ -4,7 +4,6 @@ from ..data import dataset_classes
 
 
 def get_argparser():
-
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -18,27 +17,40 @@ def get_argparser():
         "--epochs", type=int, default=3, help="Set number of epochs for training"
     )
 
+    parser.add_argument("--lr", type=float, default=0.01, help="Set the learning rate")
+
     parser.add_argument(
-        "--lr", type=float, default=0.01, help="Set the learning rate"
+        "--batch-size",
+        type=int,
+        default=64,
+        help="Set the batch size for training and testing",
     )
 
     parser.add_argument(
-        "--batch-size", type=int, default=64, help="Set the batch size for training and testing"
+        "--model",
+        required=True,
+        type=str,
+        default="convnet",
+        help="The model to use for training and testing",
     )
 
     parser.add_argument(
-        "--model", required=True, type=str, default="convnet", help="The model to use for training and testing"
+        "--use-cpu", action="store_true", default=False, help="Disables GPU training"
     )
 
     parser.add_argument(
-        "--use-gpu", action="store_true", default=False, help="Enables GPU training"
+        "--dataset",
+        type=str,
+        default="mnist",
+        choices=list(dataset_classes.keys()),
+        help="Set Dataset",
     )
-
     parser.add_argument(
-        "--dataset", type=str, default="cifar100", choices=list(dataset_classes.keys()), help="Set Dataset"
-    )
-    parser.add_argument(
-        "--algorithm", type=str, required=True, choices=algorithm_names(), help="Set distributed training algorithm"
+        "--algorithm",
+        type=str,
+        required=True,
+        choices=algorithm_names(),
+        help="Set distributed training algorithm",
     )
 
     return parser

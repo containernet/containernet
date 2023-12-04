@@ -783,7 +783,7 @@ class Docker ( Host ):
             memswap_limit=defaults['memswap_limit']
         )
         self.shm_size = defaults['shm_size']
-        self.nano_cpus = defaults['cpus'] * 1_000_000_000 if defaults['cpus'] else defaults['cpus']
+        self.nano_cpus = defaults['cpus'] * 1_000_000_000 if defaults['cpus'] else None
         self.device_requests = defaults['device_requests']
         self.volumes = defaults['volumes']
         self.tmpfs = defaults['tmpfs']

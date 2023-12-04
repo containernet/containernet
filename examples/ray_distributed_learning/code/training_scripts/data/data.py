@@ -74,6 +74,7 @@ def get_train_dataset(dataset_name: str, data_dir: str = "~/data"):
         transform=dataset_info["transforms"]["train"],
     )
 
+
 def get_test_dataset(dataset_name: str, data_dir: str = "~/data"):
     dataset_info = dataset_classes[dataset_name]
     dataset_class = dataset_info["class"]
@@ -98,6 +99,11 @@ def get_train_loader(
     # Calculate the range of indices for each worker
     dataset_size = len(train_dataset)
     indices = list(range(dataset_size))
+
+    # This partitioning of the dataset may lead to some data not being used
+    # (up to num_workers - 1 samples) as each worker receives exactly the same
+    # amount. This is required, as ps_async expects all workers to have the same
+    # amount when calculating the number of iterations.
     worker_data_size = dataset_size // num_workers
     worker_start_idx = worker_rank * worker_data_size
     worker_end_idx = (worker_rank + 1) * worker_data_size

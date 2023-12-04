@@ -13,4 +13,3 @@ ex -sc "%s/.*$HOST/$IP\t$HOST/g" -cx /etc/hosts
 
 # Deactivate the default eth0 interface
 ifconfig eth0 down
-

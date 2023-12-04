@@ -1,10 +1,9 @@
 from typing import Type, List
 
 from .base_algorithm import Algorithm
-from .allreduce_ring import AllReduceRing
 from .parameter_server import ParameterServerSync, ParameterServerASync
 
-algorithms = [AllReduceRing, ParameterServerSync, ParameterServerASync]
+algorithms = [ParameterServerSync, ParameterServerASync]
 
 
 def algorithm_from_name(name: str) -> Type[Algorithm]:
