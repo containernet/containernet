@@ -4,7 +4,7 @@ Ray Workers in Containernet.
 """
 import os
 from pathlib import Path
-import argparse
+import argparse, time
 
 from mininet.net import Containernet
 from mininet.node import Controller
@@ -34,6 +34,7 @@ def add_docker_containers(
 
     # The first ipy gets assigned to the head node
     ips = [f"10.0.0.{i + 100}" for i in range(num_nodes)]
+
     device_requests = (
         [
             [
@@ -49,24 +50,7 @@ def add_docker_containers(
         else [[] for _ in range(num_nodes)]
     )
 
-    commands = [
-        (
-            f"/bin/bash -c 'python ./training_scripts/data/data.py --data all; "
-            f"/bin/bash ./utils/ping_all.sh {' '.join(ips)};"
-            f"/bin/bash ./utils/edit_hosts.sh;"
-            f"ray start --head --node-ip-address {ips[0]} --disable-usage-stats --num-gpus 1 >/ray.out 2>/ray.err;"
-            f"exec /bin/bash'"
-        )
-    ] + [
-        (
-            f"/bin/bash -c 'python ./training_scripts/data/data.py --data all;"
-            f"/bin/bash ./utils/ping_all.sh {' '.join(ips)};"
-            f"/bin/bash ./utils/edit_hosts.sh;"
-            f"ray start --address {ips[0]}:6379 --disable-usage-stats --num-gpus 1 >/ray.out 2>/ray.err;"
-            f"exec /bin/bash'"
-        )
-        for i in range(1, num_nodes)
-    ]
+    dcmd = "bash -c 'python ./training_scripts/data/data.py --data all; sleep infinity'"
 
     workers_data_folder = "/root/data"
     workers_results_folder = "/root/results"
@@ -75,9 +59,9 @@ def add_docker_containers(
         "head",
         ip=ips[0],
         dimage=image,
-        dcmd=commands[0],
+        dcmd=dcmd,
         cpus=cpus_per_node,
-        shm_size="10240mb",
+        shm_size="4096mb",
         dns=["8.8.8.8"],
         device_requests=device_requests[0],
         volumes=[
@@ -92,9 +76,9 @@ def add_docker_containers(
                 f"worker_{i}",
                 ip=ips[i],
                 dimage=image,
-                dcmd=commands[i],
+                dcmd=dcmd,
                 cpus=cpus_per_node,
-                shm_size="10240mb",
+                shm_size="4096mb",
                 dns=["8.8.8.8"],
                 device_requests=device_requests[i],
                 volumes=[
@@ -104,7 +88,7 @@ def add_docker_containers(
             )
         )
 
-    return head, workers
+    return head, workers, ips[0]
 
 
 def create_links(net, head, workers, link_delay):
@@ -115,6 +99,14 @@ def create_links(net, head, workers, link_delay):
     net.addLink(head, switch, delay=f"{link_delay}ms")
     for worker in workers:
         net.addLink(worker, switch, delay=f"{link_delay}ms")
+
+
+def start_ray(head, workers, head_ip):
+    head.cmd("bash ./utils/edit_hosts")
+    head.cmd(f"ray start --head --node-ip-address {head_ip} --disable-usage-stats")
+    for worker in workers:
+        worker.cmd("bash ./utils/edit_hosts")
+        worker.cmd(f"ray start --address {head_ip}:6379 --disable-usage-stats")
 
 
 def parse_args():
@@ -152,7 +144,7 @@ def parse_args():
         help="Number of cpus per node",
     )
     parser.add_argument(
-        "--image", type=str, default="ray:gpu", help="The docker image used for hosts"
+        "--image", type=str, default="ray", help="The docker image used for hosts"
     )
     return parser.parse_args()
 
@@ -169,14 +161,14 @@ def main():
 
     if gpu_instances and len(gpu_instances) != num_nodes:
         print(
-            f"Received {len(gpu_instances)} gpu ids. This number has to equal num_nodes (currently: {num_nodes})"
+            f"Received {len(gpu_instances)} gpu ids. This number has to be equal to num_nodes (which is: {num_nodes})"
         )
         return
 
     setLogLevel("info")
 
     net = create_net()
-    head, workers = add_docker_containers(
+    head, workers, head_ip = add_docker_containers(
         net,
         image,
         host_data_folder,
@@ -189,10 +181,18 @@ def main():
 
     info("*** Starting network\n")
     net.start()
-    info("*** Testing connectivity\n")
-    net.ping([head, workers[0]])
+
+    while net.pingAll() != 0:
+        time.sleep(1)
+    info("*** Connectivity established\n")
+
+    info("*** Starting Ray\n...")
+    start_ray(head, workers, head_ip)
+    info(" Ray started!\n")
+
     info("*** Running CLI\n")
     CLI(net)
+
     info("*** Stopping network")
     net.stop()
 

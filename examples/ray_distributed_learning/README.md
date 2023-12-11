@@ -31,7 +31,7 @@ This folder contains code and examples for executing distributed Machine Learnin
 
 ### Nvidia Container Toolkit
 
-- Running the Containers with GPU support requires the [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#setting-up-nvidia-container-toolkit).
+- If you plan to use GPUs to accelerate your distributed learning scenario, you need to install the [Nvidia Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#setting-up-nvidia-container-toolkit). For Debian-based systems like Ubuntu, you can use apt:
 
     ```bash
     distribution=$(. /etc/os-release;echo $ID$VERSION_ID) && \
@@ -50,16 +50,37 @@ This folder contains code and examples for executing distributed Machine Learnin
 
 ### Dockerfile
 
-Build the Dockerfile with
+Build the container with
 
 ```bash
-docker build -t ray:gpu .
+docker build -t ray .
 ```
 
-If you don't want to use a GPU, you can use the CPU Dockerfile, which is smaller. The default Dockerfile is a superset of this Dockerfile.
+If you want to use GPUs, you need to build the container using the GPU Dockerfile
 
 ```bash
-docker build -t ray:cpu -f Dockerfile.cpu .
+docker build -t ray:gpu -f Dockerfile.gpu .
+```
+
+### Multi-Instance GPUs
+
+- Some Nvidia GPUs have the ability to split themselves into multiple GPU instances. This can be useful if you want to assign a separate GPU to each container, but have less GPUs than containers. Information on how to create GPU instances can be found in `nvidia-smi mig --help` or the [nvidia blogpost](https://developer.nvidia.com/blog/getting-the-most-out-of-the-a100-gpu-with-multi-instance-gpu/). If you want to automatically switch to a MIG setup, you can use the `setup-mig.sh` script in this folder:
+
+The available options for the script are:
+
+- `-h`, `--help`: Show the help message and exit
+- `-n`, `--num-gpus`: Specify the number of GPUs in your system. Default: 1
+
+For example, to create six instances of different sizes, spanning two GPUs, use the following command:
+
+```bash
+sudo ./setup-mig.sh --num-gpus 2 0:1g.5gb 0:2g.10gb 0:4g.20gb 1:1g.5gb 1:2g.10gb 1:4g.20gb
+```
+
+To remove the current configuration, use:
+
+```bash
+sudo ./setup-mig.sh --num-gpus <Number of GPUs in your system>
 ```
 
 ## Usage
@@ -79,11 +100,17 @@ The available options for the script are:
 - `--results-dir RESULTS_DIR`: Specify the host directory for the results folder. Defaults to `/home/user/results`
 - `--num-nodes NUM_NODES`: Set the number of nodes, including the head node.
 - `--delay DELAY`: Define the delay between nodes in milliseconds.
-- `--image IMAGE`: Define the docker image used. Is `ray:gpu` by default
-- `--gpu-instances INSTANCE INSTANCE ...`: Specify the GPU UUIDs, if you want to attach GPUs to the containers. If this is specified, it has to contain exactly `NUM_NODES` UUIDs. The first UUID is assigned to the parameter server. You can specify a UUID multiple times. To find the UUID(s), use `nvidia-smi -L`
+- `--image IMAGE`: Define the docker image used. Is `ray` by default
 - `--cpus-per-node NUM_CPUS`: Set the number of CPUs of each node. Is 1 by default. If you don't plan to use a GPU, we strongly recommend increasing this.
+- `--gpu-instances INSTANCE INSTANCE ...`: Specify the GPU UUIDs, if you want to attach GPUs to the containers. If this is specified, it has to contain exactly `NUM_NODES` UUIDs. The first UUID is assigned to the head node. You can specify a UUID multiple times. To find the UUID(s) on your system, use `nvidia-smi -L`. If you have exactly NUM_NODES number of GPUs in your system, you can use `$(nvidia-smi -L | grep -Eo "GPU-[0-9a-f\-]+" | tr "\n" " ")` as the value of this flag
 
-For example, to run the script with a data directory of `/root/data`, a results directory of `/root/results`, 3 nodes, and a delay of 10 milliseconds between all nodes, use the following command:
+For example, to run the script with 16 CPUs assigned to each container with a data directory of `/root/data`, a results directory of `/root/results`, 3 nodes, and a delay of 10 milliseconds between all nodes, use the following command:
+
+```bash
+sudo python3 ray_training.py --data-dir /root/data --results-dir /root/results --num-nodes 3 --delay 10 --cpus-per-node 16
+```
+
+A similar setup using GPUs might look like this
 
 ```bash
 sudo python3 ray_training.py --data-dir /root/data --results-dir /root/results --num-nodes 3 --delay 10 --gpu-instances GPU-38f8fa35-6e28-024a-aa8d-893ad0020924 GPU-38f8fa35-6e28-024a-aa8d-893ad0020924 GPU-3ffbb989-4b31-b7f7-939b-608b48b920a8
@@ -105,14 +132,14 @@ The available options for the script are:
 - `--lr`: Set the learning rate (default: 0.01).
 - `--batch-size`: Set the batch size for training (default: 64).
 - `--model`: The model to use for training and inference (required).
-- `--use-cpu`: Disables GPU training.
+- `--use-gpu`: Enables GPU training. Make sure that you have specified `--gpu-instances` when creating the network.
 - `--dataset`: Set the dataset to use, with available choices: `mnist`, `fashion_mnist`, `cifar100` (default: "mnist").
-- `--algorithm`: Set the distributed training algorithm (required), with available choices: `ps_sync`, `ps_async`.
+- `--algorithm`: Set the distributed training algorithm (required), with available choices: `ps_sync`, `ps_async`. The parameter server will always be assigned to the ray head node, and the workers will be assigned to ray workers.
 
 For example, to run the script with 3 workers, 50 iterations, a learning rate of 0.02, the "lenet" model, GPU training enabled, the "mnist" dataset, and the synchronous parameter server algorithm, use the following command:
 
 ```bash
-head python train.py --num-workers 3 --iter 50 --lr 0.02 --model lenet --dataset mnist --algorithm ps_sync
+head python train.py --num-workers 3 --iter 50 --lr 0.02 --model lenet --use-gpu --dataset mnist --algorithm ps_sync
 ```
 
 This will create one parameter server and two workers.

@@ -88,18 +88,18 @@ def setup_nodes(
         )
 
     if use_gpu:
-        num_gpu = 1.0
-        num_cpu = 0.0
+        num_gpus = 1.0
+        num_cpus = 0.0
     else:
-        num_gpu = 0.0
-        num_cpu = 1.0
+        num_gpus = 0.0
+        num_cpus = 1.0
 
     ps = ParameterServer.options(
         scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
             node_id=head_node, soft=False
         ),
-        num_cpus=num_cpu,
-        num_gpus=num_gpu,
+        num_cpus=num_cpus,
+        num_gpus=num_gpus,
     ).remote(model, num_workers, use_gpu, optimizer, lr=lr)
 
     workers = [
@@ -107,8 +107,8 @@ def setup_nodes(
             scheduling_strategy=ray.util.scheduling_strategies.NodeAffinitySchedulingStrategy(
                 node_id=node, soft=False
             ),
-            num_cpus=num_cpu,
-            num_gpus=num_gpu,
+            num_cpus=num_cpus,
+            num_gpus=num_gpus,
         ).remote(
             model,
             use_gpu,
@@ -183,7 +183,7 @@ class ParameterServerASync(Algorithm):
         *args,
         **kwargs,
     ):
-        super().setup(num_workers, use_gpu, lr, batch_size, *args, **kwargs)
+        super().setup(num_workers - 1, use_gpu, lr, batch_size, *args, **kwargs)
         self.ps, self.workers = setup_nodes(
             self.model, num_workers, self.dataset_name, use_gpu, lr=lr
         )

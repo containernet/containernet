@@ -1,5 +1,7 @@
+# Use an official NVIDIA CUDA base image
 ARG OS_VERSION="22.04"
-FROM ubuntu:${OS_VERSION}
+ARG CUDA_VERSION="12.3.0"
+FROM nvidia/cuda:${CUDA_VERSION}-devel-ubuntu${OS_VERSION}
 ENV DEBIAN_FRONTEND=noninteractive
 ARG PYTHON_VERSION=3.11
 ARG RAY_VERSION=2.8.0

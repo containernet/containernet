@@ -35,7 +35,7 @@ def get_argparser():
     )
 
     parser.add_argument(
-        "--use-cpu", action="store_true", default=False, help="Disables GPU training"
+        "--use-gpu", action="store_true", default=False, help="Enables GPU training"
     )
 
     parser.add_argument(
