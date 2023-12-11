@@ -6,13 +6,6 @@ USAGE_STRING="Usage: $(basename $0) [-h/--help] [-n/--num-gpus num gpus] gpu_id:
 NUM_GPUS="1"
 
 # Parse cli args
-getopt -T
-if [[ $? -ne 4 ]]
-then
-    echo "Bad version of getopt. Refusing to work."
-    exit 1
-fi
-
 VALID_ARGS=$(getopt -o "hn:" --longoptions "help,num-gpus:" -- "$@")
 if [[ $? -ne 0 ]]
 then
