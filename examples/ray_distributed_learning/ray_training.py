@@ -91,15 +91,13 @@ def add_docker_containers(
     return head, workers, ips[0]
 
 
-def create_links(net, head, workers, link_delay):
-    info("*** Adding switches\n")
-    switch = net.addSwitch("s1")
+def create_links(net, hosts, switch, link_delay):
+    for host in hosts:
+        net.addLink(host, switch, delay=f"{link_delay}ms")
 
-    info("*** Creating links\n")
-    net.addLink(head, switch, delay=f"{link_delay}ms")
-    for worker in workers:
-        net.addLink(worker, switch, delay=f"{link_delay}ms")
-
+def add_NAT_route(hosts, nat):
+    for host in hosts:
+        host.setDefaultRoute(f'dev {host.defaultIntf()} via {nat.IP()}')
 
 def start_ray(head, workers, head_ip):
     head.cmd("bash ./utils/edit_hosts")
@@ -177,12 +175,22 @@ def main():
         gpu_instances,
         cpus_per_node,
     )
-    create_links(net, head, workers, link_delay)
+    info("*** Adding switches\n")
+    switch = net.addSwitch("s1")
+
+    info("*** Adding NAT\n")
+    nat = net.addNAT(connect=switch)
+
+    info("*** Creating links\n")
+    create_links(net, [head, nat] + workers, switch, link_delay)
 
     info("*** Starting network\n")
     net.start()
 
-    while net.pingAll() != 0:
+    info("*** Adding default route via NAT\n")
+    add_NAT_route([head] + workers, nat)
+
+    while net.pingAll() != 0 or net.ping(manualdestip='8.8.8.8') != 0:
         time.sleep(1)
     info("*** Connectivity established\n")
 
