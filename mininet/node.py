@@ -763,7 +763,8 @@ class Docker ( Host ):
                      'devices': [],
                      'cap_add': ['net_admin'],  # we need this to allow mininet network setup
                      'storage_opt': None,
-                     'sysctls': {}
+                     'sysctls': {},
+                     'cgroup_parent': 'system.slice', # use '/docker' If Docker uses the cgroupfs driver
                      }
         defaults.update( kwargs )
 
@@ -838,9 +839,9 @@ class Docker ( Host ):
             cap_add=self.cap_add,  # see docker-py docu
             sysctls=self.sysctls,   # see docker-py docu
             storage_opt=self.storage_opt,
-            # Assuming Docker uses the cgroupfs driver, we set the parent to safely
-            # access cgroups when modifying resource limits.
-            cgroup_parent='/docker'
+            # Assuming Docker uses the systemd driver because Docker uses cgroupv2 not cgroupv1, 
+            # we set the parent to safely access cgroups when modifying resource limits.
+            cgroup_parent=defaults['cgroup_parent']
         )
 
         if kwargs.get("rm", False):
