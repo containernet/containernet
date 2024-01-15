@@ -745,7 +745,7 @@ class Docker ( Host ):
         self.did = None # Id of running container
         #  let's store our resource limits to have them available through the
         #  Mininet API later on
-        defaults = { 'cpu_quota': -1,
+        defaults = { 'cpu_quota': None,
                      'cpu_period': None,
                      'cpu_shares': None,
                      'cpuset_cpus': None,
@@ -763,7 +763,10 @@ class Docker ( Host ):
                      'devices': [],
                      'cap_add': ['net_admin'],  # we need this to allow mininet network setup
                      'storage_opt': None,
-                     'sysctls': {}
+                     'sysctls': {},
+                     'shm_size': '64mb',
+                     'cpus': None,
+                     'device_requests': []
                      }
         defaults.update( kwargs )
 
@@ -779,7 +782,9 @@ class Docker ( Host ):
             mem_limit=defaults['mem_limit'],
             memswap_limit=defaults['memswap_limit']
         )
-
+        self.shm_size = defaults['shm_size']
+        self.nano_cpus = defaults['cpus'] * 1_000_000_000 if defaults['cpus'] else None
+        self.device_requests = defaults['device_requests']
         self.volumes = defaults['volumes']
         self.tmpfs = defaults['tmpfs']
         self.environment = {} if defaults['environment'] is None else defaults['environment']
@@ -840,7 +845,10 @@ class Docker ( Host ):
             storage_opt=self.storage_opt,
             # Assuming Docker uses the cgroupfs driver, we set the parent to safely
             # access cgroups when modifying resource limits.
-            cgroup_parent='/docker'
+            cgroup_parent='/docker',
+            shm_size=self.shm_size,
+            nano_cpus=self.nano_cpus,
+            device_requests=self.device_requests,
         )
 
         if kwargs.get("rm", False):
@@ -865,7 +873,7 @@ class Docker ( Host ):
             ports=defaults['ports'],
             labels=['com.containernet'],
             volumes=[self._get_volume_mount_name(v) for v in self.volumes if self._get_volume_mount_name(v) is not None],
-            hostname=name
+            hostname=name,
         )
 
         # start the container

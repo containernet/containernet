@@ -44,7 +44,7 @@ setup(
     install_requires=[
         'setuptools',
         'urllib3',
-        'docker<=4.1.0',
+        'docker<=6.0.1',
         'python-iptables',
         'pytest',
         # fixes: https://github.com/pytest-dev/pytest/issues/4770
