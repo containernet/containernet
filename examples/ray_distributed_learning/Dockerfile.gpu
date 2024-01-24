@@ -20,7 +20,7 @@ RUN wget https://bootstrap.pypa.io/get-pip.py && \
     rm get-pip.py
 
 # Install required Python packages
-RUN pip install torch torchvision ray==${RAY_VERSION} tqdm
+RUN pip install torch torchvision "ray[default]"==${RAY_VERSION} tqdm
 
 # Install additional tools for containernet
 RUN apt install -y --no-install-recommends \
@@ -28,6 +28,8 @@ RUN apt install -y --no-install-recommends \
 		net-tools \
 		iputils-ping \
         iproute2
+
+EXPOSE 8265
 
 COPY code ./code
 WORKDIR /code

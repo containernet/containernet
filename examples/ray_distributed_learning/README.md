@@ -143,3 +143,5 @@ head python train.py --num-workers 3 --iter 50 --lr 0.02 --model lenet --use-gpu
 ```
 
 This will create one parameter server and two workers.
+
+You can also open the Ray dashboard in your browser at `http://localhost:8265` to monitor the training process.
