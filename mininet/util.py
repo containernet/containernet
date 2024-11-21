@@ -74,7 +74,15 @@ try:
 except ImportError:
     pass
 
-
+def try_catch(func):
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            em = kwargs.get('catch_message', None)
+            if em: warn(em)
+            warn(f"An error occurred: {e}")
+    return wrapper
 # Command execution support
 
 def run( cmd ):
@@ -471,8 +479,7 @@ def pmonitor(popens, timeoutms=500, readline=True,
         fcntl( fd, F_SETFL, flags | O_NONBLOCK )
     # pylint: disable=too-many-nested-blocks
     while popens:
-        fds = poller.poll( timeoutms )
-        if fds:
+        if fds := poller.poll(timeoutms):
             for fd, event in fds:
                 host = fdToHost[ fd ]
                 decoder = fdToDecoder[ fd ]
@@ -485,7 +492,7 @@ def pmonitor(popens, timeoutms=500, readline=True,
                                                    else f.read( readmax ) )
                         except IOError:
                             line = ''
-                        if line == '':
+                        if not line:
                             break
                         yield host, line
                 if event & POLLHUP:
@@ -495,6 +502,8 @@ def pmonitor(popens, timeoutms=500, readline=True,
             yield None, ''
 
 # Other stuff we use
+
+@try_catch
 def sysctlTestAndSet( name, limit ):
     "Helper function to set sysctl limits"
     # convert non-directory names into directory names
@@ -503,6 +512,7 @@ def sysctlTestAndSet( name, limit ):
     # read limit
     with open( name, 'r' ) as readFile:
         oldLimit = readFile.readline()
+        ic(name, oldLimit, limit)
         if isinstance( limit, int ):
             # compare integer limits before overriding
             if int( oldLimit ) < limit:
@@ -512,40 +522,43 @@ def sysctlTestAndSet( name, limit ):
             # overwrite non-integer limits
             with open( name, 'w' ) as writeFile:
                 writeFile.write( limit )
-
+@try_catch
 def rlimitTestAndSet( name, limit ):
     "Helper function to set rlimits"
     soft, hard = getrlimit( name )
-    if soft < limit:
-        hardLimit = hard if limit < hard else limit
+    ic(soft, limit, hard)
+    if 0 < soft < limit:
+        hardLimit = max(limit, hard)
         setrlimit( name, ( limit, hardLimit ) )
-
-def fixLimits():
+@try_catch
+def fixLimits(catch_message= "*** Error setting resource limits.\n    Mininet's performance may be affected.\n"):
     "Fix ridiculously small resource limits."
     debug( "*** Setting resource limits\n" )
-    try:
-        rlimitTestAndSet( RLIMIT_NPROC, 8192 )
-        rlimitTestAndSet( RLIMIT_NOFILE, 16384 )
-        # Increase open file limit
-        sysctlTestAndSet( 'fs.file-max', 10000 )
-        # Increase network buffer space
-        sysctlTestAndSet( 'net.core.wmem_max', 16777216 )
-        sysctlTestAndSet( 'net.core.rmem_max', 16777216 )
-        sysctlTestAndSet( 'net.ipv4.tcp_rmem', '10240 87380 16777216' )
-        sysctlTestAndSet( 'net.ipv4.tcp_wmem', '10240 87380 16777216' )
-        sysctlTestAndSet( 'net.core.netdev_max_backlog', 5000 )
-        # Increase arp cache size
-        sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh1', 4096 )
-        sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh2', 8192 )
-        sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh3', 16384 )
-        # Increase routing table size
-        sysctlTestAndSet( 'net.ipv4.route.max_size', 32768 )
-        # Increase number of PTYs for nodes
-        sysctlTestAndSet( 'kernel.pty.max', 20000 )
+    rlimitTestAndSet( RLIMIT_NPROC, 8192 )
+    rlimitTestAndSet( RLIMIT_NOFILE, 16384 )
+    # Increase open file limit
+    sysctlTestAndSet( 'fs.file-max', 10000 )
+
+    # Increase network buffer space
+    sysctlTestAndSet( 'net.core.wmem_max', 16777216 )
+    sysctlTestAndSet( 'net.core.rmem_max', 16777216 )
+
+    sysctlTestAndSet( 'net.ipv4.tcp_rmem', '10240 87380 16777216' )
+    sysctlTestAndSet( 'net.ipv4.tcp_wmem', '10240 87380 16777216' )
+    sysctlTestAndSet( 'net.core.netdev_max_backlog', 5000 )
+    # Increase arp cache size
+    sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh1', 4096 )
+    sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh2', 8192 )
+    sysctlTestAndSet( 'net.ipv4.neigh.default.gc_thresh3', 16384 )
+
+    # Increase routing table size
+    sysctlTestAndSet( 'net.ipv4.route.max_size', 32768 )
+
+    # Increase number of PTYs for nodes
+    sysctlTestAndSet( 'kernel.pty.max', 20000 )
+
     # pylint: disable=broad-except
-    except Exception:
-        warn( "*** Error setting resource limits. "
-              "Mininet's performance may be affected.\n" )
+        
     # pylint: enable=broad-except
 
 
