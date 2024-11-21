@@ -29,6 +29,7 @@ def add_docker_containers(
     num_nodes,
     gpu_instances,
     cpus_per_node,
+    ports=None,
 ):
     info("*** Adding docker containers\n")
 
@@ -68,6 +69,8 @@ def add_docker_containers(
             f"{host_data_folder}:{workers_data_folder}",
             f"{host_results_folder}:{workers_results_folder}",
         ],
+        ports=list(ports.keys()),
+        port_bindings=ports,
     )
     workers = []
     for i in range(1, num_nodes):
@@ -85,6 +88,8 @@ def add_docker_containers(
                     f"{host_data_folder}:{workers_data_folder}",
                     f"{host_results_folder}:{workers_results_folder}",
                 ],
+                # ports=list(ports.keys()),  # If also needed for workers
+                # port_bindings=ports,
             )
         )
 
@@ -101,7 +106,7 @@ def add_NAT_route(hosts, nat):
 
 def start_ray(head, workers, head_ip):
     head.cmd("bash ./utils/edit_hosts")
-    head.cmd(f"ray start --head --node-ip-address {head_ip} --disable-usage-stats")
+    head.cmd(f"ray start --head --node-ip-address {head_ip} --disable-usage-stats --dashboard-host=0.0.0.0")
     for worker in workers:
         worker.cmd("bash ./utils/edit_hosts")
         worker.cmd(f"ray start --address {head_ip}:6379 --disable-usage-stats")
@@ -156,6 +161,7 @@ def main():
     link_delay = args.delay / 2
     gpu_instances = args.gpu_instances
     cpus_per_node = args.cpus_per_node
+    ports = {8265: 8265}
 
     if gpu_instances and len(gpu_instances) != num_nodes:
         print(
@@ -174,6 +180,7 @@ def main():
         num_nodes,
         gpu_instances,
         cpus_per_node,
+        ports=ports,
     )
     info("*** Adding switches\n")
     switch = net.addSwitch("s1")
