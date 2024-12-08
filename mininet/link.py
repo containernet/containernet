@@ -494,7 +494,7 @@ class Link( object ):
         "Construct a canonical interface name node-ethN for interface n."
         # Leave this as an instance method for now
         assert self
-        return node.name + '-eth' + repr( n )
+        return node.name + '_eth' + repr( n )
 
     @classmethod
     def makeIntfPair( cls, intfname1, intfname2, addr1=None, addr2=None,

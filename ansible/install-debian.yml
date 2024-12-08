@@ -1,0 +1,65 @@
+- hosts: localhost
+  tasks:
+   - name: updates apt
+     apt:
+      update_cache: yes
+
+   - name: install basic packages
+     apt:
+      name: [
+        'aptitude', 'apt-transport-https', 'ca-certificates',
+        'curl', 'python3-setuptools', 'python3-dev', 'build-essential',
+        'python3-pip','iptables','software-properties-common',
+        'stress-ng', 'coreutils', 'iproute2', 'net-tools'
+        ]
+      state: present
+
+   - name: "Check if Docker-CE is installed"
+     package_facts:
+      manager: "auto"
+
+   - name: Add Docker CE repository key
+     shell: "curl -fsSL https://download.docker.com/linux/debian/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
+
+   - name: Check system architecture
+     shell: "dpkg --print-architecture"
+     register: arch
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
+
+   - name: Check OS Codename
+     shell: "lsb_release -cs"
+     register: codename
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
+
+   - name: Install Docker CE repository
+     apt_repository:
+       repo: "deb [arch={{arch.stdout}} signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian {{codename.stdout}} stable"
+       filename: "docker"
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
+
+   - name: install Docker CE
+     apt: name=docker-ce state=present
+     when: "'docker-ce' not in ansible_facts.packages and 'moby-engine' not in ansible_facts.packages"
+
+   - name: find pip executable
+     shell: "which pip3"
+     register: pip_path
+
+   - name: build and install Containernet dependencies (using Mininet installer)
+     shell: PYTHON=python3 containernet/util/install.sh -fnv
+     args:
+       chdir: ../../
+
+   - name: install Containernet binaries
+     shell: make -f Makefile install-mnexec install-manpages
+     args:
+       chdir: ../
+     tags:
+       - notindocker
+
+   - name: download 'ubuntu' docker image for Containernet example
+     shell: docker pull ubuntu:trusty
+     tags:
+        - notindocker
+        - nopull
