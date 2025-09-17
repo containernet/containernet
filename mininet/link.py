@@ -72,7 +72,8 @@ class Intf( object ):
 
     def ifconfig( self, *args ):
         "Configure ourselves using ifconfig"
-        return self.cmd( 'ifconfig', self.name, *args )
+        output, err, exit_code = self.node.pexec(['ifconfig', self.name] + list(args))
+        return output.strip() if exit_code == 0 else err.strip()
 
     def setIP( self, ipstr, prefixLen=None, overwrite=True ):
         """Set our IP address"""

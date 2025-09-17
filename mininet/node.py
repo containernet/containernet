@@ -769,7 +769,8 @@ class Docker ( Host ):
                      'sysctls': {},
                      'shm_size': '64mb',
                      'cpus': None,
-                     'device_requests': []
+                     'device_requests': [],
+                     'runtime': None,  # e.g. 'nvidia'
                      }
         defaults.update( kwargs )
 
@@ -802,6 +803,7 @@ class Docker ( Host ):
         self.cap_add = defaults['cap_add']
         self.sysctls = defaults['sysctls']
         self.storage_opt = defaults['storage_opt']
+        self.runtime = defaults['runtime']
 
         # setup docker client
         # self.dcli = docker.APIClient(base_url='unix://var/run/docker.sock')
@@ -854,6 +856,7 @@ class Docker ( Host ):
             shm_size=self.shm_size,
             nano_cpus=self.nano_cpus,
             device_requests=self.device_requests,
+            runtime=self.runtime
         )
 
         if kwargs.get("rm", False):
